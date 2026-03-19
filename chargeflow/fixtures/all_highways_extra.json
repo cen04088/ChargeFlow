@@ -1,0 +1,3404 @@
+[
+  {
+    "model": "chargeflow.highway",
+    "pk": 1,
+    "fields": {
+      "code": "gyeongbu",
+      "name": "경부고속도로",
+      "total_distance_km": 416.0
+    }
+  },
+  {
+    "model": "chargeflow.highway",
+    "pk": 2,
+    "fields": {
+      "code": "yeongdong",
+      "name": "영동고속도로",
+      "total_distance_km": 234.4
+    }
+  },
+  {
+    "model": "chargeflow.highway",
+    "pk": 3,
+    "fields": {
+      "code": "seohaeAN",
+      "name": "서해안고속도로",
+      "total_distance_km": 340.4
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 62,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 1,
+      "name": "부산TG",
+      "latitude": "35.1851",
+      "longitude": "129.0731",
+      "distance_from_start_km": 0.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 63,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 2,
+      "name": "구서IC",
+      "latitude": "35.2012",
+      "longitude": "129.0482",
+      "distance_from_start_km": 11.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 64,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 3,
+      "name": "부산IC",
+      "latitude": "35.2201",
+      "longitude": "129.0012",
+      "distance_from_start_km": 15.2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 65,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 4,
+      "name": "서부산IC",
+      "latitude": "35.2812",
+      "longitude": "128.9841",
+      "distance_from_start_km": 23.5,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 66,
+    "fields": {
+      "highway": 1,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 5,
+      "name": "언양휴게소",
+      "latitude": "35.3512",
+      "longitude": "129.1012",
+      "distance_from_start_km": 34.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 67,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 6,
+      "name": "양산IC",
+      "latitude": "35.3901",
+      "longitude": "129.1592",
+      "distance_from_start_km": 40.6,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 68,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 7,
+      "name": "울산IC",
+      "latitude": "35.4812",
+      "longitude": "129.2841",
+      "distance_from_start_km": 53.3,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 69,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 8,
+      "name": "서울산IC",
+      "latitude": "35.5109",
+      "longitude": "129.1512",
+      "distance_from_start_km": 63.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 70,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 9,
+      "name": "통도사IC",
+      "latitude": "35.5412",
+      "longitude": "129.0981",
+      "distance_from_start_km": 68.7,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 71,
+    "fields": {
+      "highway": 1,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 10,
+      "name": "통도사휴게소",
+      "latitude": "35.5701",
+      "longitude": "129.0712",
+      "distance_from_start_km": 72.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 72,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 11,
+      "name": "건천IC",
+      "latitude": "35.6302",
+      "longitude": "129.0121",
+      "distance_from_start_km": 81.6,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 73,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 12,
+      "name": "경주IC",
+      "latitude": "35.6743",
+      "longitude": "128.9423",
+      "distance_from_start_km": 89.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 74,
+    "fields": {
+      "highway": 1,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 13,
+      "name": "경주휴게소",
+      "latitude": "35.6912",
+      "longitude": "128.9112",
+      "distance_from_start_km": 93.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 75,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 14,
+      "name": "남경산IC",
+      "latitude": "35.7701",
+      "longitude": "128.7991",
+      "distance_from_start_km": 107.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 76,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 15,
+      "name": "경산IC",
+      "latitude": "35.8012",
+      "longitude": "128.7412",
+      "distance_from_start_km": 113.3,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 77,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 16,
+      "name": "동대구IC",
+      "latitude": "35.8213",
+      "longitude": "128.6901",
+      "distance_from_start_km": 117.9,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 78,
+    "fields": {
+      "highway": 1,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 17,
+      "name": "대구휴게소",
+      "latitude": "35.8412",
+      "longitude": "128.6312",
+      "distance_from_start_km": 121.3,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 79,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 18,
+      "name": "대구IC",
+      "latitude": "35.8701",
+      "longitude": "128.5892",
+      "distance_from_start_km": 125.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 80,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 19,
+      "name": "다부IC",
+      "latitude": "35.9131",
+      "longitude": "128.5102",
+      "distance_from_start_km": 132.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 81,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 20,
+      "name": "칠곡IC",
+      "latitude": "35.9412",
+      "longitude": "128.4981",
+      "distance_from_start_km": 135.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 82,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 21,
+      "name": "북대구IC",
+      "latitude": "35.9901",
+      "longitude": "128.4751",
+      "distance_from_start_km": 141.6,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 83,
+    "fields": {
+      "highway": 1,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 22,
+      "name": "낙동강휴게소",
+      "latitude": "36.1801",
+      "longitude": "128.4102",
+      "distance_from_start_km": 156.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 84,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 23,
+      "name": "선산IC",
+      "latitude": "36.1389",
+      "longitude": "128.3512",
+      "distance_from_start_km": 162.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 85,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 24,
+      "name": "구미IC",
+      "latitude": "36.0902",
+      "longitude": "128.2841",
+      "distance_from_start_km": 170.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 86,
+    "fields": {
+      "highway": 1,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 25,
+      "name": "김천휴게소",
+      "latitude": "36.0301",
+      "longitude": "128.2012",
+      "distance_from_start_km": 177.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 87,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 26,
+      "name": "남김천IC",
+      "latitude": "36.0712",
+      "longitude": "128.1582",
+      "distance_from_start_km": 181.6,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 88,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 27,
+      "name": "김천IC",
+      "latitude": "36.1103",
+      "longitude": "128.1141",
+      "distance_from_start_km": 187.9,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 89,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 28,
+      "name": "추풍령IC",
+      "latitude": "36.0571",
+      "longitude": "127.9382",
+      "distance_from_start_km": 200.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 90,
+    "fields": {
+      "highway": 1,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 29,
+      "name": "추풍령휴게소",
+      "latitude": "36.0812",
+      "longitude": "127.9102",
+      "distance_from_start_km": 203.7,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 91,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 30,
+      "name": "황간IC",
+      "latitude": "36.1238",
+      "longitude": "127.8451",
+      "distance_from_start_km": 212.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 92,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 31,
+      "name": "영동IC",
+      "latitude": "36.1741",
+      "longitude": "127.7812",
+      "distance_from_start_km": 219.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 93,
+    "fields": {
+      "highway": 1,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 32,
+      "name": "옥천휴게소",
+      "latitude": "36.2541",
+      "longitude": "127.6019",
+      "distance_from_start_km": 232.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 94,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 33,
+      "name": "옥천IC",
+      "latitude": "36.2973",
+      "longitude": "127.5712",
+      "distance_from_start_km": 237.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 95,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 34,
+      "name": "비룡IC",
+      "latitude": "36.3109",
+      "longitude": "127.4451",
+      "distance_from_start_km": 245.2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 96,
+    "fields": {
+      "highway": 1,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 35,
+      "name": "금강휴게소",
+      "latitude": "36.3312",
+      "longitude": "127.4318",
+      "distance_from_start_km": 248.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 97,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 36,
+      "name": "대전IC",
+      "latitude": "36.3813",
+      "longitude": "127.4021",
+      "distance_from_start_km": 253.5,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 98,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 37,
+      "name": "신탄진IC",
+      "latitude": "36.4509",
+      "longitude": "127.4102",
+      "distance_from_start_km": 259.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 99,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 38,
+      "name": "회덕IC",
+      "latitude": "36.421",
+      "longitude": "127.3891",
+      "distance_from_start_km": 264.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 100,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 39,
+      "name": "탄천IC",
+      "latitude": "36.5903",
+      "longitude": "127.0478",
+      "distance_from_start_km": 283.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 101,
+    "fields": {
+      "highway": 1,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 40,
+      "name": "정안휴게소",
+      "latitude": "36.6602",
+      "longitude": "127.0762",
+      "distance_from_start_km": 291.7,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 102,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 41,
+      "name": "입장IC",
+      "latitude": "36.7041",
+      "longitude": "127.0812",
+      "distance_from_start_km": 297.3,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 103,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 42,
+      "name": "풍세IC",
+      "latitude": "36.7302",
+      "longitude": "127.1401",
+      "distance_from_start_km": 302.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 104,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 43,
+      "name": "남천안IC",
+      "latitude": "36.7674",
+      "longitude": "127.19",
+      "distance_from_start_km": 307.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 105,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 44,
+      "name": "목천IC",
+      "latitude": "36.7927",
+      "longitude": "127.2079",
+      "distance_from_start_km": 310.9,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 106,
+    "fields": {
+      "highway": 1,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 45,
+      "name": "천안휴게소",
+      "latitude": "36.8198",
+      "longitude": "127.1982",
+      "distance_from_start_km": 314.7,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 107,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 46,
+      "name": "천안IC",
+      "latitude": "36.8452",
+      "longitude": "127.2183",
+      "distance_from_start_km": 318.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 108,
+    "fields": {
+      "highway": 1,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 47,
+      "name": "안성휴게소",
+      "latitude": "36.9431",
+      "longitude": "127.3311",
+      "distance_from_start_km": 332.5,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 109,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 48,
+      "name": "안성IC",
+      "latitude": "36.9712",
+      "longitude": "127.3094",
+      "distance_from_start_km": 337.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 110,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 49,
+      "name": "북안성IC",
+      "latitude": "36.989",
+      "longitude": "127.26",
+      "distance_from_start_km": 339.5,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 111,
+    "fields": {
+      "highway": 1,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 50,
+      "name": "오산휴게소",
+      "latitude": "37.0978",
+      "longitude": "127.0577",
+      "distance_from_start_km": 356.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 112,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 51,
+      "name": "오산IC",
+      "latitude": "37.1423",
+      "longitude": "127.0652",
+      "distance_from_start_km": 361.9,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 113,
+    "fields": {
+      "highway": 1,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 52,
+      "name": "동탄휴게소",
+      "latitude": "37.1558",
+      "longitude": "127.0524",
+      "distance_from_start_km": 364.2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 114,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 53,
+      "name": "동탄IC",
+      "latitude": "37.196",
+      "longitude": "127.0774",
+      "distance_from_start_km": 369.5,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 115,
+    "fields": {
+      "highway": 1,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 54,
+      "name": "기흥휴게소",
+      "latitude": "37.2302",
+      "longitude": "127.1079",
+      "distance_from_start_km": 375.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 116,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 55,
+      "name": "기흥IC",
+      "latitude": "37.2547",
+      "longitude": "127.1138",
+      "distance_from_start_km": 378.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 117,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 56,
+      "name": "수원신갈IC",
+      "latitude": "37.2802",
+      "longitude": "127.1153",
+      "distance_from_start_km": 382.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 118,
+    "fields": {
+      "highway": 1,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 57,
+      "name": "죽전휴게소",
+      "latitude": "37.3285",
+      "longitude": "127.1098",
+      "distance_from_start_km": 388.7,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 119,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 58,
+      "name": "판교IC",
+      "latitude": "37.3882",
+      "longitude": "127.0934",
+      "distance_from_start_km": 396.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 120,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 59,
+      "name": "양재IC",
+      "latitude": "37.3934",
+      "longitude": "127.0443",
+      "distance_from_start_km": 401.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 121,
+    "fields": {
+      "highway": 1,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 60,
+      "name": "만남의광장휴게소",
+      "latitude": "37.4612",
+      "longitude": "127.0431",
+      "distance_from_start_km": 408.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 122,
+    "fields": {
+      "highway": 1,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 61,
+      "name": "서울TG",
+      "latitude": "37.524",
+      "longitude": "127.0208",
+      "distance_from_start_km": 416.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 123,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 1,
+      "name": "조남JCT",
+      "latitude": "37.3812",
+      "longitude": "126.8901",
+      "distance_from_start_km": 0.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 124,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 2,
+      "name": "안산IC",
+      "latitude": "37.3312",
+      "longitude": "126.8512",
+      "distance_from_start_km": 8.5,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 125,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 3,
+      "name": "비봉IC",
+      "latitude": "37.2541",
+      "longitude": "126.8102",
+      "distance_from_start_km": 19.2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 126,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 4,
+      "name": "서해안휴게소",
+      "latitude": "37.1981",
+      "longitude": "126.8234",
+      "distance_from_start_km": 27.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 127,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 5,
+      "name": "발안IC",
+      "latitude": "37.1812",
+      "longitude": "126.8301",
+      "distance_from_start_km": 30.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 128,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 6,
+      "name": "서평택IC",
+      "latitude": "37.0901",
+      "longitude": "126.8812",
+      "distance_from_start_km": 42.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 129,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 7,
+      "name": "서평택휴게소",
+      "latitude": "37.0534",
+      "longitude": "126.8951",
+      "distance_from_start_km": 48.3,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 130,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 8,
+      "name": "평택IC",
+      "latitude": "36.9901",
+      "longitude": "126.9012",
+      "distance_from_start_km": 53.5,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 131,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 9,
+      "name": "송악IC",
+      "latitude": "36.9012",
+      "longitude": "126.8712",
+      "distance_from_start_km": 62.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 132,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 10,
+      "name": "행담도휴게소",
+      "latitude": "36.8534",
+      "longitude": "126.8023",
+      "distance_from_start_km": 69.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 133,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 11,
+      "name": "당진IC",
+      "latitude": "36.8901",
+      "longitude": "126.6341",
+      "distance_from_start_km": 81.2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 134,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 12,
+      "name": "고덕IC",
+      "latitude": "36.8102",
+      "longitude": "126.6012",
+      "distance_from_start_km": 87.9,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 135,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 13,
+      "name": "당진휴게소",
+      "latitude": "36.7412",
+      "longitude": "126.5712",
+      "distance_from_start_km": 95.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 136,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 14,
+      "name": "서산IC",
+      "latitude": "36.7012",
+      "longitude": "126.5102",
+      "distance_from_start_km": 101.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 137,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 15,
+      "name": "해미IC",
+      "latitude": "36.6512",
+      "longitude": "126.5341",
+      "distance_from_start_km": 109.2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 138,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 16,
+      "name": "해미휴게소",
+      "latitude": "36.6012",
+      "longitude": "126.5012",
+      "distance_from_start_km": 115.7,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 139,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 17,
+      "name": "홍성IC",
+      "latitude": "36.5341",
+      "longitude": "126.5812",
+      "distance_from_start_km": 124.5,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 140,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 18,
+      "name": "광천IC",
+      "latitude": "36.4712",
+      "longitude": "126.6012",
+      "distance_from_start_km": 133.2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 141,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 19,
+      "name": "홍성휴게소",
+      "latitude": "36.4201",
+      "longitude": "126.6341",
+      "distance_from_start_km": 140.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 142,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 20,
+      "name": "대천IC",
+      "latitude": "36.3341",
+      "longitude": "126.6101",
+      "distance_from_start_km": 151.5,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 143,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 21,
+      "name": "보령IC",
+      "latitude": "36.2812",
+      "longitude": "126.6012",
+      "distance_from_start_km": 158.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 144,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 22,
+      "name": "보령휴게소",
+      "latitude": "36.2212",
+      "longitude": "126.6201",
+      "distance_from_start_km": 165.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 145,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 23,
+      "name": "무창포IC",
+      "latitude": "36.1701",
+      "longitude": "126.6412",
+      "distance_from_start_km": 172.3,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 146,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 24,
+      "name": "서천IC",
+      "latitude": "36.0601",
+      "longitude": "126.6912",
+      "distance_from_start_km": 185.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 147,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 25,
+      "name": "서천휴게소",
+      "latitude": "36.0012",
+      "longitude": "126.7201",
+      "distance_from_start_km": 192.7,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 148,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 26,
+      "name": "동군산IC",
+      "latitude": "35.9412",
+      "longitude": "126.7512",
+      "distance_from_start_km": 200.5,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 149,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 27,
+      "name": "군산IC",
+      "latitude": "35.9012",
+      "longitude": "126.7101",
+      "distance_from_start_km": 207.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 150,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 28,
+      "name": "군산휴게소",
+      "latitude": "35.8512",
+      "longitude": "126.7312",
+      "distance_from_start_km": 215.6,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 151,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 29,
+      "name": "새만금IC",
+      "latitude": "35.8012",
+      "longitude": "126.7512",
+      "distance_from_start_km": 222.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 152,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 30,
+      "name": "부안IC",
+      "latitude": "35.7012",
+      "longitude": "126.7112",
+      "distance_from_start_km": 234.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 153,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 31,
+      "name": "부안휴게소",
+      "latitude": "35.6512",
+      "longitude": "126.7012",
+      "distance_from_start_km": 242.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 154,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 32,
+      "name": "줄포IC",
+      "latitude": "35.5712",
+      "longitude": "126.7312",
+      "distance_from_start_km": 252.3,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 155,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 33,
+      "name": "고창IC",
+      "latitude": "35.4312",
+      "longitude": "126.7012",
+      "distance_from_start_km": 267.5,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 156,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 34,
+      "name": "고창휴게소",
+      "latitude": "35.3812",
+      "longitude": "126.7201",
+      "distance_from_start_km": 273.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 157,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 35,
+      "name": "무장IC",
+      "latitude": "35.2912",
+      "longitude": "126.7512",
+      "distance_from_start_km": 285.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 158,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 36,
+      "name": "영광IC",
+      "latitude": "35.2012",
+      "longitude": "126.7012",
+      "distance_from_start_km": 296.2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 159,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 37,
+      "name": "영광휴게소",
+      "latitude": "35.1512",
+      "longitude": "126.7201",
+      "distance_from_start_km": 303.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 160,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 38,
+      "name": "법성포IC",
+      "latitude": "35.1012",
+      "longitude": "126.6512",
+      "distance_from_start_km": 310.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 161,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 39,
+      "name": "함평IC",
+      "latitude": "35.0601",
+      "longitude": "126.5712",
+      "distance_from_start_km": 318.2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 162,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 40,
+      "name": "함평휴게소",
+      "latitude": "35.0101",
+      "longitude": "126.5301",
+      "distance_from_start_km": 325.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 163,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 41,
+      "name": "무안IC",
+      "latitude": "34.9601",
+      "longitude": "126.4812",
+      "distance_from_start_km": 332.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 164,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 42,
+      "name": "남무안IC",
+      "latitude": "34.9012",
+      "longitude": "126.4412",
+      "distance_from_start_km": 337.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 165,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 43,
+      "name": "목포IC",
+      "latitude": "34.8312",
+      "longitude": "126.4012",
+      "distance_from_start_km": 340.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 166,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 1,
+      "name": "목포IC",
+      "latitude": "34.8312",
+      "longitude": "126.4012",
+      "distance_from_start_km": 0.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 167,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 2,
+      "name": "남무안IC",
+      "latitude": "34.9012",
+      "longitude": "126.4412",
+      "distance_from_start_km": 3.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 168,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 3,
+      "name": "무안IC",
+      "latitude": "34.9601",
+      "longitude": "126.4812",
+      "distance_from_start_km": 7.7,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 169,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 4,
+      "name": "함평휴게소",
+      "latitude": "35.0101",
+      "longitude": "126.5301",
+      "distance_from_start_km": 15.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 170,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 5,
+      "name": "함평IC",
+      "latitude": "35.0601",
+      "longitude": "126.5712",
+      "distance_from_start_km": 22.3,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 171,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 6,
+      "name": "법성포IC",
+      "latitude": "35.1012",
+      "longitude": "126.6512",
+      "distance_from_start_km": 30.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 172,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 7,
+      "name": "영광휴게소",
+      "latitude": "35.1512",
+      "longitude": "126.7201",
+      "distance_from_start_km": 37.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 173,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 8,
+      "name": "영광IC",
+      "latitude": "35.2012",
+      "longitude": "126.7012",
+      "distance_from_start_km": 44.3,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 174,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 9,
+      "name": "무장IC",
+      "latitude": "35.2912",
+      "longitude": "126.7512",
+      "distance_from_start_km": 55.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 175,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 10,
+      "name": "고창휴게소",
+      "latitude": "35.3812",
+      "longitude": "126.7201",
+      "distance_from_start_km": 66.7,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 176,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 11,
+      "name": "고창IC",
+      "latitude": "35.4312",
+      "longitude": "126.7012",
+      "distance_from_start_km": 73.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 177,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 12,
+      "name": "줄포IC",
+      "latitude": "35.5712",
+      "longitude": "126.7312",
+      "distance_from_start_km": 88.2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 178,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 13,
+      "name": "부안휴게소",
+      "latitude": "35.6512",
+      "longitude": "126.7012",
+      "distance_from_start_km": 98.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 179,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 14,
+      "name": "부안IC",
+      "latitude": "35.7012",
+      "longitude": "126.7112",
+      "distance_from_start_km": 105.7,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 180,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 15,
+      "name": "새만금IC",
+      "latitude": "35.8012",
+      "longitude": "126.7512",
+      "distance_from_start_km": 118.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 181,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 16,
+      "name": "군산휴게소",
+      "latitude": "35.8512",
+      "longitude": "126.7312",
+      "distance_from_start_km": 124.9,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 182,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 17,
+      "name": "군산IC",
+      "latitude": "35.9012",
+      "longitude": "126.7101",
+      "distance_from_start_km": 132.7,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 183,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 18,
+      "name": "동군산IC",
+      "latitude": "35.9412",
+      "longitude": "126.7512",
+      "distance_from_start_km": 140.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 184,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 19,
+      "name": "서천휴게소",
+      "latitude": "36.0012",
+      "longitude": "126.7201",
+      "distance_from_start_km": 147.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 185,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 20,
+      "name": "서천IC",
+      "latitude": "36.0601",
+      "longitude": "126.6912",
+      "distance_from_start_km": 155.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 186,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 21,
+      "name": "무창포IC",
+      "latitude": "36.1701",
+      "longitude": "126.6412",
+      "distance_from_start_km": 168.2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 187,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 22,
+      "name": "보령휴게소",
+      "latitude": "36.2212",
+      "longitude": "126.6201",
+      "distance_from_start_km": 175.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 188,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 23,
+      "name": "보령IC",
+      "latitude": "36.2812",
+      "longitude": "126.6012",
+      "distance_from_start_km": 182.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 189,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 24,
+      "name": "대천IC",
+      "latitude": "36.3341",
+      "longitude": "126.6101",
+      "distance_from_start_km": 188.9,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 190,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 25,
+      "name": "홍성휴게소",
+      "latitude": "36.4201",
+      "longitude": "126.6341",
+      "distance_from_start_km": 199.7,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 191,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 26,
+      "name": "광천IC",
+      "latitude": "36.4712",
+      "longitude": "126.6012",
+      "distance_from_start_km": 207.3,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 192,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 27,
+      "name": "홍성IC",
+      "latitude": "36.5341",
+      "longitude": "126.5812",
+      "distance_from_start_km": 216.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 193,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 28,
+      "name": "해미휴게소",
+      "latitude": "36.6012",
+      "longitude": "126.5012",
+      "distance_from_start_km": 224.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 194,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 29,
+      "name": "해미IC",
+      "latitude": "36.6512",
+      "longitude": "126.5341",
+      "distance_from_start_km": 231.3,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 195,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 30,
+      "name": "서산IC",
+      "latitude": "36.7012",
+      "longitude": "126.5102",
+      "distance_from_start_km": 238.7,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 196,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 31,
+      "name": "당진휴게소",
+      "latitude": "36.7412",
+      "longitude": "126.5712",
+      "distance_from_start_km": 245.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 197,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 32,
+      "name": "고덕IC",
+      "latitude": "36.8102",
+      "longitude": "126.6012",
+      "distance_from_start_km": 252.6,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 198,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 33,
+      "name": "당진IC",
+      "latitude": "36.8901",
+      "longitude": "126.6341",
+      "distance_from_start_km": 259.3,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 199,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 34,
+      "name": "행담도휴게소",
+      "latitude": "36.8534",
+      "longitude": "126.8023",
+      "distance_from_start_km": 270.7,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 200,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 35,
+      "name": "송악IC",
+      "latitude": "36.9012",
+      "longitude": "126.8712",
+      "distance_from_start_km": 278.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 201,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 36,
+      "name": "평택IC",
+      "latitude": "36.9901",
+      "longitude": "126.9012",
+      "distance_from_start_km": 286.9,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 202,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 37,
+      "name": "서평택휴게소",
+      "latitude": "37.0534",
+      "longitude": "126.8951",
+      "distance_from_start_km": 292.2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 203,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 38,
+      "name": "서평택IC",
+      "latitude": "37.0901",
+      "longitude": "126.8812",
+      "distance_from_start_km": 297.7,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 204,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 39,
+      "name": "발안IC",
+      "latitude": "37.1812",
+      "longitude": "126.8301",
+      "distance_from_start_km": 310.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 205,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 40,
+      "name": "비봉IC",
+      "latitude": "37.2541",
+      "longitude": "126.8102",
+      "distance_from_start_km": 321.3,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 206,
+    "fields": {
+      "highway": 3,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 41,
+      "name": "서해안휴게소",
+      "latitude": "37.1981",
+      "longitude": "126.8234",
+      "distance_from_start_km": 313.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 207,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 42,
+      "name": "안산IC",
+      "latitude": "37.3312",
+      "longitude": "126.8512",
+      "distance_from_start_km": 332.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 208,
+    "fields": {
+      "highway": 3,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 43,
+      "name": "조남JCT",
+      "latitude": "37.3812",
+      "longitude": "126.8901",
+      "distance_from_start_km": 340.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 209,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 1,
+      "name": "인천IC",
+      "latitude": "37.4523",
+      "longitude": "126.7134",
+      "distance_from_start_km": 0.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 210,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 2,
+      "name": "남인천IC",
+      "latitude": "37.4231",
+      "longitude": "126.7012",
+      "distance_from_start_km": 5.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 211,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 3,
+      "name": "시흥IC",
+      "latitude": "37.3912",
+      "longitude": "126.7523",
+      "distance_from_start_km": 13.2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 212,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 4,
+      "name": "안산JCT",
+      "latitude": "37.3534",
+      "longitude": "126.8123",
+      "distance_from_start_km": 20.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 213,
+    "fields": {
+      "highway": 2,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 5,
+      "name": "매송휴게소",
+      "latitude": "37.3201",
+      "longitude": "126.8812",
+      "distance_from_start_km": 27.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 214,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 6,
+      "name": "군포IC",
+      "latitude": "37.3312",
+      "longitude": "126.9234",
+      "distance_from_start_km": 33.5,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 215,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 7,
+      "name": "의왕IC",
+      "latitude": "37.3534",
+      "longitude": "127.0012",
+      "distance_from_start_km": 40.2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 216,
+    "fields": {
+      "highway": 2,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 8,
+      "name": "의왕휴게소",
+      "latitude": "37.3712",
+      "longitude": "127.0534",
+      "distance_from_start_km": 47.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 217,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 9,
+      "name": "판교JCT",
+      "latitude": "37.3882",
+      "longitude": "127.0934",
+      "distance_from_start_km": 53.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 218,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 10,
+      "name": "성남IC",
+      "latitude": "37.4123",
+      "longitude": "127.1234",
+      "distance_from_start_km": 59.2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 219,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 11,
+      "name": "광주IC",
+      "latitude": "37.4012",
+      "longitude": "127.2523",
+      "distance_from_start_km": 72.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 220,
+    "fields": {
+      "highway": 2,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 12,
+      "name": "덕평휴게소",
+      "latitude": "37.3812",
+      "longitude": "127.3512",
+      "distance_from_start_km": 82.3,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 221,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 13,
+      "name": "이천IC",
+      "latitude": "37.2734",
+      "longitude": "127.4423",
+      "distance_from_start_km": 98.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 222,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 14,
+      "name": "여주IC",
+      "latitude": "37.2923",
+      "longitude": "127.6312",
+      "distance_from_start_km": 113.5,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 223,
+    "fields": {
+      "highway": 2,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 15,
+      "name": "여주휴게소",
+      "latitude": "37.2812",
+      "longitude": "127.6912",
+      "distance_from_start_km": 119.2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 224,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 16,
+      "name": "문막IC",
+      "latitude": "37.3012",
+      "longitude": "127.8423",
+      "distance_from_start_km": 134.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 225,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 17,
+      "name": "원주IC",
+      "latitude": "37.3423",
+      "longitude": "127.9212",
+      "distance_from_start_km": 144.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 226,
+    "fields": {
+      "highway": 2,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 18,
+      "name": "원주휴게소",
+      "latitude": "37.3534",
+      "longitude": "127.9812",
+      "distance_from_start_km": 150.7,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 227,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 19,
+      "name": "새말IC",
+      "latitude": "37.4234",
+      "longitude": "128.0234",
+      "distance_from_start_km": 160.2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 228,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 20,
+      "name": "횡성IC",
+      "latitude": "37.4923",
+      "longitude": "128.0712",
+      "distance_from_start_km": 167.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 229,
+    "fields": {
+      "highway": 2,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 21,
+      "name": "둔내휴게소",
+      "latitude": "37.5312",
+      "longitude": "128.1923",
+      "distance_from_start_km": 179.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 230,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 22,
+      "name": "둔내IC",
+      "latitude": "37.5512",
+      "longitude": "128.2312",
+      "distance_from_start_km": 183.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 231,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 23,
+      "name": "방림IC",
+      "latitude": "37.5812",
+      "longitude": "128.3012",
+      "distance_from_start_km": 192.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 232,
+    "fields": {
+      "highway": 2,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 24,
+      "name": "평창휴게소",
+      "latitude": "37.5912",
+      "longitude": "128.4523",
+      "distance_from_start_km": 204.3,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 233,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 25,
+      "name": "평창IC",
+      "latitude": "37.6034",
+      "longitude": "128.5212",
+      "distance_from_start_km": 211.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 234,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 26,
+      "name": "장평IC",
+      "latitude": "37.6212",
+      "longitude": "128.6023",
+      "distance_from_start_km": 222.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 235,
+    "fields": {
+      "highway": 2,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 27,
+      "name": "진부휴게소",
+      "latitude": "37.6534",
+      "longitude": "128.7312",
+      "distance_from_start_km": 234.5,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 236,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 28,
+      "name": "진부IC",
+      "latitude": "37.6812",
+      "longitude": "128.7812",
+      "distance_from_start_km": 239.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 237,
+    "fields": {
+      "highway": 2,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 29,
+      "name": "강릉휴게소",
+      "latitude": "37.7301",
+      "longitude": "128.8534",
+      "distance_from_start_km": 248.2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 238,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 30,
+      "name": "강릉IC",
+      "latitude": "37.7512",
+      "longitude": "128.8912",
+      "distance_from_start_km": 253.6,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 239,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 31,
+      "name": "남강릉IC",
+      "latitude": "37.7201",
+      "longitude": "128.9201",
+      "distance_from_start_km": 258.3,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 240,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 32,
+      "name": "강릉TG",
+      "latitude": "37.7034",
+      "longitude": "128.9512",
+      "distance_from_start_km": 262.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 241,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 33,
+      "name": "강동IC",
+      "latitude": "37.6812",
+      "longitude": "129.0012",
+      "distance_from_start_km": 268.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 242,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 34,
+      "name": "옥계IC",
+      "latitude": "37.6312",
+      "longitude": "129.0512",
+      "distance_from_start_km": 275.9,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 243,
+    "fields": {
+      "highway": 2,
+      "node_type": "RA",
+      "direction": "DOWN",
+      "sequence": 35,
+      "name": "동해휴게소",
+      "latitude": "37.5934",
+      "longitude": "129.0912",
+      "distance_from_start_km": 281.5,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 244,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 36,
+      "name": "동해IC",
+      "latitude": "37.5234",
+      "longitude": "129.1012",
+      "distance_from_start_km": 290.2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 245,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 37,
+      "name": "망상IC",
+      "latitude": "37.5012",
+      "longitude": "129.1312",
+      "distance_from_start_km": 295.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 246,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 38,
+      "name": "동해JCT",
+      "latitude": "37.4812",
+      "longitude": "129.1501",
+      "distance_from_start_km": 300.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 247,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "DOWN",
+      "sequence": 39,
+      "name": "삼척IC",
+      "latitude": "37.4501",
+      "longitude": "129.1723",
+      "distance_from_start_km": 307.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 248,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 1,
+      "name": "삼척IC",
+      "latitude": "37.4501",
+      "longitude": "129.1723",
+      "distance_from_start_km": 0.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 249,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 2,
+      "name": "동해JCT",
+      "latitude": "37.4812",
+      "longitude": "129.1501",
+      "distance_from_start_km": 6.7,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 250,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 3,
+      "name": "망상IC",
+      "latitude": "37.5012",
+      "longitude": "129.1312",
+      "distance_from_start_km": 11.3,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 251,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 4,
+      "name": "동해IC",
+      "latitude": "37.5234",
+      "longitude": "129.1012",
+      "distance_from_start_km": 16.9,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 252,
+    "fields": {
+      "highway": 2,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 5,
+      "name": "동해휴게소",
+      "latitude": "37.5934",
+      "longitude": "129.0912",
+      "distance_from_start_km": 25.7,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 253,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 6,
+      "name": "옥계IC",
+      "latitude": "37.6312",
+      "longitude": "129.0512",
+      "distance_from_start_km": 31.3,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 254,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 7,
+      "name": "강동IC",
+      "latitude": "37.6812",
+      "longitude": "129.0012",
+      "distance_from_start_km": 38.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 255,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 8,
+      "name": "강릉TG",
+      "latitude": "37.7034",
+      "longitude": "128.9512",
+      "distance_from_start_km": 45.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 256,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 9,
+      "name": "남강릉IC",
+      "latitude": "37.7201",
+      "longitude": "128.9201",
+      "distance_from_start_km": 48.9,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 257,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 10,
+      "name": "강릉IC",
+      "latitude": "37.7512",
+      "longitude": "128.8912",
+      "distance_from_start_km": 53.6,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 258,
+    "fields": {
+      "highway": 2,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 11,
+      "name": "강릉휴게소",
+      "latitude": "37.7301",
+      "longitude": "128.8534",
+      "distance_from_start_km": 59.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 259,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 12,
+      "name": "진부IC",
+      "latitude": "37.6812",
+      "longitude": "128.7812",
+      "distance_from_start_km": 67.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 260,
+    "fields": {
+      "highway": 2,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 13,
+      "name": "진부휴게소",
+      "latitude": "37.6534",
+      "longitude": "128.7312",
+      "distance_from_start_km": 72.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 261,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 14,
+      "name": "장평IC",
+      "latitude": "37.6212",
+      "longitude": "128.6023",
+      "distance_from_start_km": 85.2,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 262,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 15,
+      "name": "평창IC",
+      "latitude": "37.6034",
+      "longitude": "128.5212",
+      "distance_from_start_km": 95.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 263,
+    "fields": {
+      "highway": 2,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 16,
+      "name": "평창휴게소",
+      "latitude": "37.5912",
+      "longitude": "128.4523",
+      "distance_from_start_km": 102.9,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 264,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 17,
+      "name": "방림IC",
+      "latitude": "37.5812",
+      "longitude": "128.3012",
+      "distance_from_start_km": 115.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 265,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 18,
+      "name": "둔내IC",
+      "latitude": "37.5512",
+      "longitude": "128.2312",
+      "distance_from_start_km": 123.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 266,
+    "fields": {
+      "highway": 2,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 19,
+      "name": "둔내휴게소",
+      "latitude": "37.5312",
+      "longitude": "128.1923",
+      "distance_from_start_km": 127.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 267,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 20,
+      "name": "횡성IC",
+      "latitude": "37.4923",
+      "longitude": "128.0712",
+      "distance_from_start_km": 139.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 268,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 21,
+      "name": "새말IC",
+      "latitude": "37.4234",
+      "longitude": "128.0234",
+      "distance_from_start_km": 147.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 269,
+    "fields": {
+      "highway": 2,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 22,
+      "name": "원주휴게소",
+      "latitude": "37.3534",
+      "longitude": "127.9812",
+      "distance_from_start_km": 156.5,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 270,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 23,
+      "name": "원주IC",
+      "latitude": "37.3423",
+      "longitude": "127.9212",
+      "distance_from_start_km": 163.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 271,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 24,
+      "name": "문막IC",
+      "latitude": "37.3012",
+      "longitude": "127.8423",
+      "distance_from_start_km": 172.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 272,
+    "fields": {
+      "highway": 2,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 25,
+      "name": "여주휴게소",
+      "latitude": "37.2812",
+      "longitude": "127.6912",
+      "distance_from_start_km": 187.9,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 273,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 26,
+      "name": "여주IC",
+      "latitude": "37.2923",
+      "longitude": "127.6312",
+      "distance_from_start_km": 193.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 274,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 27,
+      "name": "이천IC",
+      "latitude": "37.2734",
+      "longitude": "127.4423",
+      "distance_from_start_km": 209.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 275,
+    "fields": {
+      "highway": 2,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 28,
+      "name": "덕평휴게소",
+      "latitude": "37.3812",
+      "longitude": "127.3512",
+      "distance_from_start_km": 224.9,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 276,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 29,
+      "name": "광주IC",
+      "latitude": "37.4012",
+      "longitude": "127.2523",
+      "distance_from_start_km": 234.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 277,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 30,
+      "name": "성남IC",
+      "latitude": "37.4123",
+      "longitude": "127.1234",
+      "distance_from_start_km": 248.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 278,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 31,
+      "name": "판교JCT",
+      "latitude": "37.3882",
+      "longitude": "127.0934",
+      "distance_from_start_km": 253.4,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 279,
+    "fields": {
+      "highway": 2,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 32,
+      "name": "의왕휴게소",
+      "latitude": "37.3712",
+      "longitude": "127.0534",
+      "distance_from_start_km": 260.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 280,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 33,
+      "name": "의왕IC",
+      "latitude": "37.3534",
+      "longitude": "127.0012",
+      "distance_from_start_km": 267.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 281,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 34,
+      "name": "군포IC",
+      "latitude": "37.3312",
+      "longitude": "126.9234",
+      "distance_from_start_km": 273.7,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 282,
+    "fields": {
+      "highway": 2,
+      "node_type": "RA",
+      "direction": "UP",
+      "sequence": 35,
+      "name": "매송휴게소",
+      "latitude": "37.3201",
+      "longitude": "126.8812",
+      "distance_from_start_km": 279.8,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 283,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 36,
+      "name": "안산JCT",
+      "latitude": "37.3534",
+      "longitude": "126.8123",
+      "distance_from_start_km": 287.1,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 284,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 37,
+      "name": "시흥IC",
+      "latitude": "37.3912",
+      "longitude": "126.7523",
+      "distance_from_start_km": 294.0,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 285,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 38,
+      "name": "남인천IC",
+      "latitude": "37.4231",
+      "longitude": "126.7012",
+      "distance_from_start_km": 301.5,
+      "is_active": true
+    }
+  },
+  {
+    "model": "chargeflow.highwaynode",
+    "pk": 286,
+    "fields": {
+      "highway": 2,
+      "node_type": "IC",
+      "direction": "UP",
+      "sequence": 39,
+      "name": "인천IC",
+      "latitude": "37.4523",
+      "longitude": "126.7134",
+      "distance_from_start_km": 307.1,
+      "is_active": true
+    }
+  }
+]

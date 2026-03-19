@@ -1,0 +1,1352 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>⚡ ChargeFlow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Lexend:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+<!-- ★ 카카오맵 API 키를 입력하세요 ★ -->
+<script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=c3a0bb9f07cf26addd10352e88a7bd78&libraries=services"></script>
+
+<style>
+:root {
+  /* ── 화이트 뉴트럴 팔레트 ── */
+  --bg:         #F4F3F0;   /* 페이지 배경 — 따뜻한 오프화이트 */
+  --bg2:        #EDECEA;   /* 눌린 상태 */
+  --surface:    #FFFFFF;   /* 카드·헤더 */
+  --surface2:   #F0EFEC;   /* 인풋 내부·아이콘 배경 */
+  --border:     #E0DDD8;   /* 기본 테두리 */
+  --border2:    #C8C5BF;   /* 강조 테두리 */
+  --green:      #1A5C3A;
+  --green-mid:  #2E7D52;
+  --green-lt:   #E8F3EC;
+  --green-dim:  rgba(26,92,58,0.08);
+  --lime:       #4A9139;
+  --lime-lt:    #EEF7EB;
+  --orange:     #C45E08;
+  --orange-lt:  #FDF0E6;
+  --red:        #C0261E;
+  --red-lt:     #FCECEA;
+  --blue:       #1455B0;
+  --blue-lt:    #EAF0FB;
+  --text:       #18181A;
+  --text-mid:   #2C2C30;
+  --text-muted: #52504C;
+  --text-dim:   #7A7874;
+  --shadow-sm:  0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.05);
+  --shadow:     0 4px 12px rgba(0,0,0,0.09), 0 1px 3px rgba(0,0,0,0.05);
+  --shadow-lg:  0 12px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+  --radius:     16px;
+  --radius-sm:  10px;
+  --radius-xs:  6px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans KR', sans-serif;
+  font-weight: 400;
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  overflow-x: hidden;
+}
+
+.app {
+  width: 100%;
+  max-width: 430px;
+  min-height: 100dvh;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* ── 화면 전환 ── */
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  transition: transform .36s cubic-bezier(.4,0,.2,1), opacity .28s;
+  will-change: transform;
+  overflow: hidden;
+}
+.screen.hidden      { transform: translateX(100%); opacity: 0; pointer-events: none; }
+.screen.slide-left  { transform: translateX(-55%); opacity: 0; pointer-events: none; }
+
+/* ── 공통 헤더 ── */
+.header {
+  padding: 52px 20px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg);
+  border-bottom: none;
+  flex-shrink: 0;
+  z-index: 10;
+}
+.back-btn {
+  width: 38px; height: 38px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background .15s;
+  flex-shrink: 0;
+}
+.back-btn:active { background: var(--border); }
+.back-btn svg { width: 18px; height: 18px; stroke: var(--text-mid); }
+.header-text h2 { font-size: 17px; font-weight: 700; letter-spacing: -0.4px; }
+.header-text .sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; font-weight: 600; }
+
+/* ── 스크롤 영역 ── */
+.scroll-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.scroll-body::-webkit-scrollbar { display: none; }
+
+/* ── 진행 바 ── */
+.prog-wrap { padding: 0 20px 8px; background: var(--bg); flex-shrink: 0; }
+.prog-bar { height: 3px; background: var(--border); border-radius: 2px; }
+.prog-fill { height: 100%; background: linear-gradient(90deg, var(--green), var(--lime)); border-radius: 2px; transition: width .4s ease; }
+
+/* ══════════════════════════════
+   SCREEN 1 — 홈
+══════════════════════════════ */
+#screen-home { background: var(--bg); }
+
+.home-hero {
+  padding: 48px 24px 28px;
+  background: var(--bg);
+  border-bottom: none;
+}
+.hero-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--green-lt);
+  border: 1px solid rgba(26,92,58,0.15);
+  border-radius: 100px;
+  padding: 4px 10px;
+  font-family: 'Lexend', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--green);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+.hero-title {
+  font-family: 'Lexend', sans-serif;
+  font-size: 36px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -1.5px;
+  color: var(--text);
+}
+.hero-title span { color: var(--green); }
+.hero-desc {
+  margin-top: 10px;
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.7;
+  font-weight: 400;
+}
+
+.section-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 20px 20px 10px;
+  font-family: 'Lexend', sans-serif;
+}
+
+/* 고속도로 카드 */
+.hw-list { display: flex; flex-direction: column; gap: 10px; padding: 0 16px 16px; }
+.hw-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 18px 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: var(--shadow-sm);
+  transition: all .18s;
+}
+.hw-card:active {
+  border-color: var(--green);
+  background: var(--green-lt);
+  transform: scale(0.985);
+  box-shadow: none;
+}
+.hw-icon {
+  width: 48px; height: 48px;
+  background: var(--green-lt);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.hw-info h3 { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
+.hw-info p  { font-size: 12px; color: var(--text-muted); margin-top: 3px; font-weight: 500; }
+.hw-arrow   { margin-left: auto; color: var(--text-dim); font-size: 18px; flex-shrink: 0; }
+
+/* 팁 카드 */
+.tip-card {
+  margin: 4px 16px 24px;
+  background: var(--orange-lt);
+  border: 1px solid rgba(232,112,10,0.2);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  gap: 10px;
+}
+.tip-icon { font-size: 18px; flex-shrink: 0; }
+.tip-text { font-size: 13px; color: #7A3A08; line-height: 1.65; }
+.tip-text strong { color: var(--orange); font-weight: 700; }
+
+/* ══════════════════════════════
+   SCREEN 2 — 방향 선택
+══════════════════════════════ */
+.dir-hero {
+  margin: 16px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: var(--shadow-sm);
+}
+.dir-hero-icon { font-size: 30px; }
+.dir-hero h3 { font-size: 17px; font-weight: 700; }
+.dir-hero p  { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+.dir-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 0 16px 24px;
+}
+.dir-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px 16px;
+  cursor: pointer;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+  transition: all .18s;
+}
+.dir-card:active, .dir-card.selected {
+  border-color: var(--green);
+  background: var(--green-lt);
+}
+.dir-emoji { font-size: 26px; margin-bottom: 10px; }
+.dir-name  { font-size: 20px; font-weight: 800; font-family: 'Lexend', sans-serif; color: var(--text); }
+.dir-route { font-size: 11px; color: var(--text-muted); margin-top: 5px; line-height: 1.5; }
+.dir-card.selected .dir-route { color: var(--green-mid); }
+
+/* ══════════════════════════════
+   SCREEN 3 — 휴게소 선택
+══════════════════════════════ */
+.ra-search {
+  margin: 12px 16px 4px;
+  position: relative;
+}
+.ra-search input {
+  width: 100%;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 44px 12px 16px;
+  font-size: 14px;
+  color: var(--text);
+  font-family: 'Noto Sans KR', sans-serif;
+  outline: none;
+  transition: border-color .2s;
+  box-shadow: var(--shadow-sm);
+}
+.ra-search input:focus { border-color: var(--green); }
+.ra-search input::placeholder { color: var(--text-dim); }
+.ra-search .s-icon {
+  position: absolute; right: 14px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-dim); font-size: 15px;
+}
+
+/* 위치 버튼 */
+.loc-btn {
+  margin: 10px 16px 4px;
+  width: calc(100% - 32px);
+  padding: 11px 16px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--green);
+  font-family: 'Noto Sans KR', sans-serif;
+  transition: all .18s;
+  box-shadow: var(--shadow-sm);
+}
+.loc-btn:active { background: var(--green-lt); border-color: var(--green); }
+.loc-btn.active { background: var(--green-lt); border-color: var(--green); }
+.loc-btn .loc-icon { font-size: 16px; }
+.loc-status { margin-left: auto; font-size: 11px; color: var(--text-muted); font-weight: 400; }
+
+/* 가장 가까운 RA 배너 */
+.nearest-banner {
+  margin: 8px 16px 0;
+  background: var(--green-lt);
+  border: 1.5px solid rgba(26,92,58,0.2);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: none;
+  align-items: center;
+  gap: 10px;
+}
+.nearest-banner.visible { display: flex; }
+.nb-icon { font-size: 18px; flex-shrink: 0; }
+.nb-text { font-size: 13px; color: var(--green); font-weight: 600; flex: 1; }
+.nb-dist { font-size: 12px; color: var(--green-mid); font-weight: 500; }
+
+/* RA 목록 */
+.ra-list-wrap { padding: 8px 0 80px; }
+
+/* 가장 가까운 RA 아이템 (특별 표시) */
+.ra-nearest-label {
+  padding: 12px 20px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--green);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-family: 'Lexend', sans-serif;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ra-nearest-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(26,92,58,0.15);
+}
+
+.ra-section-label {
+  padding: 12px 20px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-family: 'Lexend', sans-serif;
+}
+
+.ra-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background .15s;
+  background: transparent;
+}
+.ra-item:active { background: var(--green-lt); }
+.ra-item.nearest-item {
+  background: linear-gradient(135deg, var(--green-lt), var(--bg));
+  border-left: 3px solid var(--green);
+}
+
+.ra-dot {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.ra-item.nearest-item .ra-dot {
+  background: var(--green-lt);
+  border-color: rgba(26,92,58,0.2);
+}
+.ra-info h4 { font-size: 15px; font-weight: 600; letter-spacing: -0.2px; }
+.ra-info .ra-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+.ra-info .ra-dist-text { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+.ra-info .ra-user-dist { font-size: 12px; color: var(--green); font-weight: 600; }
+
+/* 혼잡도 뱃지 */
+.congestion-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.congestion-badge.smooth  { background: var(--lime-lt); color: var(--lime); }
+.congestion-badge.normal  { background: var(--blue-lt); color: var(--blue); }
+.congestion-badge.busy    { background: var(--orange-lt); color: var(--orange); }
+.congestion-badge.jammed  { background: var(--red-lt); color: var(--red); }
+.congestion-badge::before { content: '●'; font-size: 8px; }
+
+.ra-arrow { margin-left: auto; color: var(--text-dim); font-size: 14px; flex-shrink: 0; padding-left: 8px; }
+
+/* ══════════════════════════════
+   SCREEN 4 — 지도 + 결과
+══════════════════════════════ */
+#screen-map { background: var(--bg); }
+
+#kakao-map {
+  width: 100%;
+  height: 100dvh;
+  position: absolute;
+  inset: 0;
+  background: #E8EAE8;
+}
+.map-placeholder {
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 10px;
+  background: var(--bg);
+}
+.mp-icon  { font-size: 44px; opacity: 0.4; }
+.mp-title { font-size: 15px; font-weight: 700; color: var(--text-mid); }
+.mp-desc  { font-size: 13px; color: var(--text-muted); text-align: center; line-height: 1.6; max-width: 220px; }
+.mp-desc code {
+  background: rgba(255,255,255,0.8);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 11px;
+  color: var(--green);
+  font-family: 'Courier New', monospace;
+}
+
+/* 지도 상단 헤더 */
+.map-header {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  padding: 52px 16px 14px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(180deg, rgba(244,243,240,0.97) 65%, transparent);
+}
+.map-header .back-btn {
+  background: rgba(255,255,255,0.90);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-sm);
+}
+.map-header-pill {
+  background: rgba(255,255,255,0.90);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  padding: 8px 16px;
+  flex: 1;
+  box-shadow: var(--shadow-sm);
+}
+.mhp-label { font-size: 10px; color: var(--text-muted); font-weight: 500; }
+.mhp-name  { font-size: 14px; font-weight: 700; letter-spacing: -0.3px; margin-top: 1px; }
+
+/* 혼잡도 실시간 칩 */
+.map-congestion-chip {
+  background: rgba(255,255,255,0.90);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.mcc-dot { width: 8px; height: 8px; border-radius: 50%; animation: pulse-dot 2s infinite; }
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.85); }
+}
+
+/* ── 바텀 시트 ── */
+.bottom-sheet {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  border-radius: 20px 20px 0 0;
+  z-index: 200;
+  box-shadow: 0 -8px 32px rgba(0,0,0,0.1);
+  transition: transform .38s cubic-bezier(.4,0,.2,1);
+  max-height: 80dvh;
+}
+.bs-handle {
+  width: 36px; height: 4px;
+  background: var(--border2);
+  border-radius: 2px;
+  margin: 10px auto 0;
+}
+.bs-top {
+  padding: 10px 18px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+.bs-title { font-size: 12px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.5px; text-transform: uppercase; font-family: 'Lexend', sans-serif; }
+.bs-caret {
+  width: 28px; height: 28px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: var(--text-muted);
+  transition: transform .3s;
+}
+
+/* 혼잡 알림 */
+.bypass-alert {
+  margin: 4px 16px 12px;
+  background: var(--orange-lt);
+  border: 1px solid rgba(232,112,10,0.2);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 13px;
+  color: #7A3A08;
+  line-height: 1.6;
+}
+.ba-icon { flex-shrink: 0; font-size: 15px; margin-top: 1px; }
+
+/* IC 섹션 */
+.ic-section { padding: 0 16px 12px; }
+.ic-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-top: 4px;
+}
+.ic-badge {
+  padding: 3px 9px;
+  border-radius: var(--radius-xs);
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'Lexend', sans-serif;
+  letter-spacing: 0.3px;
+}
+.ic-badge.prev { background: var(--orange-lt); color: var(--orange); }
+.ic-badge.next { background: var(--green-lt); color: var(--green); }
+.ic-name-text  { font-size: 15px; font-weight: 700; }
+.ic-km-text    { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+
+/* 충전소 카드 */
+.station-cards { display: flex; flex-direction: column; gap: 8px; }
+.station-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 13px 14px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  cursor: pointer;
+  transition: all .15s;
+  box-shadow: var(--shadow-sm);
+}
+.station-card:active { border-color: var(--green); background: var(--green-lt); }
+.station-card.best  {
+  border-color: rgba(26,92,58,0.3);
+  background: linear-gradient(135deg, var(--green-lt), var(--bg));
+}
+.sc-icon {
+  width: 38px; height: 38px;
+  border-radius: 9px;
+  background: var(--surface2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px;
+  flex-shrink: 0;
+}
+.station-card.best .sc-icon { background: var(--green-lt); }
+.sc-body { flex: 1; min-width: 0; }
+.sc-name {
+  font-size: 14px; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  letter-spacing: -0.2px;
+}
+.sc-meta {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  margin-top: 4px; font-size: 12px; color: var(--text-muted); font-weight: 500;
+}
+.sc-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+.sc-tag {
+  padding: 2px 7px;
+  border-radius: 100px;
+  font-size: 10px; font-weight: 700;
+  font-family: 'Lexend', sans-serif;
+  letter-spacing: 0.2px;
+}
+.sc-tag.green  { background: var(--green-lt); color: var(--green); }
+.sc-tag.blue   { background: var(--blue-lt);  color: var(--blue); }
+.sc-tag.orange { background: var(--orange-lt);color: var(--orange); }
+.best-pill {
+  background: var(--green);
+  color: #fff;
+  border-radius: var(--radius-xs);
+  padding: 3px 8px;
+  font-size: 10px; font-weight: 700;
+  font-family: 'Lexend', sans-serif;
+  white-space: nowrap;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+.no-data {
+  padding: 14px 0;
+  font-size: 13px;
+  color: var(--text-dim);
+  text-align: center;
+}
+.divider { height: 1px; background: var(--border); margin: 12px 16px; }
+
+.bs-scroll {
+  overflow-y: auto;
+  max-height: calc(80dvh - 72px);
+  padding-bottom: 28px;
+  -webkit-overflow-scrolling: touch;
+}
+.bs-scroll::-webkit-scrollbar { display: none; }
+
+/* ── 지도 마커 ── */
+.mk-ra      { background: var(--orange); color: #fff; padding: 5px 11px; border-radius: 100px; font-size: 12px; font-weight: 700; white-space: nowrap; box-shadow: 0 2px 8px rgba(232,112,10,0.4); }
+.mk-ic      { background: #fff; color: var(--text-mid); border: 1.5px solid var(--border2); padding: 5px 11px; border-radius: 100px; font-size: 11px; font-weight: 600; white-space: nowrap; box-shadow: var(--shadow-sm); }
+.mk-station { background: var(--green); color: #fff; padding: 5px 11px; border-radius: 100px; font-size: 12px; font-weight: 700; white-space: nowrap; box-shadow: 0 2px 8px rgba(26,92,58,0.4); }
+
+/* ── 로딩 / 에러 ── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-wrap { padding: 28px; text-align: center; color: var(--text-muted); font-size: 13px; }
+.loading-wrap .spin { display: inline-block; font-size: 22px; animation: spin 1s linear infinite; margin-bottom: 8px; }
+.error-wrap { padding: 22px 20px; text-align: center; }
+.error-wrap .err-icon { font-size: 26px; margin-bottom: 6px; }
+.error-wrap .err-msg  { font-size: 13px; color: var(--red); margin-bottom: 12px; line-height: 1.6; }
+.retry-btn {
+  padding: 8px 18px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-mid);
+  font-size: 13px;
+  cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+/* 하단 여백 */
+.safe-bottom { height: env(safe-area-inset-bottom, 16px); }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+<!-- ══════════════════════════════
+     SCREEN 1 — 홈
+══════════════════════════════ -->
+<div class="screen" id="screen-home">
+  <div class="home-hero">
+    <div class="hero-tag">⚡ Highway Bypass Guide</div>
+    <h1 class="hero-title">Charge<span>Flow</span></h1>
+    <p class="hero-desc">휴게소 충전이 꽉 찼을 때,<br>IC를 나가면 확실하게 충전할 수 있어요.</p>
+  </div>
+
+  <div class="scroll-body">
+    <div class="tip-card" style="margin: 16px 16px 0;">
+      <div class="tip-icon">💡</div>
+      <div class="tip-text">
+        <strong>왜 IC 우회인가요?</strong><br>
+        고속도로 충전 현황은 실제와 다를 수 있어요. 대신 <strong>IC 인근 검증된 장소</strong>를 안내해 드려요.
+      </div>
+    </div>
+
+    <div class="section-label">고속도로 선택</div>
+    <div class="hw-list">
+      <div class="hw-card" onclick="selectHighway('gyeongbu')">
+        <div class="hw-icon">🛣️</div>
+        <div class="hw-info">
+          <h3>경부고속도로</h3>
+          <p>서울 ↔ 부산 · 416km</p>
+        </div>
+        <div class="hw-arrow">›</div>
+      </div>
+      <div class="hw-card" onclick="selectHighway('seohaeAN')">
+        <div class="hw-icon">🌊</div>
+        <div class="hw-info">
+          <h3>서해안고속도로</h3>
+          <p>서울 ↔ 목포 · 340km</p>
+        </div>
+        <div class="hw-arrow">›</div>
+      </div>
+      <div class="hw-card" onclick="selectHighway('yeongdong')">
+        <div class="hw-icon">⛰️</div>
+        <div class="hw-info">
+          <h3>영동고속도로</h3>
+          <p>인천 ↔ 강릉 · 234km</p>
+        </div>
+        <div class="hw-arrow">›</div>
+      </div>
+    </div>
+    <div class="safe-bottom"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+     SCREEN 2 — 방향 선택
+══════════════════════════════ -->
+<div class="screen hidden" id="screen-direction">
+  <div class="header">
+    <div class="back-btn" onclick="goBack(2)">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </div>
+    <div class="header-text">
+      <div class="sub" id="dir-hw-sub">고속도로 선택됨</div>
+      <h2 id="dir-hw-name">경부고속도로</h2>
+    </div>
+  </div>
+  <div class="prog-wrap"><div class="prog-bar"><div class="prog-fill" style="width:33%"></div></div></div>
+
+  <div class="scroll-body" style="padding-top: 4px;">
+    <div class="dir-hero">
+      <div class="dir-hero-icon" id="dir-hero-icon">🛣️</div>
+      <div>
+        <h3 id="dir-hero-name">경부고속도로</h3>
+        <p id="dir-hero-range">서울 ↔ 부산 · 416km</p>
+      </div>
+    </div>
+    <div class="section-label">방향 선택</div>
+    <div class="dir-grid">
+      <div class="dir-card" id="dir-down" onclick="selectDirection('DOWN')">
+        <div class="dir-emoji">⬇️</div>
+        <div class="dir-name">하행</div>
+        <div class="dir-route" id="dir-down-route">서울 → 부산</div>
+      </div>
+      <div class="dir-card" id="dir-up" onclick="selectDirection('UP')">
+        <div class="dir-emoji">⬆️</div>
+        <div class="dir-name">상행</div>
+        <div class="dir-route" id="dir-up-route">부산 → 서울</div>
+      </div>
+    </div>
+    <div class="safe-bottom"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+     SCREEN 3 — 휴게소 선택
+══════════════════════════════ -->
+<div class="screen hidden" id="screen-ra">
+  <div class="header">
+    <div class="back-btn" onclick="goBack(3)">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </div>
+    <div class="header-text">
+      <div class="sub" id="ra-hw-sub">경부 · 하행</div>
+      <h2>휴게소 선택</h2>
+    </div>
+  </div>
+  <div class="prog-wrap"><div class="prog-bar"><div class="prog-fill" style="width:66%"></div></div></div>
+
+  <div class="ra-search">
+    <input type="text" id="ra-search-input" placeholder="휴게소 이름 검색" oninput="filterRA(this.value)">
+    <div class="s-icon">🔍</div>
+  </div>
+
+  <button class="loc-btn" id="loc-btn" onclick="requestLocation()">
+    <span class="loc-icon">📍</span>
+    <span>내 위치로 가장 가까운 휴게소 찾기</span>
+    <span class="loc-status" id="loc-status"></span>
+  </button>
+
+  <div class="nearest-banner" id="nearest-banner">
+    <div class="nb-icon">🎯</div>
+    <div class="nb-text" id="nb-text">가장 가까운 휴게소</div>
+    <div class="nb-dist" id="nb-dist"></div>
+  </div>
+
+  <div class="scroll-body" style="padding: 0;">
+    <div class="ra-list-wrap" id="ra-list"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+     SCREEN 4 — 지도 + 결과
+══════════════════════════════ -->
+<div class="screen hidden" id="screen-map">
+  <div id="kakao-map">
+    <div class="map-placeholder" id="map-placeholder">
+      <div class="mp-icon">🗺️</div>
+      <div class="mp-title">카카오맵 API 키 필요</div>
+      <div class="mp-desc">HTML 상단 <code>&lt;script&gt;</code> 주석을 해제하고 API 키를 입력해주세요</div>
+    </div>
+  </div>
+
+  <div class="map-header">
+    <div class="back-btn" onclick="goBack(4)">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </div>
+    <div class="map-header-pill">
+      <div class="mhp-label" id="map-hw-label">경부 하행</div>
+      <div class="mhp-name" id="map-ra-name">기흥휴게소</div>
+    </div>
+    <div class="map-congestion-chip" id="map-cong-chip">
+      <div class="mcc-dot" id="mcc-dot" style="background: var(--text-dim)"></div>
+      <span id="mcc-text">확인 중</span>
+    </div>
+  </div>
+
+  <div class="bottom-sheet" id="bottom-sheet">
+    <div class="bs-handle"></div>
+    <div class="bs-top" onclick="toggleSheet()">
+      <div class="bs-title">우회 충전소 추천</div>
+      <div class="bs-caret" id="bs-caret">▼</div>
+    </div>
+    <div class="bs-scroll" id="bs-scroll">
+      <div class="bypass-alert">
+        <div class="ba-icon">⚠️</div>
+        <div id="bypass-msg">휴게소가 혼잡할 경우 IC를 나가면 확실하게 충전할 수 있어요!</div>
+      </div>
+
+      <div class="ic-section" id="prev-ic-section">
+        <div class="ic-header">
+          <div class="ic-badge prev">이전 IC</div>
+          <div class="ic-name-text" id="prev-ic-name">—</div>
+          <div class="ic-km-text" id="prev-ic-dist"></div>
+        </div>
+        <div class="station-cards" id="prev-stations"></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="ic-section" id="next-ic-section">
+        <div class="ic-header">
+          <div class="ic-badge next">다음 IC</div>
+          <div class="ic-name-text" id="next-ic-name">—</div>
+          <div class="ic-km-text" id="next-ic-dist"></div>
+        </div>
+        <div class="station-cards" id="next-stations"></div>
+      </div>
+      <div class="safe-bottom"></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /app -->
+
+<script>
+// ══════════════════════════════════════════════
+//  설정
+// ══════════════════════════════════════════════
+const CONFIG = {
+  BASE_URL:   'http://localhost:8000',
+  API_PREFIX: '/api/v1',
+  TIMEOUT_MS: 8000,
+};
+
+const api = {
+  async get(path) {
+    const url = `${CONFIG.BASE_URL}${CONFIG.API_PREFIX}${path}`;
+    const ctrl = new AbortController();
+    const t    = setTimeout(() => ctrl.abort(), CONFIG.TIMEOUT_MS);
+    try {
+      const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: ctrl.signal });
+      clearTimeout(t);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw { status: res.status, detail: err.detail || '오류가 발생했어요.' };
+      }
+      return res.json();
+    } catch (e) {
+      clearTimeout(t);
+      if (e.name === 'AbortError') throw { status: 408, detail: '서버 응답 시간이 초과됐어요.' };
+      throw e;
+    }
+  }
+};
+
+// ══════════════════════════════════════════════
+//  정적 메타
+// ══════════════════════════════════════════════
+const HIGHWAYS = {
+  gyeongbu:  { name:'경부고속도로',  icon:'🛣️', range:'서울 ↔ 부산 · 416km',  down:'서울 → 부산', up:'부산 → 서울' },
+  seohaeAN:  { name:'서해안고속도로', icon:'🌊', range:'서울 ↔ 목포 · 340km',  down:'서울 → 목포', up:'목포 → 서울' },
+  yeongdong: { name:'영동고속도로',  icon:'⛰️', range:'인천 ↔ 강릉 · 234km',  down:'인천 → 강릉', up:'강릉 → 인천' },
+};
+
+// ══════════════════════════════════════════════
+//  혼잡도 — 외부 데이터 연동 예정
+//  setCongestion({ level, label, color }) 으로 주입
+// ══════════════════════════════════════════════
+let currentCongestion = { level: 'unknown', label: '정보 없음', color: 'var(--text-dim)' };
+
+function setCongestion(data) {
+  currentCongestion = data;
+  updateCongestionChip();
+  renderRAList(allRANodes, document.getElementById('ra-search-input').value);
+}
+
+// ══════════════════════════════════════════════
+//  위치 기반 거리 계산
+// ══════════════════════════════════════════════
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371, toR = Math.PI / 180;
+  const dLat = (lat2 - lat1) * toR, dLng = (lng2 - lng1) * toR;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*toR)*Math.cos(lat2*toR)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.asin(Math.sqrt(a));
+}
+
+function formatDist(km) {
+  return km < 1 ? `${Math.round(km*1000)}m` : `${km.toFixed(1)}km`;
+}
+
+// ══════════════════════════════════════════════
+//  앱 상태
+// ══════════════════════════════════════════════
+let state      = { highway: null, direction: null, ra: null };
+let allRANodes = [];
+let userPos    = null;   // { lat, lng }
+let kakaoMap   = null;
+let overlays   = [];
+let bsExpanded = true;
+let cache      = { nodes: {}, bypass: {} };
+
+// ══════════════════════════════════════════════
+//  화면 전환
+// ══════════════════════════════════════════════
+function showScreen(toId, fromId) {
+  const from = document.getElementById(fromId);
+  const to   = document.getElementById(toId);
+  from.classList.add('slide-left');
+  to.classList.remove('hidden', 'slide-left');
+  setTimeout(() => from.classList.add('hidden'), 360);
+}
+function goBack(cur) {
+  const list = ['screen-home','screen-direction','screen-ra','screen-map'];
+  document.getElementById(list[cur-1]).classList.add('hidden');
+  const prev = document.getElementById(list[cur-2]);
+  prev.classList.remove('hidden', 'slide-left');
+}
+
+// ══════════════════════════════════════════════
+//  STEP 1 — 고속도로 선택
+// ══════════════════════════════════════════════
+function selectHighway(code) {
+  state.highway = code;
+  const hw = HIGHWAYS[code];
+  document.getElementById('dir-hw-sub').textContent   = '고속도로 선택됨';
+  document.getElementById('dir-hw-name').textContent  = hw.name;
+  document.getElementById('dir-hero-icon').textContent = hw.icon;
+  document.getElementById('dir-hero-name').textContent = hw.name;
+  document.getElementById('dir-hero-range').textContent = hw.range;
+  document.getElementById('dir-down-route').textContent = hw.down;
+  document.getElementById('dir-up-route').textContent   = hw.up;
+  document.getElementById('dir-down').classList.remove('selected');
+  document.getElementById('dir-up').classList.remove('selected');
+  showScreen('screen-direction', 'screen-home');
+}
+
+// ══════════════════════════════════════════════
+//  STEP 2 — 방향 선택
+// ══════════════════════════════════════════════
+function selectDirection(dir) {
+  state.direction = dir;
+  document.getElementById('dir-down').classList.toggle('selected', dir==='DOWN');
+  document.getElementById('dir-up').classList.toggle('selected',   dir==='UP');
+  const hw = HIGHWAYS[state.highway];
+  document.getElementById('ra-hw-sub').textContent =
+    `${hw.name} · ${dir==='DOWN'?'하행':'상행'}`;
+  document.getElementById('ra-search-input').value = '';
+  // 위치 상태 초기화
+  document.getElementById('loc-btn').classList.remove('active');
+  document.getElementById('loc-status').textContent = '';
+  document.getElementById('nearest-banner').classList.remove('visible');
+
+  setTimeout(() => {
+    showScreen('screen-ra', 'screen-direction');
+    loadNodeList();
+  }, 150);
+}
+
+// ══════════════════════════════════════════════
+//  STEP 3 — 휴게소 목록 (API)
+// ══════════════════════════════════════════════
+async function loadNodeList() {
+  const key = `${state.highway}_${state.direction}`;
+  document.getElementById('ra-list').innerHTML =
+    `<div class="loading-wrap"><div class="spin">⚡</div><br>휴게소 목록 불러오는 중...</div>`;
+
+  if (cache.nodes[key]) {
+    allRANodes = cache.nodes[key];
+    renderRAList(allRANodes);
+    return;
+  }
+  try {
+    const data = await api.get(
+      `/highways/${state.highway}/nodes/?direction=${state.direction}&type=RA`
+    );
+    const nodes = (data.nodes || data).map(n => ({
+      id:   n.id,
+      seq:  n.sequence,
+      name: n.name,
+      lat:  parseFloat(n.latitude),
+      lng:  parseFloat(n.longitude),
+      dist: n.distance_from_start_km,
+    }));
+    cache.nodes[key] = nodes;
+    allRANodes = nodes;
+    renderRAList(nodes);
+  } catch(e) {
+    document.getElementById('ra-list').innerHTML =
+      `<div class="error-wrap">
+        <div class="err-icon">⚠️</div>
+        <div class="err-msg">${e.detail || '목록을 불러오지 못했어요.'}</div>
+        <button class="retry-btn" onclick="loadNodeList()">다시 시도</button>
+       </div>`;
+  }
+}
+
+// ══════════════════════════════════════════════
+//  RA 목록 렌더링 (위치 정보 포함)
+// ══════════════════════════════════════════════
+function renderRAList(nodes, filter = '') {
+  const filtered = filter
+    ? nodes.filter(n => n.name.includes(filter))
+    : [...nodes];
+
+  // 사용자 위치 기준 거리 계산
+  if (userPos) {
+    filtered.forEach(n => {
+      n.userDistKm = haversineKm(userPos.lat, userPos.lng, n.lat, n.lng);
+    });
+    filtered.sort((a, b) => a.userDistKm - b.userDistKm);
+  }
+
+  const list = document.getElementById('ra-list');
+  if (!filtered.length) {
+    list.innerHTML = `<div class="loading-wrap" style="color:var(--text-dim)">검색 결과가 없어요</div>`;
+    return;
+  }
+
+  const congestion = currentCongestion;
+  let html = '';
+
+  // 가장 가까운 항목 분리
+  if (userPos && filtered.length > 0) {
+    const nearest = filtered[0];
+    html += `<div class="ra-nearest-label">📍 내 위치에서 가장 가까운 휴게소</div>`;
+    html += renderRAItem(nearest, congestion, true);
+    html += `<div class="ra-section-label">전체 목록 (거리 순)</div>`;
+    filtered.slice(1).forEach(n => { html += renderRAItem(n, congestion, false); });
+  } else {
+    filtered.forEach(n => { html += renderRAItem(n, congestion, false); });
+  }
+
+  list.innerHTML = html;
+}
+
+function renderRAItem(n, congestion, isNearest) {
+  const userDistHTML = (userPos && n.userDistKm != null)
+    ? `<span class="ra-user-dist">📍 ${formatDist(n.userDistKm)}</span>`
+    : '';
+  const congBadge = `<span class="congestion-badge ${congestion.level}">${congestion.label}</span>`;
+  const nodeJSON  = JSON.stringify(n).replace(/"/g, '&quot;');
+
+  return `
+    <div class="ra-item ${isNearest ? 'nearest-item' : ''}" onclick='selectRA(${nodeJSON})'>
+      <div class="ra-dot">${isNearest ? '🎯' : '🏁'}</div>
+      <div class="ra-info">
+        <h4>${n.name}</h4>
+        <div class="ra-meta">
+          <span class="ra-dist-text">기점 ${n.dist}km</span>
+          ${userDistHTML}
+          ${congBadge}
+        </div>
+      </div>
+      <div class="ra-arrow">›</div>
+    </div>`;
+}
+
+function filterRA(val) { renderRAList(allRANodes, val); }
+
+// ══════════════════════════════════════════════
+//  위치 요청
+// ══════════════════════════════════════════════
+function requestLocation() {
+  const btn    = document.getElementById('loc-btn');
+  const status = document.getElementById('loc-status');
+  btn.classList.add('active');
+  status.textContent = '위치 확인 중...';
+
+  if (!navigator.geolocation) {
+    status.textContent = '미지원 브라우저';
+    btn.classList.remove('active');
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      userPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      status.textContent = '완료 ✓';
+
+      // 가장 가까운 RA 찾아서 배너 표시
+      if (allRANodes.length) {
+        const sorted = [...allRANodes].map(n => ({
+          ...n, userDistKm: haversineKm(userPos.lat, userPos.lng, n.lat, n.lng)
+        })).sort((a,b) => a.userDistKm - b.userDistKm);
+
+        const nearest = sorted[0];
+        document.getElementById('nb-text').textContent  = `${nearest.name}`;
+        document.getElementById('nb-dist').textContent  = formatDist(nearest.userDistKm);
+        document.getElementById('nearest-banner').classList.add('visible');
+        renderRAList(allRANodes);
+      }
+    },
+    err => {
+      status.textContent = '위치 거부됨';
+      btn.classList.remove('active');
+    },
+    { enableHighAccuracy: true, timeout: 8000 }
+  );
+}
+
+// ══════════════════════════════════════════════
+//  STEP 4 — 우회 충전소 (API)
+// ══════════════════════════════════════════════
+function selectRA(raNode) {
+  state.ra = raNode;
+  showScreen('screen-map', 'screen-ra');
+  loadMapScreen();
+}
+
+async function loadMapScreen() {
+  const hw  = HIGHWAYS[state.highway];
+  const dir = state.direction === 'DOWN' ? '하행' : '상행';
+  document.getElementById('map-hw-label').textContent = `${hw.name} · ${dir}`;
+  document.getElementById('map-ra-name').textContent  = state.ra.name;
+  document.getElementById('bypass-msg').textContent   =
+    `${state.ra.name}이 혼잡할 경우, IC를 나가면 확실하게 충전할 수 있어요!`;
+
+  // 혼잡도 칩 업데이트
+  updateCongestionChip();
+
+  // 로딩
+  ['prev','next'].forEach(w => {
+    document.getElementById(`${w}-ic-name`).textContent = '—';
+    document.getElementById(`${w}-stations`).innerHTML  =
+      `<div class="loading-wrap"><div class="spin">⚡</div></div>`;
+  });
+
+  const cacheKey = state.ra.id;
+  let data;
+  if (cache.bypass[cacheKey]) {
+    data = cache.bypass[cacheKey];
+  } else {
+    try {
+      data = await api.get(`/nodes/${state.ra.id}/bypass-stations/`);
+      cache.bypass[cacheKey] = data;
+    } catch(e) {
+      ['prev','next'].forEach(w => {
+        document.getElementById(`${w}-stations`).innerHTML =
+          `<div class="error-wrap">
+            <div class="err-icon">⚠️</div>
+            <div class="err-msg">${e.detail || '충전소 정보를 불러오지 못했어요.'}</div>
+            <button class="retry-btn" onclick="loadMapScreen()">다시 시도</button>
+           </div>`;
+      });
+      return;
+    }
+  }
+  renderBypassResult(data);
+}
+
+function updateCongestionChip() {
+  const c    = currentCongestion;
+  const dot  = document.getElementById('mcc-dot');
+  const text = document.getElementById('mcc-text');
+  dot.style.background = c.color;
+  text.textContent     = c.label;
+
+  const chip = document.getElementById('map-cong-chip');
+  chip.style.color = c.color;
+}
+
+function renderBypassResult(data) {
+  if (data.bypass_message) {
+    document.getElementById('bypass-msg').textContent = data.bypass_message;
+  }
+  renderICSection('prev', data.previous_ic);
+  renderICSection('next', data.next_ic);
+
+  const prev = data.previous_ic ? { name: data.previous_ic.name, lat: parseFloat(data.previous_ic.latitude), lng: parseFloat(data.previous_ic.longitude) } : null;
+  const next = data.next_ic     ? { name: data.next_ic.name,     lat: parseFloat(data.next_ic.latitude),     lng: parseFloat(data.next_ic.longitude) }     : null;
+  initKakaoMap(prev, next, data);
+}
+
+function renderICSection(which, icData) {
+  const nameEl   = document.getElementById(`${which}-ic-name`);
+  const distEl   = document.getElementById(`${which}-ic-dist`);
+  const cardsEl  = document.getElementById(`${which}-stations`);
+  const sectEl   = document.getElementById(`${which}-ic-section`);
+
+  if (!icData) { sectEl.style.display = 'none'; return; }
+  sectEl.style.display = '';
+  nameEl.textContent = icData.name;
+  distEl.textContent = icData.distance_from_start_km ? `기점 ${icData.distance_from_start_km}km` : '';
+
+  const stations = icData.stations || [];
+  if (!stations.length) {
+    cardsEl.innerHTML = `<div class="no-data">해당 IC 주변 충전소 정보가 없어요</div>`;
+    return;
+  }
+
+  const sorted = [...stations].sort((a,b) => (b.is_recommended - a.is_recommended) || (a.drive_minutes - b.drive_minutes)).slice(0, 8);
+  const isBest = (s, i) => s.is_recommended && i === 0;
+
+  cardsEl.innerHTML = sorted.map((s, i) => {
+    const best  = isBest(s, i);
+    const icon  = { mart:'🏪', gas_station:'⛽', hotel:'🏨', public:'🏛️', etc:'🔌' }[s.place_type] || '⚡';
+    const route = s.route_memo ? (s.route_memo.length > 18 ? s.route_memo.slice(0,18)+'…' : s.route_memo) : '';
+    return `
+      <div class="station-card ${best?'best':''}"
+           onclick="focusStation(${parseFloat(s.latitude)||0},${parseFloat(s.longitude)||0})">
+        <div class="sc-icon">${icon}</div>
+        <div class="sc-body">
+          <div class="sc-name">${s.name}</div>
+          <div class="sc-meta">
+            <span>⏱ ${s.drive_minutes}분</span>
+            <span>📍 ${s.distance_km}km</span>
+            ${s.open_hours ? `<span>🕐 ${s.open_hours}</span>` : ''}
+          </div>
+          <div class="sc-tags">
+            ${s.power_kw  ? `<span class="sc-tag blue">${s.power_kw}kW</span>` : ''}
+            ${s.charger_count ? `<span class="sc-tag blue">급속 ${s.charger_count}기</span>` : ''}
+            ${best ? '<span class="sc-tag green">추천</span>' : ''}
+            ${route ? `<span class="sc-tag orange">${route}</span>` : ''}
+          </div>
+        </div>
+        ${best ? '<div class="best-pill">⚡ BEST</div>' : ''}
+      </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════
+//  카카오맵
+// ══════════════════════════════════════════════
+function initKakaoMap(prevIC, nextIC, data) {
+  if (typeof kakao === 'undefined') {
+    document.getElementById('map-placeholder').style.display = 'flex';
+    return;
+  }
+  document.getElementById('map-placeholder').style.display = 'none';
+
+  overlays.forEach(o => o.setMap(null));
+  overlays = [];
+
+  const container = document.getElementById('kakao-map');
+  const ra     = state.ra;
+  const center = new kakao.maps.LatLng(ra.lat, ra.lng);
+  if (!kakaoMap) {
+    kakaoMap = new kakao.maps.Map(container, { center, level: 8 });
+  } else {
+    kakaoMap.setCenter(center);
+    kakaoMap.setLevel(8);
+  }
+
+  addOverlay(ra.lat, ra.lng, `<div class="mk-ra">🏁 ${ra.name}</div>`);
+
+  [
+    { ic: prevIC, stations: data?.previous_ic?.stations },
+    { ic: nextIC, stations: data?.next_ic?.stations },
+  ].filter(d => d.ic).forEach(({ ic, stations }) => {
+    if (ic.lat && ic.lng) addOverlay(ic.lat, ic.lng, `<div class="mk-ic">🔵 ${ic.name}</div>`);
+    (stations||[]).slice(0, 8).forEach(s => {
+      const lat = parseFloat(s.latitude), lng = parseFloat(s.longitude);
+      if (lat && lng) addOverlay(lat, lng, `<div class="mk-station">⚡ ${s.name.slice(0,9)}</div>`);
+    });
+  });
+}
+
+function addOverlay(lat, lng, html) {
+  const o = new kakao.maps.CustomOverlay({
+    position: new kakao.maps.LatLng(lat, lng),
+    content: html, yAnchor: 1.2
+  });
+  o.setMap(kakaoMap);
+  overlays.push(o);
+}
+
+function focusStation(lat, lng) {
+  if (!kakaoMap || !lat) return;
+  kakaoMap.setCenter(new kakao.maps.LatLng(lat, lng));
+  kakaoMap.setLevel(4);
+}
+
+// ══════════════════════════════════════════════
+//  바텀 시트
+// ══════════════════════════════════════════════
+let bsStartY = 0;
+
+function toggleSheet() {
+  const sheet = document.getElementById('bottom-sheet');
+  const caret = document.getElementById('bs-caret');
+  if (bsExpanded) {
+    sheet.style.transform = `translateY(calc(100% - 120px))`;
+    caret.textContent = '▲';
+    bsExpanded = false;
+  } else {
+    sheet.style.transform = 'translateY(0)';
+    caret.textContent = '▼';
+    bsExpanded = true;
+  }
+}
+
+document.getElementById('bs-drag') && document.getElementById('bottom-sheet').addEventListener('touchstart', e => {
+  bsStartY = e.touches[0].clientY;
+}, { passive: true });
+
+document.getElementById('bottom-sheet').addEventListener('touchend', e => {
+  const dy = e.changedTouches[0].clientY - bsStartY;
+  if (dy > 50 && bsExpanded)   toggleSheet();
+  if (dy < -50 && !bsExpanded) toggleSheet();
+}, { passive: true });
+</script>
+</body>
+</html>
