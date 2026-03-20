@@ -199,15 +199,16 @@ class StationDetailView(APIView):
 # ──────────────────────────────────────────────
 class NodeCongestionView(APIView):
     """
-    해당 RA 기준 전후 IC 충전소들의 혼잡도 집계 반환.
-    프론트엔드 setCongestion() 호출에 사용.
+    해당 RA(휴게소) 노드의 실제 혼잡도 반환.
+    휴게소 내 충전기 상태 변동 기반으로 계산.
     """
 
     LEVEL_CONFIG = {
-        'smooth': {'label': '원활',      'color': 'green'},
-        'normal': {'label': '보통',      'color': 'blue'},
-        'busy':   {'label': '혼잡',      'color': 'orange'},
-        'jammed': {'label': '매우 혼잡', 'color': 'red'},
+        'smooth':  {'label': '원활',      'color': 'green'},
+        'normal':  {'label': '보통',      'color': 'blue'},
+        'busy':    {'label': '혼잡',      'color': 'orange'},
+        'jammed':  {'label': '매우 혼잡', 'color': 'red'},
+        'unknown': {'label': '정보 없음', 'color': 'gray'},
     }
 
     def get(self, request, pk):
@@ -219,60 +220,43 @@ class NodeCongestionView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        ic_qs = HighwayNode.objects.filter(
-            highway=ra_node.highway,
-            direction=ra_node.direction,
-            node_type='IC', is_active=True,
-        )
-        prev_ic = ic_qs.filter(sequence__lt=ra_node.sequence).order_by('-sequence').first()
-        next_ic = ic_qs.filter(sequence__gt=ra_node.sequence).order_by('sequence').first()
-
-        station_ids = set()
-        for ic in filter(None, [prev_ic, next_ic]):
-            ids = NodeStationMapping.objects.filter(
-                ic_node=ic
-            ).values_list('station_id', flat=True)
-            station_ids.update(ids)
-
-        if not station_ids:
-            return Response({
-                'node_id': pk, 'rest_area': ra_node.name,
-                'level': 'smooth', 'label': '정보 없음', 'color': 'gray',
-                'suspicious_stations': 0, 'total_stations': 0,
-                'detail': '충전소 정보가 없어요.',
-            })
-
-        # StationCongestion 모델이 없을 경우 조용히 처리
         try:
             from chargeflow.models import StationCongestion
-            congestions = StationCongestion.objects.filter(station_id__in=station_ids)
+            cong = StationCongestion.objects.get(ra_node=ra_node)
+            level = cong.level
+            cfg   = self.LEVEL_CONFIG.get(level, self.LEVEL_CONFIG['unknown'])
+            detail = (
+                f'{ra_node.name} 충전기 중 일부에서 잦은 상태 변동이 감지됐어요. IC를 나가면 확실하게 충전할 수 있어요!'
+                if cong.is_suspicious
+                else f'{ra_node.name} 충전기가 정상 운영 중이에요.'
+            )
+            return Response({
+                'node_id':   pk,
+                'rest_area': ra_node.name,
+                'level':     level,
+                'label':     cfg['label'],
+                'color':     cfg['color'],
+                'is_suspicious': cong.is_suspicious,
+                'detail':    detail,
+            })
+        except StationCongestion.DoesNotExist:
+            # 폴링 데이터 아직 없음
+            return Response({
+                'node_id':   pk,
+                'rest_area': ra_node.name,
+                'level':     'unknown',
+                'label':     '정보 없음',
+                'color':     'gray',
+                'is_suspicious': False,
+                'detail':    '혼잡도 데이터를 수집 중이에요.',
+            })
         except Exception:
             return Response({
-                'node_id': pk, 'rest_area': ra_node.name,
-                'level': 'smooth', 'label': '정보 없음', 'color': 'gray',
-                'suspicious_stations': 0, 'total_stations': len(station_ids),
-                'detail': '혼잡도 데이터를 준비 중이에요.',
+                'node_id':   pk,
+                'rest_area': ra_node.name,
+                'level':     'unknown',
+                'label':     '정보 없음',
+                'color':     'gray',
+                'is_suspicious': False,
+                'detail':    '혼잡도 데이터를 준비 중이에요.',
             })
-
-        total      = len(station_ids)
-        suspicious = congestions.filter(is_suspicious=True).count()
-
-        level_order = ['smooth', 'normal', 'busy', 'jammed']
-        level = 'smooth'
-        for cong in congestions:
-            if level_order.index(cong.level) > level_order.index(level):
-                level = cong.level
-
-        cfg = self.LEVEL_CONFIG.get(level, self.LEVEL_CONFIG['smooth'])
-        detail = (
-            f'IC 인근 충전소 {total}곳 중 {suspicious}곳에서 잦은 상태 변동이 감지됐어요.'
-            if suspicious > 0
-            else f'IC 인근 충전소 {total}곳 모두 정상 운영 중이에요.'
-        )
-
-        return Response({
-            'node_id': pk, 'rest_area': ra_node.name,
-            'level': level, 'label': cfg['label'], 'color': cfg['color'],
-            'suspicious_stations': suspicious, 'total_stations': total,
-            'detail': detail,
-        })
