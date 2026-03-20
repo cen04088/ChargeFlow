@@ -29,6 +29,20 @@ class HighwayNode(models.Model):
     distance_from_start_km = models.FloatField()
     is_active              = models.BooleanField(default=True)
  
+    # RA 전용: 직전/직후 IC (set_ra_ics 커맨드로 설정)
+    prev_ic = models.ForeignKey(
+        'self', null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='prev_for_ra',
+        limit_choices_to={'node_type': 'IC'},
+    )
+    next_ic = models.ForeignKey(
+        'self', null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='next_for_ra',
+        limit_choices_to={'node_type': 'IC'},
+    )
+ 
     class Meta:
         verbose_name        = '고속도로 노드'
         verbose_name_plural = '고속도로 노드 목록'

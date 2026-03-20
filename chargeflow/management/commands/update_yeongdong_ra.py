@@ -7,117 +7,96 @@
 """
 from django.core.management.base import BaseCommand
 from chargeflow.models import Highway, HighwayNode
-
-
-# ── 영동 하행 RA (인천 → 강릉 순서) ─────────────────────────
+ 
 YEONGDONG_DOWN_RA = [
-    # (이름, 위도, 경도)
-    ('안산휴게소',      37.348000, 126.838160),
-    ('용인휴게소',      37.257273, 127.210854),
-    ('덕평자연휴게소',  37.381200, 127.351200),
-    ('여주휴게소',      37.281200, 127.691200),
-    ('문막휴게소',      37.311143, 127.827320),
-    ('횡성휴게소',      37.492300, 128.071200),
-    ('평창휴게소',      37.590530, 128.413840),
-    ('강릉휴게소',      37.730100, 128.853400),
+    ('안산휴게소',      37.351075, 126.818799),
+    ('용인휴게소',      37.245583, 127.241980),
+    ('덕평자연휴게소',  37.241456, 127.390189),
+    ('여주휴게소',      37.238022, 127.568892),
+    ('문막휴게소',      37.335469, 127.858220),
+    ('횡성휴게소',      37.462755, 128.133969),
+    ('평창휴게소',      37.605570, 128.452681),
+    ('강릉휴게소',      37.758206, 128.806648),  # 대관령IC ↔ 강릉JCT/강릉IC
 ]
-
-# ── 영동 상행 RA (강릉 → 인천 순서) ─────────────────────────
+ 
 YEONGDONG_UP_RA = [
-    ('강릉휴게소',      37.730100, 128.853400),
-    ('평창휴게소',      37.590173, 128.414764),
+    ('강릉휴게소',      37.760275, 128.805360),  # 북강릉IC/강릉JCT ↔ 대관령IC
+    ('평창휴게소',      37.610876, 128.463363),
     ('횡성휴게소',      37.464983, 128.135449),
-    ('문막휴게소',      37.311143, 127.827320),
-    ('여주휴게소',      37.281200, 127.691200),
-    ('덕평자연휴게소',  37.381200, 127.351200),
-    ('용인휴게소',      37.257273, 127.210854),
-    ('안산휴게소',      37.348000, 126.838160),
+    ('문막휴게소',      37.297853, 127.817261),
+    ('여주휴게소',      37.239739, 127.569949),
+    ('덕평자연휴게소',  37.241456, 127.390189),
+    ('용인휴게소',      37.248318, 127.238342),
+    ('안산휴게소',      37.351075, 126.818799),
 ]
-
-
+ 
+YEONGDONG_DOWN_IC_MAP = {
+    '안산휴게소':     ('서창JCT/선부IC', '안산IC'),
+    '용인휴게소':     ('마성IC',         '용인IC'),
+    '덕평자연휴게소': ('양지IC',         '덕평IC'),
+    '여주휴게소':     ('여주IC',         '명봉IC(동여주)'),
+    '문막휴게소':     ('문막IC',         '원주IC'),
+    '횡성휴게소':     ('새말IC',         '둔내IC'),
+    '평창휴게소':     ('면온IC',         '평창IC'),
+    '강릉휴게소':     ('대관령IC',       '강릉JCT/강릉IC'),
+}
+ 
+YEONGDONG_UP_IC_MAP = {
+    '강릉휴게소':     ('북강릉IC/강릉JCT', '대관령IC'),
+    '평창휴게소':     ('평창IC',           '면온IC'),
+    '횡성휴게소':     ('둔내IC',           '새말IC'),
+    '문막휴게소':     ('원주IC',           '문막IC'),
+    '여주휴게소':     ('명봉IC(동여주)',   '여주IC'),
+    '덕평자연휴게소': ('덕평IC',           '양지IC'),
+    '용인휴게소':     ('용인IC',           '마성IC'),
+    '안산휴게소':     ('안산IC',           '선부IC/서창JCT'),
+}
+ 
+ 
 class Command(BaseCommand):
-    help = '영동고속도로 RA(휴게소) 노드 이름/좌표 최신화'
-
+    help = '영동고속도로 RA 최신화'
+ 
     def add_arguments(self, parser):
-        parser.add_argument('--dry-run', action='store_true', help='미리보기만')
-
+        parser.add_argument('--dry-run', action='store_true')
+ 
     def handle(self, *args, **options):
         dry_run = options['dry_run']
-
         try:
             highway = Highway.objects.get(code='yeongdong')
         except Highway.DoesNotExist:
-            self.stdout.write(self.style.ERROR('❌ 영동고속도로 데이터가 없습니다.'))
+            self.stdout.write(self.style.ERROR('❌ 영동고속도로 없음'))
             return
-
+ 
         self.stdout.write(f'\n⛰️  영동고속도로 RA 최신화  dry-run={dry_run}\n')
-
-        datasets = [
-            ('DOWN', '하행', YEONGDONG_DOWN_RA),
-            ('UP',   '상행', YEONGDONG_UP_RA),
-        ]
-
-        for direction, dir_kor, ra_list in datasets:
-            self.stdout.write(f'\n▶ {dir_kor} ({direction}) — {len(ra_list)}개 RA')
-
-            existing_ras = list(
-                HighwayNode.objects.filter(
-                    highway=highway,
-                    direction=direction,
-                    node_type='RA',
-                ).order_by('sequence')
-            )
-
-            self.stdout.write(
-                f'  기존 DB: {len(existing_ras)}개 / 새 데이터: {len(ra_list)}개'
-            )
-
-            min_len = min(len(existing_ras), len(ra_list))
-
-            for i in range(min_len):
-                node = existing_ras[i]
-                new_name, new_lat, new_lng = ra_list[i]
-
-                changed = (
-                    node.name != new_name or
-                    abs(float(node.latitude)  - new_lat) > 0.0001 or
-                    abs(float(node.longitude) - new_lng) > 0.0001
-                )
-                marker = '✏️ ' if changed else '   '
-
-                self.stdout.write(
-                    f'  {marker}[{i+1:>2}] {node.name:<22} → {new_name:<22}'
-                    f'  ({float(node.latitude):.4f},{float(node.longitude):.4f})'
-                    f' → ({new_lat:.4f},{new_lng:.4f})'
-                )
-
-                if not dry_run and changed:
-                    node.name      = new_name
-                    node.latitude  = new_lat
-                    node.longitude = new_lng
-                    node.save(update_fields=['name', 'latitude', 'longitude'])
-
-            # 새 데이터가 더 많은 경우 경고
-            if len(ra_list) > len(existing_ras):
-                for i in range(len(existing_ras), len(ra_list)):
-                    new_name, new_lat, new_lng = ra_list[i]
+ 
+        for direction, ra_list, ic_map, label in [
+            ('DOWN', YEONGDONG_DOWN_RA, YEONGDONG_DOWN_IC_MAP, '하행'),
+            ('UP',   YEONGDONG_UP_RA,  YEONGDONG_UP_IC_MAP,  '상행'),
+        ]:
+            self.stdout.write(f'\n▶ {label} ({direction}) — {len(ra_list)}개 RA')
+            existing = list(HighwayNode.objects.filter(
+                highway=highway, direction=direction, node_type='RA'
+            ).order_by('sequence'))
+            self.stdout.write(f'  기존 DB: {len(existing)}개 / 새 데이터: {len(ra_list)}개')
+ 
+            for i, (new_name, new_lat, new_lng) in enumerate(ra_list):
+                if i < len(existing):
+                    node = existing[i]
+                    self.stdout.write(
+                        f'  [{i+1:>2}] {node.name:<22} → {new_name:<22}'
+                        f'  IC: {ic_map.get(new_name, ("?","?"))}'
+                    )
+                    if not dry_run:
+                        node.name = new_name
+                        node.latitude = new_lat
+                        node.longitude = new_lng
+                        node.save(update_fields=['name','latitude','longitude'])
+                else:
                     self.stdout.write(self.style.WARNING(
-                        f'  ⚠️  신규 RA [{i+1}] {new_name} — sequence 수동 지정 필요'
+                        f'  ⚠️  [{i+1}] {new_name} — 신규 (수동 추가 필요)'
                     ))
-
-            # 기존이 더 많은 경우 경고
-            if len(existing_ras) > len(ra_list):
-                for i in range(len(ra_list), len(existing_ras)):
-                    node = existing_ras[i]
-                    self.stdout.write(self.style.WARNING(
-                        f'  ⚠️  잉여 RA [{i+1}] {node.name} — Admin에서 삭제 필요'
-                    ))
-
-        if dry_run:
-            self.stdout.write(self.style.SUCCESS('\n✅ [DRY-RUN] 완료 — DB 수정 없음'))
+ 
+        if not dry_run:
+            self.stdout.write(self.style.SUCCESS('\n✅ 완료!'))
         else:
-            self.stdout.write(self.style.SUCCESS(
-                '\n✅ 영동고속도로 RA 최신화 완료!'
-                '\n   확인: http://localhost:8000/admin/chargeflow/highwaynode/'
-                '\n   이후 map_ra_stations.py 재실행 필요'
-            ))
+            self.stdout.write(self.style.SUCCESS('\n✅ [DRY-RUN] 완료'))
