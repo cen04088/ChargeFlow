@@ -6,7 +6,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
  
 # ── 보안 ──────────────────────────────────────────────────
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-chargeflow-change-this-in-production')
-DEBUG      = os.getenv('DEBUG', 'False') == 'True'
+DEBUG = True
 ALLOWED_HOSTS = ['*']
  
 # ── 앱 ────────────────────────────────────────────────────
