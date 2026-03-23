@@ -131,7 +131,8 @@ class BypassStationView(APIView):
                     'distance_km':    m.distance_km,
                     'drive_minutes':  m.drive_minutes,
                     'route_memo':     m.route_memo,
-                    'is_recommended': m.is_recommended,
+                    'is_recommended':  m.is_recommended,
+                    'kakao_place_id':  s.kakao_place_id or '',
                 })
  
             return {

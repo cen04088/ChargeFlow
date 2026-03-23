@@ -25,8 +25,8 @@ django.setup()
 from chargeflow.models import HighwayNode, ChargingStation, NodeStationMapping
  
 API_URL           = 'https://apis.data.go.kr/B552584/EvCharger/getChargerInfo'
-MAX_DIST_KM       = 5.0
-MAX_DRIVE_MINUTES = 15
+MAX_DIST_KM       = 8.0
+MAX_DRIVE_MINUTES = 20
 SPEED_KMH         = 30
 PAGE_SIZE         = 9999
  
