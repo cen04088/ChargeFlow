@@ -1,14 +1,14 @@
 from pathlib import Path
 import os
 import dj_database_url
- 
+
 BASE_DIR = Path(__file__).resolve().parent.parent
- 
+
 # ── 보안 ──────────────────────────────────────────────────
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-chargeflow-change-this-in-production')
-DEBUG = True
+DEBUG      = os.getenv('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = ['*']
- 
+
 # ── 앱 ────────────────────────────────────────────────────
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -21,7 +21,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'chargeflow',
 ]
- 
+
 # ── 미들웨어 ───────────────────────────────────────────────
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',           # 반드시 최상단
@@ -34,10 +34,10 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
- 
+
 ROOT_URLCONF     = 'config.urls'
 WSGI_APPLICATION = 'config.wsgi.application'
- 
+
 # ── 템플릿 ─────────────────────────────────────────────────
 TEMPLATES = [
     {
@@ -54,7 +54,7 @@ TEMPLATES = [
         },
     },
 ]
- 
+
 # ── 데이터베이스 ───────────────────────────────────────────
 # Railway PostgreSQL 환경변수(DATABASE_URL)가 있으면 사용, 없으면 SQLite
 DATABASES = {
@@ -63,7 +63,7 @@ DATABASES = {
         conn_max_age=600,
     )
 }
- 
+
 # ── 비밀번호 검증 ──────────────────────────────────────────
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -71,23 +71,29 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
- 
+
 # ── 국제화 ─────────────────────────────────────────────────
 LANGUAGE_CODE = 'ko-kr'
 TIME_ZONE     = 'Asia/Seoul'
 USE_I18N      = True
 USE_TZ        = True
- 
+
 # ── 정적 파일 ──────────────────────────────────────────────
 STATIC_URL   = 'static/'
 STATIC_ROOT  = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
- 
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
- 
+
+# ── CSRF ──────────────────────────────────────────────────
+CSRF_TRUSTED_ORIGINS = [
+    'https://chargeflow-production.up.railway.app',
+    'http://localhost:8000',
+]
+
 # ── CORS ──────────────────────────────────────────────────
 CORS_ALLOW_ALL_ORIGINS = True
- 
+
 # ── DRF ───────────────────────────────────────────────────
 REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': [
