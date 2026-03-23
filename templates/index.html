@@ -1386,8 +1386,6 @@ function highlightCard(cardId) {
 // ══════════════════════════════════════════════
 //  바텀 시트
 // ══════════════════════════════════════════════
-let bsStartY = 0;
- 
 function toggleSheet() {
   const sheet = document.getElementById('bottom-sheet');
   const caret = document.getElementById('bs-caret');
@@ -1405,9 +1403,9 @@ function toggleSheet() {
 // 바텀 시트 드래그 — bs-scroll 스크롤 중이면 무시
 const bsSheet  = document.getElementById('bottom-sheet');
 const bsScroll = document.getElementById('bs-scroll');
-let bsStartY   = 0;
+let bsStartY = 0;
 let bsScrollTop = 0;
-let bsDragging  = false;
+let bsDragging = false;
  
 bsSheet.addEventListener('touchstart', e => {
   bsStartY    = e.touches[0].clientY;
