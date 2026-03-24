@@ -30,7 +30,7 @@ KAKAO_NAVI_URL = 'https://apis-navi.kakaomobility.com/v1/directions'
 
 # 실제 도로 거리가 이 값 초과 시 매핑 삭제 (IC에서 너무 먼 경우)
 MAX_REAL_DIST_KM  = 8.0
-MAX_REAL_MINUTES  = 20
+MAX_REAL_MINUTES  = 15
 
 
 def get_road_info(kakao_key: str, origin_lng: float, origin_lat: float,
