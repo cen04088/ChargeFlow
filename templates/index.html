@@ -1271,18 +1271,13 @@ async function loadMapScreen() {
   const dir = state.direction === 'DOWN' ? '하행' : '상행';
   document.getElementById('map-hw-label').textContent = `${hw.name} · ${dir}`;
   document.getElementById('map-ra-name').textContent  = state.ra.name;
-  document.getElementById('bypass-msg').textContent   =
-    `${state.ra.name}이 혼잡할 경우, IC를 나가면 확실하게 충전할 수 있어요!`;
 
   // 혼잡도 칩 업데이트
   updateCongestionChip();
 
-  // 로딩
-  ['prev','next'].forEach(w => {
-    document.getElementById(`${w}-ic-name`).textContent = '—';
-    document.getElementById(`${w}-stations`).innerHTML  =
-      `<div class="loading-wrap"><div class="spin">⚡</div></div>`;
-  });
+  // 탭 로딩 상태
+  document.getElementById('tab-prev-name').textContent = '로딩 중...';
+  document.getElementById('tab-next-name').textContent = '로딩 중...';
 
   const cacheKey = state.ra.id;
   let data;
@@ -1600,36 +1595,18 @@ function toggleSheet() {
   }
 }
 
-// 바텀 시트 드래그 — bs-scroll 스크롤 중이면 무시
-const bsSheet  = document.getElementById('bottom-sheet');
-const bsScroll = document.getElementById('bs-scroll');
-let bsStartY = 0;
-let bsScrollTop = 0;
-let bsDragging = false;
+// 스테이션 패널 스와이프로 닫기
+const spPanel = document.getElementById('station-panel');
+let spStartY  = 0;
 
-bsSheet.addEventListener('touchstart', e => {
-  bsStartY    = e.touches[0].clientY;
-  bsScrollTop = bsScroll.scrollTop;
-  bsDragging  = false;
+spPanel.addEventListener('touchstart', e => {
+  spStartY = e.touches[0].clientY;
 }, { passive: true });
 
-bsSheet.addEventListener('touchmove', e => {
-  const dy = e.touches[0].clientY - bsStartY;
-  // 스크롤 영역 안에서 스크롤 중이면 드래그로 처리 안 함
-  if (bsScroll.contains(e.target) && bsScroll.scrollTop > 0) {
-    bsDragging = false;
-    return;
-  }
-  if (Math.abs(dy) > 10) bsDragging = true;
-}, { passive: true });
-
-bsSheet.addEventListener('touchend', e => {
-  if (!bsDragging) return;
-  const dy = e.changedTouches[0].clientY - bsStartY;
-  // 시트가 열려있고 스크롤이 맨 위일 때만 닫기
-  if (dy > 60 && bsExpanded && bsScroll.scrollTop <= 0) toggleSheet();
-  if (dy < -60 && !bsExpanded) toggleSheet();
-  bsDragging = false;
+spPanel.addEventListener('touchend', e => {
+  const dy     = e.changedTouches[0].clientY - spStartY;
+  const scroll = document.getElementById('sp-scroll');
+  if (dy > 60 && scroll.scrollTop <= 0) closeStationPanel();
 }, { passive: true });
 </script>
 </body>
