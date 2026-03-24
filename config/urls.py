@@ -1,9 +1,9 @@
 from django.contrib import admin
 from django.urls import path, include
-from django.views.generic import TemplateView 
+from chargeflow.views import index_view
 
 urlpatterns = [
-    path('', TemplateView.as_view(template_name='index.html')),
+    path('', index_view, name='index'),
     path('admin/', admin.site.urls),
     path('api/v1/', include('chargeflow.urls')),
 ]

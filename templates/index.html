@@ -7,8 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Lexend:wght@400;600;700;800&display=swap" rel="stylesheet">
 
-<!-- ★ 카카오맵 API 키를 입력하세요 ★ -->
-<script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=c3a0bb9f07cf26addd10352e88a7bd78&libraries=services"></script>
+{% if kakao_key %}
+<script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey={{ kakao_key }}&libraries=services"></script>
+{% endif %}
 
 <style>
 :root {

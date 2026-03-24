@@ -103,3 +103,6 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.AllowAny',
     ],
 }
+
+KAKAO_API_KEY = os.getenv('KAKAO_API_KEY', '')   # REST API 키 (로컬 검색용)
+KAKAO_JS_KEY  = os.getenv('KAKAO_JS_KEY', '')    # JavaScript 키 (지도 SDK용)
