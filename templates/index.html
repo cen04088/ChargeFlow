@@ -1421,34 +1421,34 @@ function showStationDetail(id) {
   focusStation(lat, lng);
 
   const kakaoUrl = s.kakao_place_id
-    ? \`https://place.map.kakao.com/\${s.kakao_place_id}\`
-    : \`https://map.kakao.com/link/search/\${encodeURIComponent(s.name + ' 전기차충전소')}\`;
+    ? `https://place.map.kakao.com/${s.kakao_place_id}`
+    : `https://map.kakao.com/link/search/${encodeURIComponent(s.name + ' 전기차충전소')}`;
 
   const icon  = { mart:'🏪', gas_station:'⛽', hotel:'🏨', public:'🏛️', etc:'🔌' }[s.place_type] || '⚡';
   const route = s.route_memo ? s.route_memo : '';
 
-  document.getElementById('sp-detail').innerHTML = \`
+  document.getElementById('sp-detail').innerHTML = `
     <div class="station-card best" style="margin:4px 0 0">
-      <div class="sc-icon">\${icon}</div>
+      <div class="sc-icon">${icon}</div>
       <div class="sc-body">
-        <div class="sc-name">\${s.name}</div>
+        <div class="sc-name">${s.name}</div>
         <div class="sc-meta">
-          <span>⏱ \${s.drive_minutes}분</span>
-          <span>📍 \${s.distance_km}km</span>
-          \${s.open_hours ? \`<span>🕐 \${s.open_hours}</span>\` : ''}
+          <span>⏱ ${s.drive_minutes}분</span>
+          <span>📍 ${s.distance_km}km</span>
+          ${s.open_hours ? `<span>🕐 ${s.open_hours}</span>` : ''}
         </div>
         <div class="sc-tags">
-          \${s.power_kw      ? \`<span class="sc-tag blue">\${s.power_kw}kW</span>\` : ''}
-          \${s.charger_count ? \`<span class="sc-tag blue">급속 \${s.charger_count}기</span>\` : ''}
-          \${s.is_recommended ? '<span class="sc-tag green">추천</span>' : ''}
-          \${route ? \`<span class="sc-tag orange">\${route}</span>\` : ''}
+          ${s.power_kw      ? `<span class="sc-tag blue">${s.power_kw}kW</span>` : ''}
+          ${s.charger_count ? `<span class="sc-tag blue">급속 ${s.charger_count}기</span>` : ''}
+          ${s.is_recommended ? '<span class="sc-tag green">추천</span>' : ''}
+          ${route ? `<span class="sc-tag orange">${route}</span>` : ''}
         </div>
-        <a class="kakao-btn" href="\${kakaoUrl}" target="_blank" onclick="event.stopPropagation()">
+        <a class="kakao-btn" href="${kakaoUrl}" target="_blank" onclick="event.stopPropagation()">
           <span class="kb-dot"></span>카카오맵에서 보기
         </a>
       </div>
     </div>
-  \`;
+  `;
 
   // 목록 숨기고 상세 표시
   document.getElementById('sp-stations').style.display = 'none';
