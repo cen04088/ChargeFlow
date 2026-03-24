@@ -460,7 +460,7 @@ body {
 .map-header {
   position: absolute;
   top: 0; left: 0; right: 0;
-  padding: 52px 16px 14px;
+  padding: 12px 16px 10px;
   z-index: 100;
   display: flex;
   align-items: center;
@@ -575,7 +575,7 @@ body {
   pointer-events: all;
   transition: transform .35s cubic-bezier(.4,0,.2,1);
   transform: translateY(100%);
-  max-height: 55dvh;
+  max-height: 45dvh;
   display: flex;
   flex-direction: column;
 }
@@ -968,11 +968,15 @@ body {
     <div class="station-panel" id="station-panel">
       <div class="sp-handle"></div>
       <div class="sp-header">
+        <div class="sp-back" id="sp-back" onclick="goBackToList()" style="display:none;align-items:center;gap:6px;cursor:pointer;margin-right:8px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </div>
         <div class="sp-title" id="sp-title">충전소 목록</div>
         <div class="sp-close" onclick="closeStationPanel()">✕</div>
       </div>
       <div class="sp-scroll" id="sp-scroll">
         <div class="station-cards" id="sp-stations"></div>
+        <div id="sp-detail" style="display:none;padding:0 2px"></div>
         <div class="safe-bottom"></div>
       </div>
     </div>
@@ -1316,6 +1320,7 @@ function updateCongestionChip() {
 // 전역 데이터 저장
 let bypassData = { prev: null, next: null };
 let activeTab  = 'prev';
+let currentPanelTitle = '';
 
 function renderBypassResult(data) {
   bypassData.prev = data.previous_ic || null;
@@ -1370,7 +1375,8 @@ function openStationPanel(which) {
   const badge    = which === 'prev' ? '이전 IC' : '다음 IC';
   const icName   = icData?.name || '—';
 
-  document.getElementById('sp-title').textContent = `${badge} · ${icName}`;
+  currentPanelTitle = `${badge} · ${icName}`;
+  document.getElementById('sp-title').textContent = currentPanelTitle;
 
   const stations = icData?.stations || [];
   const sorted   = [...stations].sort((a,b) => (b.is_recommended - a.is_recommended) || (a.drive_minutes - b.drive_minutes)).slice(0, 8);
@@ -1389,8 +1395,64 @@ function openStationPanel(which) {
   }
 }
 
+function goBackToList() {
+  document.getElementById('sp-stations').style.display = '';
+  document.getElementById('sp-detail').style.display   = 'none';
+  document.getElementById('sp-back').style.display     = 'none';
+  document.getElementById('sp-title').textContent      = currentPanelTitle || '충전소 목록';
+}
+
 function closeStationPanel() {
   document.getElementById('station-panel').classList.remove('open');
+  document.getElementById('station-panel').classList.remove('detail');
+  // 목록으로 복귀
+  document.getElementById('sp-stations').style.display = '';
+  document.getElementById('sp-detail').style.display   = 'none';
+  document.getElementById('sp-back').style.display     = 'none';
+}
+
+function showStationDetail(s) {
+  // 지도 포커스
+  const lat = parseFloat(s.latitude) || 0;
+  const lng = parseFloat(s.longitude) || 0;
+  focusStation(lat, lng);
+
+  const kakaoUrl = s.kakao_place_id
+    ? \`https://place.map.kakao.com/\${s.kakao_place_id}\`
+    : \`https://map.kakao.com/link/search/\${encodeURIComponent(s.name + ' 전기차충전소')}\`;
+
+  const icon  = { mart:'🏪', gas_station:'⛽', hotel:'🏨', public:'🏛️', etc:'🔌' }[s.place_type] || '⚡';
+  const route = s.route_memo ? s.route_memo : '';
+
+  document.getElementById('sp-detail').innerHTML = \`
+    <div class="station-card best" style="margin:4px 0 0">
+      <div class="sc-icon">\${icon}</div>
+      <div class="sc-body">
+        <div class="sc-name">\${s.name}</div>
+        <div class="sc-meta">
+          <span>⏱ \${s.drive_minutes}분</span>
+          <span>📍 \${s.distance_km}km</span>
+          \${s.open_hours ? \`<span>🕐 \${s.open_hours}</span>\` : ''}
+        </div>
+        <div class="sc-tags">
+          \${s.power_kw      ? \`<span class="sc-tag blue">\${s.power_kw}kW</span>\` : ''}
+          \${s.charger_count ? \`<span class="sc-tag blue">급속 \${s.charger_count}기</span>\` : ''}
+          \${s.is_recommended ? '<span class="sc-tag green">추천</span>' : ''}
+          \${route ? \`<span class="sc-tag orange">\${route}</span>\` : ''}
+        </div>
+        <a class="kakao-btn" href="\${kakaoUrl}" target="_blank" onclick="event.stopPropagation()">
+          <span class="kb-dot"></span>카카오맵에서 보기
+        </a>
+      </div>
+    </div>
+  \`;
+
+  // 목록 숨기고 상세 표시
+  document.getElementById('sp-stations').style.display = 'none';
+  document.getElementById('sp-detail').style.display   = '';
+  document.getElementById('sp-back').style.display     = 'flex';
+  document.getElementById('sp-title').textContent      = s.name;
+  document.getElementById('station-panel').classList.add('open');
 }
 
 function buildStationCard(s, best) {
@@ -1403,7 +1465,7 @@ function buildStationCard(s, best) {
     : `https://map.kakao.com/link/search/${encodeURIComponent(s.name + ' 전기차충전소')}`;
   return `
     <div class="station-card ${best?'best':''}" id="card-${s.id}"
-         onclick="focusStation(${lat},${lng})">
+         onclick="showStationDetail(${JSON.stringify(s).replace(/'/g,'\\'')})">
       <div class="sc-icon">${icon}</div>
       <div class="sc-body">
         <div class="sc-name">${s.name}</div>
