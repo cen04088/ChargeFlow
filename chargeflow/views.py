@@ -215,14 +215,38 @@ class NodeCongestionView(APIView):
                 if cong.is_suspicious
                 else f'{ra_node.name} 충전기가 정상 운영 중이에요.'
             )
+            # 최신 충전기 상태에서 가용 대수 계산
+            from chargeflow.models import ChargerStatusLog
+            from django.utils import timezone
+            from datetime import timedelta
+
+            window = timezone.now() - timedelta(minutes=10)
+            # 최근 10분 내 각 충전기의 가장 최신 상태
+            recent_logs = (
+                ChargerStatusLog.objects
+                .filter(ra_node=ra_node, checked_at__gte=window)
+                .order_by('charger_id', '-checked_at')
+            )
+            seen = set()
+            available = 0
+            total = 0
+            for log in recent_logs:
+                if log.charger_id not in seen:
+                    seen.add(log.charger_id)
+                    total += 1
+                    if log.stat == '2':  # 충전가능
+                        available += 1
+
             return Response({
-                'node_id':   pk,
-                'rest_area': ra_node.name,
-                'level':     level,
-                'label':     cfg['label'],
-                'color':     cfg['color'],
+                'node_id':       pk,
+                'rest_area':     ra_node.name,
+                'level':         level,
+                'label':         cfg['label'],
+                'color':         cfg['color'],
                 'is_suspicious': cong.is_suspicious,
-                'detail':    detail,
+                'detail':        detail,
+                'available':     available if total > 0 else None,
+                'total':         total if total > 0 else None,
             })
         except StationCongestion.DoesNotExist:
             # 폴링 데이터 아직 없음

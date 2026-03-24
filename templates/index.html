@@ -736,6 +736,18 @@ body {
   color: var(--text-dim);
   text-align: center;
 }
+.alert-banner {
+  margin: 6px 16px 0;
+  background: var(--red-lt);
+  border: 1px solid rgba(192,38,30,0.2);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--red);
+  text-align: center;
+  line-height: 1.5;
+}
 .kakao-btn {
   display: inline-flex;
   align-items: center;
@@ -910,6 +922,10 @@ body {
     <span>내 위치로 가장 가까운 휴게소 찾기</span>
     <span class="loc-status" id="loc-status"></span>
   </button>
+
+  <div class="alert-banner">
+    🚨 고장 여부에 따라 값이 정확하지 않을 수 있습니다 🚨
+  </div>
 
   <div class="nearest-banner" id="nearest-banner">
     <div class="nb-icon">🎯</div>
@@ -1309,13 +1325,21 @@ async function fetchCongestion(raId) {
   try {
     const data = await api.get(`/nodes/${raId}/congestion/`);
     const levelMap = {
-      smooth: { label: '원활',     color: 'var(--lime)' },
-      normal: { label: '보통',     color: 'var(--blue)' },
-      busy:   { label: '혼잡',     color: 'var(--orange)' },
-      jammed: { label: '매우 혼잡', color: 'var(--red)' },
+      smooth:  { color: 'var(--lime)' },
+      normal:  { color: 'var(--blue)' },
+      busy:    { color: 'var(--orange)' },
+      jammed:  { color: 'var(--red)' },
+      unknown: { color: 'var(--text-dim)' },
     };
-    const info = levelMap[data.level] || { label: data.label || '정보 없음', color: 'var(--text-dim)' };
-    setCongestion({ level: data.level, label: info.label, color: info.color });
+    const color = (levelMap[data.level] || levelMap.unknown).color;
+    // available/total이 있으면 숫자 표시, 없으면 label 표시
+    let label;
+    if (data.available != null && data.total != null) {
+      label = `${data.available}/${data.total}기 가능`;
+    } else {
+      label = data.label || '정보 없음';
+    }
+    setCongestion({ level: data.level, label, color });
   } catch(e) {
     // 조용히 실패
   }
