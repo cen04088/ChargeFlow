@@ -1324,22 +1324,30 @@ async function loadMapScreen() {
 async function fetchCongestion(raId) {
   try {
     const data = await api.get(`/nodes/${raId}/congestion/`);
-    const levelMap = {
-      smooth:  { color: 'var(--lime)' },
-      normal:  { color: 'var(--blue)' },
-      busy:    { color: 'var(--orange)' },
-      jammed:  { color: 'var(--red)' },
-      unknown: { color: 'var(--text-dim)' },
+    const colorMap = {
+      smooth:  'var(--lime)',
+      normal:  'var(--blue)',
+      busy:    'var(--orange)',
+      jammed:  'var(--red)',
+      unknown: 'var(--text-dim)',
     };
-    const color = (levelMap[data.level] || levelMap.unknown).color;
-    // available/total이 있으면 숫자 표시, 없으면 label 표시
+    const color = colorMap[data.level] || colorMap.unknown;
+
     let label;
     if (data.available != null && data.total != null) {
-      label = `${data.available}/${data.total}기 가능`;
+      label = `⚡${data.available}/${data.total}기 가능`;
     } else {
-      label = data.label || '정보 없음';
+      label = '정보 없음';
     }
     setCongestion({ level: data.level, label, color });
+
+    // 상세 stats 표시 (충전가능/충전중/점검중)
+    if (data.stats && Object.keys(data.stats).length > 0) {
+      const statsText = Object.entries(data.stats)
+        .map(([k, v]) => `${k} ${v}기`)
+        .join(' · ');
+      document.getElementById('mcc-text').title = statsText;
+    }
   } catch(e) {
     // 조용히 실패
   }

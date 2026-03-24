@@ -184,16 +184,17 @@ class StationDetailView(APIView):
 # ──────────────────────────────────────────────
 class NodeCongestionView(APIView):
     """
-    해당 RA(휴게소) 노드의 실제 혼잡도 반환.
-    휴게소 내 충전기 상태 변동 기반으로 계산.
+    해당 RA(휴게소) 노드의 충전기 현황 반환.
+    최근 폴링된 stat 값을 직접 집계해서 반환.
     """
 
-    LEVEL_CONFIG = {
-        'smooth':  {'label': '원활',      'color': 'green'},
-        'normal':  {'label': '보통',      'color': 'blue'},
-        'busy':    {'label': '혼잡',      'color': 'orange'},
-        'jammed':  {'label': '매우 혼잡', 'color': 'red'},
-        'unknown': {'label': '정보 없음', 'color': 'gray'},
+    STAT_LABELS = {
+        '1': '통신이상',
+        '2': '충전가능',
+        '3': '충전중',
+        '4': '운영중지',
+        '5': '점검중',
+        '9': '상태미확인',
     }
 
     def get(self, request, pk):
@@ -205,72 +206,77 @@ class NodeCongestionView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        try:
-            from chargeflow.models import StationCongestion
-            cong = StationCongestion.objects.get(ra_node=ra_node)
-            level = cong.level
-            cfg   = self.LEVEL_CONFIG.get(level, self.LEVEL_CONFIG['unknown'])
-            detail = (
-                f'{ra_node.name} 충전기 중 일부에서 잦은 상태 변동이 감지됐어요. IC를 나가면 확실하게 충전할 수 있어요!'
-                if cong.is_suspicious
-                else f'{ra_node.name} 충전기가 정상 운영 중이에요.'
-            )
-            # 최신 충전기 상태에서 가용 대수 계산
-            from chargeflow.models import ChargerStatusLog
-            from django.utils import timezone
-            from datetime import timedelta
+        from chargeflow.models import ChargerStatusLog
+        from django.utils import timezone
+        from datetime import timedelta
 
-            window = timezone.now() - timedelta(minutes=10)
-            # 최근 10분 내 각 충전기의 가장 최신 상태
-            recent_logs = (
-                ChargerStatusLog.objects
-                .filter(ra_node=ra_node, checked_at__gte=window)
-                .order_by('charger_id', '-checked_at')
-            )
-            seen = set()
-            available = 0
-            total = 0
-            for log in recent_logs:
-                if log.charger_id not in seen:
-                    seen.add(log.charger_id)
-                    total += 1
-                    if log.stat == '2':  # 충전가능
-                        available += 1
+        # 최근 10분 내 각 충전기의 가장 최신 상태
+        window = timezone.now() - timedelta(minutes=10)
+        recent_logs = (
+            ChargerStatusLog.objects
+            .filter(ra_node=ra_node, checked_at__gte=window)
+            .order_by('charger_id', '-checked_at')
+        )
 
-            return Response({
-                'node_id':       pk,
-                'rest_area':     ra_node.name,
-                'level':         level,
-                'label':         cfg['label'],
-                'color':         cfg['color'],
-                'is_suspicious': cong.is_suspicious,
-                'detail':        detail,
-                'available':     available if total > 0 else None,
-                'total':         total if total > 0 else None,
-            })
-        except StationCongestion.DoesNotExist:
-            # 폴링 데이터 아직 없음
+        # 충전기별 최신 상태만 집계
+        seen = {}
+        for log in recent_logs:
+            if log.charger_id not in seen:
+                seen[log.charger_id] = log.stat
+
+        if not seen:
             return Response({
                 'node_id':   pk,
                 'rest_area': ra_node.name,
                 'level':     'unknown',
                 'label':     '정보 없음',
                 'color':     'gray',
-                'is_suspicious': False,
-                'detail':    '혼잡도 데이터를 수집 중이에요.',
-            })
-        except Exception:
-            return Response({
-                'node_id':   pk,
-                'rest_area': ra_node.name,
-                'level':     'unknown',
-                'label':     '정보 없음',
-                'color':     'gray',
-                'is_suspicious': False,
-                'detail':    '혼잡도 데이터를 준비 중이에요.',
+                'detail':    '아직 수집된 충전기 정보가 없어요.',
+                'stats':     {},
+                'available': None,
+                'total':     None,
             })
 
+        # stat별 집계
+        stats = {}
+        for stat in seen.values():
+            label = self.STAT_LABELS.get(stat, '알 수 없음')
+            stats[label] = stats.get(label, 0) + 1
 
+        total     = len(seen)
+        available = sum(1 for s in seen.values() if s == '2')
+        charging  = sum(1 for s in seen.values() if s == '3')
+
+        # 레벨 판단
+        if total == 0:
+            level, color = 'unknown', 'gray'
+        elif available == 0 and charging == 0:
+            level, color = 'jammed', 'red'
+        elif available == 0:
+            level, color = 'busy', 'orange'
+        elif available / total >= 0.5:
+            level, color = 'smooth', 'green'
+        else:
+            level, color = 'normal', 'blue'
+
+        return Response({
+            'node_id':   pk,
+            'rest_area': ra_node.name,
+            'level':     level,
+            'color':     color,
+            'available': available,
+            'charging':  charging,
+            'total':     total,
+            'stats':     stats,
+            'detail':    f'충전가능 {available}기 / 충전중 {charging}기 / 전체 {total}기',
+        })
+
+
+
+
+def index_view(request):
+    kakao_key = getattr(settings, 'KAKAO_JS_KEY', '') or getattr(settings, 'KAKAO_API_KEY', '')
+    return render(request, 'index.html', {'kakao_key': kakao_key})
 def index_view(request):
     kakao_key = getattr(settings, 'KAKAO_JS_KEY', '') or getattr(settings, 'KAKAO_API_KEY', '')
     return render(request, 'index.html', {'kakao_key': kakao_key})
