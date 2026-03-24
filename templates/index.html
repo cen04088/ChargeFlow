@@ -1320,6 +1320,7 @@ function updateCongestionChip() {
 // 전역 데이터 저장
 let bypassData = { prev: null, next: null };
 let activeTab  = 'prev';
+let stationStore = {};
 let currentPanelTitle = '';
 
 function renderBypassResult(data) {
@@ -1411,7 +1412,9 @@ function closeStationPanel() {
   document.getElementById('sp-back').style.display     = 'none';
 }
 
-function showStationDetail(s) {
+function showStationDetail(id) {
+  const s = stationStore[id];
+  if (!s) return;
   // 지도 포커스
   const lat = parseFloat(s.latitude) || 0;
   const lng = parseFloat(s.longitude) || 0;
@@ -1456,6 +1459,7 @@ function showStationDetail(s) {
 }
 
 function buildStationCard(s, best) {
+  stationStore[s.id] = s;
   const lat      = parseFloat(s.latitude)  || 0;
   const lng      = parseFloat(s.longitude) || 0;
   const icon     = { mart:'🏪', gas_station:'⛽', hotel:'🏨', public:'🏛️', etc:'🔌' }[s.place_type] || '⚡';
@@ -1465,7 +1469,7 @@ function buildStationCard(s, best) {
     : `https://map.kakao.com/link/search/${encodeURIComponent(s.name + ' 전기차충전소')}`;
   return `
     <div class="station-card ${best?'best':''}" id="card-${s.id}"
-         onclick="showStationDetail(${JSON.stringify(s).replace(/'/g,'\\'')})">
+         onclick="showStationDetail(${s.id})">
       <div class="sc-icon">${icon}</div>
       <div class="sc-body">
         <div class="sc-name">${s.name}</div>
