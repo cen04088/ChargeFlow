@@ -953,7 +953,7 @@ body {
 
   <!-- IC 탭 + 충전소 패널 -->
   <div class="ic-panel" id="ic-panel">
-    <div class="ic-tabs" id="ic-tabs">
+    <div class="ic-tabs" id="ic-tabs" style="display:none">
       <div class="ic-tab" id="tab-prev" onclick="selectICTab('prev')">
         <div class="ic-tab-badge">이전 IC</div>
         <div class="ic-tab-name" id="tab-prev-name">—</div>
@@ -1344,6 +1344,9 @@ function renderBypassResult(data) {
   const hint = document.getElementById('map-hint');
   hint.classList.remove('hidden');
   setTimeout(() => hint.classList.add('hidden'), 3000);
+
+  // 기본 탭 패널 자동 열기
+  setTimeout(() => openStationPanel(activeTab), 400);
 
   const prev = bypassData.prev ? { name: prevName, lat: parseFloat(bypassData.prev.latitude), lng: parseFloat(bypassData.prev.longitude) } : null;
   const next = bypassData.next ? { name: nextName, lat: parseFloat(bypassData.next.latitude), lng: parseFloat(bypassData.next.longitude) } : null;
