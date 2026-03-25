@@ -1202,7 +1202,7 @@ function showScreen(toId, fromId) {
   history.pushState({ screen: toId }, '', '');
 }
 function goBack(cur) {
-  const list = ['screen-home','screen-direction','screen-ra','screen-map'];
+  const list = ['screen-home','screen-direction','screen-ra','screen-charger','screen-map'];
   document.getElementById(list[cur-1]).classList.add('hidden');
   const prev = document.getElementById(list[cur-2]);
   prev.classList.remove('hidden', 'slide-left');
@@ -1971,7 +1971,7 @@ window.addEventListener('popstate', e => {
     return;
   }
 
-  const screens = ['screen-home', 'screen-direction', 'screen-ra', 'screen-map'];
+  const screens = ['screen-home', 'screen-direction', 'screen-ra', 'screen-charger', 'screen-map'];
 
   // 현재 보이는 화면 찾기
   const currentIdx = screens.findIndex(id => {
