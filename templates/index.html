@@ -1901,7 +1901,7 @@ function initKakaoMap(prevIC, nextIC, data) {
     } else {
       const icon = p.is_recommended ? '⚡' : '🔌';
       addOverlay(p.lat, p.lng,
-        `<div class="mk-station" onclick="showStationDetail(${p.id})">${icon} ${p.name.slice(0,10)}</div>`
+        `<div class="mk-station" onclick="showStationDetail(${p.id})">${icon} ${p.name.replace(/^\d+기\s+/, '').replace(/\([^)]*방향\)/, '').trim().slice(0,10)}</div>`
       );
     }
   });
