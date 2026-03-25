@@ -454,6 +454,73 @@ body {
 }
 
 /* ══════════════════════════════
+   SCREEN 3-B — 충전 현황
+══════════════════════════════ */
+.charger-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow-sm);
+}
+.charger-card-name {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  margin-bottom: 5px;
+}
+.charger-card-addr {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  line-height: 1.5;
+}
+.charger-card-phone {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+.charger-card-footer {
+  display: flex;
+  gap: 8px;
+}
+.charger-map-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--green-lt);
+  border: 1.5px solid rgba(26,92,58,0.2);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--green);
+  text-decoration: none;
+  transition: all .15s;
+}
+.charger-map-btn:active { background: var(--green); color: #fff; }
+.charger-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 60px 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.charger-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+/* ══════════════════════════════
    SCREEN 4 — 지도 + 결과
 ══════════════════════════════ */
 #screen-map { background: var(--bg); }
@@ -968,6 +1035,25 @@ body {
 </div>
 
 <!-- ══════════════════════════════
+     SCREEN 3-B — 충전 현황
+══════════════════════════════ -->
+<div class="screen hidden" id="screen-charger">
+  <div class="header">
+    <div class="back-btn" onclick="closeChargerScreen()">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </div>
+    <div class="header-text">
+      <div class="sub" id="charger-sub">전기차 충전소</div>
+      <h2 id="charger-title">충전 현황</h2>
+    </div>
+  </div>
+
+  <div class="scroll-body">
+    <div id="charger-results" style="padding: 12px 16px 80px;"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
      SCREEN 4 — 지도 + 결과
 ══════════════════════════════ -->
 <div class="screen hidden" id="screen-map">
@@ -1111,13 +1197,88 @@ function showScreen(toId, fromId) {
   from.classList.add('slide-left');
   to.classList.remove('hidden', 'slide-left');
   setTimeout(() => from.classList.add('hidden'), 360);
-  // 브라우저 히스토리에 현재 화면 기록
   history.pushState({ screen: toId }, '', '');
 }
 function goBack(cur) {
   const list = ['screen-home','screen-direction','screen-ra','screen-map'];
   document.getElementById(list[cur-1]).classList.add('hidden');
   const prev = document.getElementById(list[cur-2]);
+  prev.classList.remove('hidden', 'slide-left');
+}
+
+// ══════════════════════════════════════════════
+//  충전 현황 스크린
+// ══════════════════════════════════════════════
+function openChargerScreen(n) {
+  document.getElementById('charger-title').textContent = n.name;
+  document.getElementById('charger-sub').textContent   = '전기차 충전소 현황';
+  document.getElementById('charger-results').innerHTML =
+    `<div class="charger-loading"><div class="spin">⚡</div>충전소 정보 검색 중...</div>`;
+  showScreen('screen-charger', 'screen-ra');
+
+  if (typeof kakao === 'undefined' || !kakao.maps || !kakao.maps.services) {
+    // 카카오 SDK 없으면 바로 카카오맵으로 연결
+    const url = `https://map.kakao.com/link/search/${encodeURIComponent(n.name + ' 전기차충전소')}`;
+    document.getElementById('charger-results').innerHTML = `
+      <div class="charger-empty">
+        카카오맵 API 키가 없어요.<br>
+        <a href="${url}" target="_blank" style="color:var(--green);font-weight:700;">카카오맵에서 검색하기 →</a>
+      </div>`;
+    return;
+  }
+
+  const ps = new kakao.maps.services.Places();
+  ps.keywordSearch(n.name + ' 전기차충전소', (data, status) => {
+    const el = document.getElementById('charger-results');
+    if (status !== kakao.maps.services.Status.OK || !data.length) {
+      // 결과 없으면 휴게소 이름만으로 재시도
+      ps.keywordSearch(n.name + ' 충전소', (data2, status2) => {
+        if (status2 !== kakao.maps.services.Status.OK || !data2.length) {
+          const url = `https://map.kakao.com/link/search/${encodeURIComponent(n.name + ' 전기차충전소')}`;
+          el.innerHTML = `
+            <div class="charger-empty">
+              검색 결과가 없어요 😢<br>
+              <a href="${url}" target="_blank" style="color:var(--green);font-weight:700;margin-top:8px;display:inline-block;">카카오맵에서 직접 검색 →</a>
+            </div>`;
+        } else {
+          renderChargerResults(data2, el);
+        }
+      }, { location: new kakao.maps.LatLng(n.lat, n.lng), radius: 5000 });
+      return;
+    }
+    renderChargerResults(data, el);
+  }, { location: new kakao.maps.LatLng(n.lat, n.lng), radius: 5000 });
+}
+
+function renderChargerResults(places, el) {
+  if (!places.length) {
+    el.innerHTML = `<div class="charger-empty">주변 충전소 정보가 없어요 😢</div>`;
+    return;
+  }
+  el.innerHTML = places.slice(0, 10).map(p => `
+    <div class="charger-card">
+      <div class="charger-card-name">⚡ ${p.place_name}</div>
+      ${p.road_address_name
+        ? `<div class="charger-card-addr">📍 ${p.road_address_name}</div>`
+        : p.address_name
+        ? `<div class="charger-card-addr">📍 ${p.address_name}</div>`
+        : ''}
+      ${p.phone ? `<div class="charger-card-phone">📞 ${p.phone}</div>` : ''}
+      <div class="charger-card-footer">
+        <a class="charger-map-btn"
+           href="https://place.map.kakao.com/${p.id}"
+           target="_blank">
+          🗺️ 카카오맵에서 보기
+        </a>
+      </div>
+    </div>
+  `).join('');
+}
+
+function closeChargerScreen() {
+  const cur = document.getElementById('screen-charger');
+  const prev = document.getElementById('screen-ra');
+  cur.classList.add('hidden');
   prev.classList.remove('hidden', 'slide-left');
 }
 
@@ -1254,13 +1415,11 @@ function renderRAItem(n, isNearest) {
           ${userDistHTML}
         </div>
       </div>
-      <a class="ra-charge-btn"
-         href="${kakaoSearchUrl}"
-         target="_blank"
-         onclick="event.stopPropagation()">
+      <button class="ra-charge-btn"
+         onclick="event.stopPropagation(); openChargerScreen(${nodeJSON})">
         <span class="ra-charge-icon">⚡</span>
         <span class="ra-charge-label">충전 현황</span>
-      </a>
+      </button>
     </div>`;
 }
 
