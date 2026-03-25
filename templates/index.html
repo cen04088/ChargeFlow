@@ -1251,13 +1251,32 @@ function openChargerScreen(n) {
 }
 
 function renderChargerResults(places, el) {
-  if (!places.length) {
-    el.innerHTML = `<div class="charger-empty">주변 충전소 정보가 없어요 😢</div>`;
+  // 휴게소 이름이 포함된 결과만 표시
+  const filtered = places.filter(p => p.place_name.includes('휴게소'));
+
+  if (!filtered.length) {
+    el.innerHTML = `<div class="charger-empty">휴게소 충전소 정보가 없어요 😢<br><span style="font-size:12px;color:var(--text-dim)">카카오 검색에 등록되지 않은 충전소일 수 있어요</span></div>`;
     return;
   }
-  el.innerHTML = places.slice(0, 10).map(p => `
+
+  // 주요 충전 공급사 키워드
+  const PROVIDERS = ['일렉링크', '환경부', 'SK', '이비', 'GS', '차지비', '채비', 'KT', '에버온', '포스코', 'JEV', '한전', '파워큐브', 'KEPCO', '대영', '테슬라', '현대', '기아', 'BMW', '아이오닉'];
+
+  function extractProvider(name) {
+    for (const p of PROVIDERS) {
+      if (name.includes(p)) return p;
+    }
+    return null;
+  }
+
+  el.innerHTML = filtered.slice(0, 10).map(p => {
+    const provider = extractProvider(p.place_name);
+    return `
     <div class="charger-card">
-      <div class="charger-card-name">⚡ ${p.place_name}</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <div class="charger-card-name">⚡ ${p.place_name}</div>
+      </div>
+      ${provider ? `<div style="margin-bottom:8px;"><span style="background:var(--blue-lt);color:var(--blue);font-size:11px;font-weight:700;padding:2px 8px;border-radius:100px;">${provider}</span></div>` : ''}
       ${p.road_address_name
         ? `<div class="charger-card-addr">📍 ${p.road_address_name}</div>`
         : p.address_name
@@ -1272,7 +1291,7 @@ function renderChargerResults(places, el) {
         </a>
       </div>
     </div>
-  `).join('');
+  `}).join('');
 }
 
 function closeChargerScreen() {
