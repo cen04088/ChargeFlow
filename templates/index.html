@@ -1558,7 +1558,11 @@ function renderICSection(which, icData) {
     return;
   }
 
-  const sorted = [...stations].sort((a,b) => (b.is_recommended - a.is_recommended) || (a.drive_minutes - b.drive_minutes)).slice(0, 8);
+  // 이용불가 필터링 (is_available === false 또는 charger_count === 0)
+  const available = stations.filter(s => s.is_available !== false && s.charger_count !== 0);
+  const displayList = available.length > 0 ? available : stations; // 전부 이용불가면 그냥 다 보여줌
+
+  const sorted = [...displayList].sort((a,b) => (b.is_recommended - a.is_recommended) || (a.drive_minutes - b.drive_minutes)).slice(0, 8);
   const isBest = (s, i) => s.is_recommended && i === 0;
 
   cardsEl.innerHTML = sorted.map((s, i) => {
@@ -1624,23 +1628,42 @@ function initKakaoMap(prevIC, nextIC, data) {
 
   addOverlay(ra.lat, ra.lng, `<div class="mk-ra">🏁 ${ra.name}</div>`);
 
+  // 마커 위치 수집 후 겹침 방지 처리
+  const markerPositions = [];
+
   [
     { ic: prevIC, stations: data?.previous_ic?.stations },
     { ic: nextIC, stations: data?.next_ic?.stations },
   ].filter(d => d.ic).forEach(({ ic, stations }) => {
     const icWhich = ic === prevIC ? 'prev' : 'next';
-    if (ic.lat && ic.lng) addOverlay(ic.lat, ic.lng,
-      `<div class="mk-ic" onclick="activeTab='${icWhich}';updateTabActive();openStationPanel('${icWhich}')">🔵 ${ic.name}</div>`
-    );
-    (stations||[]).slice(0, 8).forEach(s => {
+    if (ic.lat && ic.lng) {
+      markerPositions.push({ lat: ic.lat, lng: ic.lng, type: 'ic', icWhich, name: ic.name });
+    }
+    // 이용불가 필터링
+    const available = (stations||[]).filter(s => s.is_available !== false && s.charger_count !== 0);
+    const displayStations = available.length > 0 ? available : (stations||[]);
+    displayStations.slice(0, 8).forEach(s => {
       const lat = parseFloat(s.latitude), lng = parseFloat(s.longitude);
       if (!lat || !lng) return;
       stationStore[s.id] = s;
-      const icon = s.is_recommended ? '⚡' : '🔌';
-      addOverlay(lat, lng,
-        `<div class="mk-station" onclick="showStationDetail(${s.id})">${icon} ${s.name.slice(0,10)}</div>`
-      );
+      markerPositions.push({ lat, lng, type: 'station', id: s.id, name: s.name, is_recommended: s.is_recommended });
     });
+  });
+
+  // 겹침 방지 오프셋 적용
+  const dedupedPositions = dedupeOverlayPositions(markerPositions);
+
+  dedupedPositions.forEach(p => {
+    if (p.type === 'ic') {
+      addOverlay(p.lat, p.lng,
+        `<div class="mk-ic" onclick="activeTab='${p.icWhich}';updateTabActive();openStationPanel('${p.icWhich}')">🔵 ${p.name}</div>`
+      );
+    } else {
+      const icon = p.is_recommended ? '⚡' : '🔌';
+      addOverlay(p.lat, p.lng,
+        `<div class="mk-station" onclick="showStationDetail(${p.id})">${icon} ${p.name.slice(0,10)}</div>`
+      );
+    }
   });
 }
 
@@ -1651,6 +1674,31 @@ function addOverlay(lat, lng, html) {
   });
   o.setMap(kakaoMap);
   overlays.push(o);
+}
+
+// 겹치는 마커 오프셋 처리
+function dedupeOverlayPositions(positions) {
+  const THRESHOLD = 0.003; // 약 300m 이내면 겹친다고 판단
+  const OFFSET    = 0.0015;
+  const result    = [];
+
+  positions.forEach(p => {
+    const collisions = result.filter(r =>
+      Math.abs(r.lat - p.lat) < THRESHOLD && Math.abs(r.lng - p.lng) < THRESHOLD
+    );
+    if (collisions.length === 0) {
+      result.push({ ...p });
+    } else {
+      // 충돌 수에 따라 시계방향으로 오프셋
+      const angle = (collisions.length * (360 / 6)) * (Math.PI / 180);
+      result.push({
+        ...p,
+        lat: p.lat + OFFSET * Math.sin(angle),
+        lng: p.lng + OFFSET * Math.cos(angle),
+      });
+    }
+  });
+  return result;
 }
 
 function focusStation(lat, lng) {
