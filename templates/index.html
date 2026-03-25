@@ -1512,8 +1512,6 @@ async function loadMapScreen() {
   document.getElementById('tab-prev-name').textContent = '로딩 중...';
   document.getElementById('tab-next-name').textContent = '로딩 중...';
 
-  // RA 인근 충전소 마커 표시 (반경 100m)
-  loadRANearbyStations(state.ra.id);
 
   const cacheKey = state.ra.id;
   let data;
