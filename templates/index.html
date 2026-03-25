@@ -3,6 +3,33 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<script async src="https://www.googletagmanager.com/gtag/js?id={{ GA_MEASUREMENT_ID }}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', '{{ GA_MEASUREMENT_ID }}');
+</script>
+<script type="text/javascript">
+  !function(e,t){var n=e.amplitude||{_q:[],_iq:{}};var r=t.createElement("script")
+  ;r.type="text/javascript"
+  ,r.integrity="sha384-u0it2S8Y9suAb9zL8pgFs7Xv8onTrZ7m0UuUpt2eGvV8/G9lWv/kAn0z08mE7K5C"
+  ,r.crossOrigin="anonymous",r.async=True
+  ,r.src="https://cdn.amplitude.com/libs/amplitude-8.21.0-min.gz.js"
+  ,r.onload=function(){if(!e.amplitude.runQueuedFunctions){console.log("[Amplitude] Error: could not load SDK")}}
+  ;var s=t.getElementsByTagName("script")[0];s.parentNode.insertBefore(r,s)
+  ;function i(e,t){e.prototype[t]=function(){this._q.push([t].concat(Array.prototype.slice.call(arguments,0)));return this}}
+  var o=function(){this._q=[];return this};var a=["add","append","clearAll","prepend","set","setOnce","unset","preInsert","postInsert","remove"]
+  ;for(var c=0;c<a.length;c++){i(o,a[c])}n.Identify=o;var u=function(){this._q=[]
+  ;return this};var l=["setProductId","setQuantity","setPrice","setRevenueType","setEventProperties"]
+  ;for(var p=0;p<l.length;p++){i(u,l[p])}n.Revenue=u;var d=["init","logEvent","logRevenue","setUserId","setUserProperties","setOptOut","setVersionName","setDomain","setDeviceId","enableTracking","setGlobalUserProperties","identify","clearUserProperties","setGroup","logRevenueV2","regenerateDeviceId","groupIdentify","onInit","onNewSessionStart","logEventWithTimestamp","logEventWithGroups","setSessionId","resetSessionId","getDeviceId","getUserId","setMinTimeBetweenSessionsMillis","setEventUploadThreshold","setEventUploadPeriod","setForceHttps","setServerZone","setServerUrl","setDataResidency","setUseDynamicConfig","setInformant","setAppEndpoint","setLanguage","getUtmData","setOptOut","setLibrary","setDeviceIdFromUrl"]
+  ;for(var v=0;v<d.length;v++){i(n,d[v])}e.amplitude=n}(window,document);
+
+  // 초기화
+  amplitude.init("{{ AMPLITUDE_API_KEY }}");
+</script>
+
+
 <title>⚡ ChargeFlow</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Lexend:wght@400;600;700;800&display=swap" rel="stylesheet">
