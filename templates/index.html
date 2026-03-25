@@ -1067,7 +1067,7 @@ body {
   </div>
 
   <div class="map-header">
-    <div class="back-btn" onclick="goBack(5)">
+    <div class="back-btn" onclick="showScreenBack('screen-map', 'screen-ra')">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
     </div>
     <div class="map-header-pill">
@@ -1200,6 +1200,10 @@ function showScreen(toId, fromId) {
   to.classList.remove('hidden', 'slide-left');
   setTimeout(() => from.classList.add('hidden'), 360);
   history.pushState({ screen: toId }, '', '');
+}
+function showScreenBack(fromId, toId) {
+  document.getElementById(fromId).classList.add('hidden');
+  document.getElementById(toId).classList.remove('hidden', 'slide-left');
 }
 function goBack(cur) {
   const list = ['screen-home','screen-direction','screen-ra','screen-charger','screen-map'];
