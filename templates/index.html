@@ -1067,7 +1067,7 @@ body {
   </div>
 
   <div class="map-header">
-    <div class="back-btn" onclick="goBack(4)">
+    <div class="back-btn" onclick="goBack(5)">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
     </div>
     <div class="map-header-pill">
@@ -1993,9 +1993,12 @@ window.addEventListener('popstate', e => {
 
   if (currentIdx <= 0) return;  // 홈화면이면 그냥 나가기
 
-  // 이전 화면으로 전환
+  // 이전 화면으로 전환 (screen-map은 screen-charger 건너뛰고 screen-ra로)
   const currentScreen = document.getElementById(screens[currentIdx]);
-  const prevScreen    = document.getElementById(screens[currentIdx - 1]);
+  const prevIdx = screens[currentIdx] === 'screen-map'
+    ? screens.indexOf('screen-ra')
+    : currentIdx - 1;
+  const prevScreen = document.getElementById(screens[prevIdx]);
 
   currentScreen.classList.add('hidden');
   prevScreen.classList.remove('hidden', 'slide-left');
