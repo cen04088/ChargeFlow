@@ -1560,7 +1560,7 @@ async function loadRANearbyStations(raId) {
 
       const o = new kakao.maps.CustomOverlay({
         position: new kakao.maps.LatLng(lat, lng),
-        content: `<div class="mk-ra-station" onclick="showRAStationDetail(${JSON.stringify(s).replace(/"/g, '&quot;')})">${statusText} ${s.name.slice(0,8)}</div>`,
+        content: `<div class="mk-ra-station" onclick="showRAStationDetail(${JSON.stringify(s).replace(/"/g, '&quot;')})">${statusText} ${cleanMarkerName(s.name)}</div>`,
         yAnchor: 1.2,
         zIndex: 10,
       });
@@ -1846,6 +1846,18 @@ function renderICSection(which, icData) {
 // ══════════════════════════════════════════════
 //  카카오맵
 // ══════════════════════════════════════════════
+function cleanMarkerName(name) {
+  return name
+    .replace(/^\d+기\s+/, '')
+    .replace(/\s*(서울|부산|상행|하행|서울방면|부산방면|상행방면|하행방면)\s*/g, '')
+    .replace(/\([^)]*\)/g, '')
+    .replace(/\s*고속도로\s*/g, '')
+    .replace(/\s*전기차충전소\s*$/g, '')
+    .replace(/\s*충전소\s*$/g, '')
+    .trim()
+    .slice(0, 12);
+}
+
 function initKakaoMap(prevIC, nextIC, data) {
   if (typeof kakao === 'undefined') {
     document.getElementById('map-placeholder').style.display = 'flex';
@@ -1901,7 +1913,7 @@ function initKakaoMap(prevIC, nextIC, data) {
     } else {
       const icon = p.is_recommended ? '⚡' : '🔌';
       addOverlay(p.lat, p.lng,
-        `<div class="mk-station" onclick="showStationDetail(${p.id})">${icon} ${p.name.replace(/^\d+기\s+/, '').replace(/\([^)]*방향\)/, '').trim().slice(0,10)}</div>`
+        `<div class="mk-station" onclick="showStationDetail(${p.id})">${icon} ${cleanMarkerName(p.name)}</div>`
       );
     }
   });
