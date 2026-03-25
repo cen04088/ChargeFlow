@@ -1560,7 +1560,7 @@ async function loadRANearbyStations(raId) {
 
       const o = new kakao.maps.CustomOverlay({
         position: new kakao.maps.LatLng(lat, lng),
-        content: `<div class="mk-ra-station" onclick="showRAStationDetail(${JSON.stringify(s).replace(/"/g, '&quot;')})">${statusText} ${cleanMarkerName(s.name)}</div>`,
+        content: `<div class="mk-ra-station" onclick="showRAStationDetail(${JSON.stringify(s).replace(/"/g, '&quot;')})">${cleanMarkerName(s.name)}</div>`,
         yAnchor: 1.2,
         zIndex: 10,
       });
