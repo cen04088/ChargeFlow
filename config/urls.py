@@ -1,6 +1,6 @@
 from django.urls import path
-from . import views
-from .views import RANearbyStationsView
+from chargeflow import views
+from chargeflow.views import RANearbyStationsView
 
 urlpatterns = [
     # 고속도로 목록
