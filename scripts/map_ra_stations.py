@@ -139,7 +139,7 @@ def run(api_key: str, dry_run: bool):
                 continue
  
             dist = haversine(ra_lat, ra_lng, s_lat, s_lng)
-            if dist > 2.0:   # 2km 초과 제외
+            if dist > 5.0:   # 5km 초과 제외
                 continue
  
             stat_name = (item.get('statNm') or '').strip()

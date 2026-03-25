@@ -370,7 +370,7 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 14px 20px;
+  padding: 16px 16px 16px 20px;
   border-bottom: 1px solid var(--border);
   cursor: pointer;
   transition: background .15s;
@@ -423,6 +423,35 @@ body {
 .congestion-badge::before { content: '●'; font-size: 8px; }
 
 .ra-arrow { margin-left: auto; color: var(--text-dim); font-size: 14px; flex-shrink: 0; padding-left: 8px; }
+
+/* 충전 현황 버튼 */
+.ra-charge-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: var(--green-lt);
+  border: 1.5px solid rgba(26,92,58,0.2);
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all .18s;
+  min-width: 58px;
+}
+.ra-charge-btn:active { background: var(--green); border-color: var(--green); }
+.ra-charge-btn:active .ra-charge-icon,
+.ra-charge-btn:active .ra-charge-label { color: #fff; }
+.ra-charge-icon  { font-size: 16px; line-height: 1; }
+.ra-charge-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--green);
+  white-space: nowrap;
+  letter-spacing: -0.2px;
+}
 
 /* ══════════════════════════════
    SCREEN 4 — 지도 + 결과
@@ -1192,29 +1221,29 @@ function renderRAList(nodes, filter = '') {
     return;
   }
 
-  const congestion = currentCongestion;
   let html = '';
 
   // 가장 가까운 항목 분리
   if (userPos && filtered.length > 0) {
     const nearest = filtered[0];
     html += `<div class="ra-nearest-label">📍 내 위치에서 가장 가까운 휴게소</div>`;
-    html += renderRAItem(nearest, congestion, true);
+    html += renderRAItem(nearest, true);
     html += `<div class="ra-section-label">전체 목록 (거리 순)</div>`;
-    filtered.slice(1).forEach(n => { html += renderRAItem(n, congestion, false); });
+    filtered.slice(1).forEach(n => { html += renderRAItem(n, false); });
   } else {
-    filtered.forEach(n => { html += renderRAItem(n, congestion, false); });
+    filtered.forEach(n => { html += renderRAItem(n, false); });
   }
 
   list.innerHTML = html;
 }
 
-function renderRAItem(n, congestion, isNearest) {
+function renderRAItem(n, isNearest) {
   const userDistHTML = (userPos && n.userDistKm != null)
     ? `<span class="ra-user-dist">📍 ${formatDist(n.userDistKm)}</span>`
     : '';
-  const congBadge = `<span class="congestion-badge ${congestion.level}">${congestion.label}</span>`;
   const nodeJSON  = JSON.stringify(n).replace(/"/g, '&quot;');
+
+  const kakaoSearchUrl = `https://map.kakao.com/link/search/${encodeURIComponent(n.name + ' 전기차충전소')}`;
 
   return `
     <div class="ra-item ${isNearest ? 'nearest-item' : ''}" onclick='selectRA(${nodeJSON})'>
@@ -1223,10 +1252,15 @@ function renderRAItem(n, congestion, isNearest) {
         <h4>${n.name}</h4>
         <div class="ra-meta">
           ${userDistHTML}
-          ${congBadge}
         </div>
       </div>
-      <div class="ra-arrow">›</div>
+      <a class="ra-charge-btn"
+         href="${kakaoSearchUrl}"
+         target="_blank"
+         onclick="event.stopPropagation()">
+        <span class="ra-charge-icon">⚡</span>
+        <span class="ra-charge-label">충전 현황</span>
+      </a>
     </div>`;
 }
 
