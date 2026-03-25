@@ -876,6 +876,7 @@ body {
 /* ── 지도 마커 ── */
 .mk-ra      { background: var(--orange); color: #fff; padding: 5px 11px; border-radius: 100px; font-size: 12px; font-weight: 700; white-space: nowrap; box-shadow: 0 2px 8px rgba(232,112,10,0.4); }
 .mk-ic      { background: #fff; color: var(--text-mid); border: 1.5px solid var(--border2); padding: 5px 11px; border-radius: 100px; font-size: 11px; font-weight: 600; white-space: nowrap; box-shadow: var(--shadow-sm); }
+.mk-ra-station { background: var(--blue); color: #fff; padding: 5px 11px; border-radius: 100px; font-size: 12px; font-weight: 700; white-space: nowrap; box-shadow: 0 2px 8px rgba(20,85,176,0.4); cursor: pointer; }
 .mk-station { background: var(--green); color: #fff; padding: 5px 11px; border-radius: 100px; font-size: 12px; font-weight: 700; white-space: nowrap; box-shadow: 0 2px 8px rgba(26,92,58,0.4); }
 
 /* ── 로딩 / 에러 ── */
@@ -1186,6 +1187,7 @@ let allRANodes = [];
 let userPos    = null;   // { lat, lng }
 let kakaoMap   = null;
 let overlays   = [];
+let raOverlays = [];  // RA 인근 충전소 마커
 let cache      = { nodes: {}, bypass: {} };
 
 // ══════════════════════════════════════════════
@@ -1510,6 +1512,9 @@ async function loadMapScreen() {
   document.getElementById('tab-prev-name').textContent = '로딩 중...';
   document.getElementById('tab-next-name').textContent = '로딩 중...';
 
+  // RA 인근 충전소 마커 표시 (반경 100m)
+  loadRANearbyStations(state.ra.id);
+
   const cacheKey = state.ra.id;
   let data;
   if (cache.bypass[cacheKey]) {
@@ -1531,6 +1536,62 @@ async function loadMapScreen() {
     }
   }
   renderBypassResult(data);
+}
+
+async function loadRANearbyStations(raId) {
+  try {
+    const data = await api.get(`/nodes/${raId}/nearby-stations/`);
+    if (!data.stations || !data.stations.length) return;
+    if (!kakaoMap) return;
+
+    // 기존 RA 충전소 마커 제거 후 재표시
+    raOverlays.forEach(o => o.setMap(null));
+    raOverlays = [];
+
+    data.stations.forEach(s => {
+      const lat = parseFloat(s.latitude);
+      const lng = parseFloat(s.longitude);
+      if (!lat || !lng) return;
+
+      // 충전 현황 텍스트
+      const statusText = s.total > 0
+        ? `⚡${s.available}/${s.total}기`
+        : `⚡${s.charger_cnt}기`;
+
+      const o = new kakao.maps.CustomOverlay({
+        position: new kakao.maps.LatLng(lat, lng),
+        content: `<div class="mk-ra-station" onclick="showRAStationDetail(${JSON.stringify(s).replace(/"/g, '&quot;')})">${statusText} ${s.name.slice(0,8)}</div>`,
+        yAnchor: 1.2,
+        zIndex: 10,
+      });
+      o.setMap(kakaoMap);
+      raOverlays.push(o);
+    });
+  } catch(e) {
+    // 조용히 실패
+  }
+}
+
+function showRAStationDetail(s) {
+  const kakaoUrl = `https://map.kakao.com/link/search/${encodeURIComponent(s.name + ' 전기차충전소')}`;
+  const statusText = s.total > 0
+    ? `충전가능 ${s.available}기 / 충전중 ${s.charging}기 / 전체 ${s.total}기`
+    : `충전기 ${s.charger_cnt}기`;
+
+  document.getElementById('sp-detail').innerHTML = `
+    <div class="station-card best" style="margin:4px 0 0">
+      <div class="sc-icon">🏁</div>
+      <div class="sc-body">
+        <div class="sc-name">${s.name}</div>
+        <div class="sc-meta"><span>${statusText}</span></div>
+        <a class="kakao-btn" href="${kakaoUrl}" target="_blank" onclick="event.stopPropagation()">
+          <span class="kb-dot"></span>카카오맵에서 보기
+        </a>
+      </div>
+    </div>`;
+  document.getElementById('sp-title').textContent = s.name;
+  document.getElementById('station-panel').classList.add('open');
+  history.pushState({ panel: 'open' }, '');
 }
 
 async function fetchCongestion(raId) {
@@ -1683,6 +1744,7 @@ function showStationDetail(id) {
 
   document.getElementById('sp-title').textContent = s.name;
   document.getElementById('station-panel').classList.add('open');
+  history.pushState({ panel: 'open' }, '');  // 뒤로가기로 패널 닫기 가능
 }
 
 function buildStationCard(s, best) {
@@ -1901,6 +1963,14 @@ function highlightCard(cardId) {
 //  브라우저 뒤로가기 처리
 // ══════════════════════════════════════════════
 window.addEventListener('popstate', e => {
+  // 1. 지도 화면에서 패널 열려있으면 패널 먼저 닫기
+  const panel = document.getElementById('station-panel');
+  if (panel && panel.classList.contains('open')) {
+    closeStationPanel();
+    history.pushState({}, '', '');  // 히스토리 복원
+    return;
+  }
+
   const screens = ['screen-home', 'screen-direction', 'screen-ra', 'screen-map'];
 
   // 현재 보이는 화면 찾기

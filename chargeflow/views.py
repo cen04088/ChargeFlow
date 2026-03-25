@@ -274,9 +274,64 @@ class NodeCongestionView(APIView):
 
 
 
-def index_view(request):
-    kakao_key = getattr(settings, 'KAKAO_JS_KEY', '') or getattr(settings, 'KAKAO_API_KEY', '')
-    return render(request, 'index.html', {'kakao_key': kakao_key})
+
+# GET /api/v1/nodes/<pk>/nearby-stations/
+# ──────────────────────────────────────────────
+class RANearbyStationsView(APIView):
+    """
+    휴게소(RA) 반경 100m 내 충전소 반환.
+    HighwayNodeCharger의 statId 기반으로 매핑된 충전소만 반환.
+    """
+
+    def get(self, request, pk):
+        import math
+        try:
+            ra_node = HighwayNode.objects.get(pk=pk, node_type='RA', is_active=True)
+        except HighwayNode.DoesNotExist:
+            return Response({'detail': '노드를 찾을 수 없습니다.'}, status=404)
+
+        from chargeflow.models import HighwayNodeCharger, ChargerStatusLog
+        from django.utils import timezone
+        from datetime import timedelta
+
+        chargers = HighwayNodeCharger.objects.filter(ra_node=ra_node)
+
+        # 최근 10분 내 stat 집계
+        window = timezone.now() - timedelta(minutes=10)
+        result = []
+        for ch in chargers:
+            # 각 charger의 최신 로그
+            latest_logs = (
+                ChargerStatusLog.objects
+                .filter(ra_node=ra_node, checked_at__gte=window)
+                .order_by('charger_id', '-checked_at')
+            )
+            seen = {}
+            for log in latest_logs:
+                if log.charger_id not in seen:
+                    seen[log.charger_id] = log.stat
+
+            available = sum(1 for s in seen.values() if s == '2')
+            charging  = sum(1 for s in seen.values() if s == '3')
+            total     = len(seen)
+
+            result.append({
+                'stat_id':   ch.stat_id,
+                'name':      ch.stat_name,
+                'latitude':  str(ra_node.latitude),
+                'longitude': str(ra_node.longitude),
+                'available': available,
+                'charging':  charging,
+                'total':     total,
+                'charger_cnt': ch.charger_cnt,
+            })
+
+        return Response({
+            'node_id':   pk,
+            'rest_area': ra_node.name,
+            'stations':  result,
+        })
+
 def index_view(request):
     kakao_key = getattr(settings, 'KAKAO_JS_KEY', '') or getattr(settings, 'KAKAO_API_KEY', '')
     return render(request, 'index.html', {'kakao_key': kakao_key})
