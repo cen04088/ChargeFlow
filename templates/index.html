@@ -172,6 +172,9 @@ body {
   color: var(--text);
   letter-spacing: -0.3px;
 }
+.map-back-icon-only {
+  padding: 15px;
+}
 
 /* ── 스크롤 영역 ── */
 .scroll-body {
@@ -593,10 +596,11 @@ body {
 .mhp-label { font-size: 11px; color: var(--text-muted); font-weight: 600; }
 .mhp-name  { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; margin-top: 2px; color: var(--text); }
 
-/* 지도 하단 뒤로가기 플로팅 */
+/* 지도 뒤로가기 플로팅 */
 .map-back-float {
   position: absolute;
-  bottom: 178px; /* IC 탭 높이(~130px) + 여유 */
+  top: 50%;
+  transform: translateY(-50%);
   left: 20px;
   z-index: 300;
 }
@@ -997,7 +1001,7 @@ body {
   <div class="bottom-back-bar">
     <button class="bottom-back-btn" onclick="goBack(2)">
       <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-      <span>이전</span>
+      <span>이전으로</span>
     </button>
   </div>
 </div>
@@ -1040,7 +1044,7 @@ body {
   <div class="bottom-back-bar">
     <button class="bottom-back-btn" onclick="goBack(3)">
       <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-      <span>이전</span>
+      <span>이전으로</span>
     </button>
   </div>
 </div>
@@ -1060,7 +1064,7 @@ body {
   <div class="bottom-back-bar">
     <button class="bottom-back-btn" onclick="closeChargerScreen()">
       <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-      <span>이전</span>
+      <span>이전으로</span>
     </button>
   </div>
 </div>
@@ -1087,11 +1091,10 @@ body {
 
   <div class="map-hint" id="map-hint">⚡ 마커를 눌러 충전소 확인</div>
 
-  <!-- 지도 하단 뒤로가기 플로팅 버튼 -->
+  <!-- 지도 뒤로가기 플로팅 버튼 -->
   <div class="map-back-float">
-    <button class="bottom-back-btn" onclick="showScreenBack('screen-map', 'screen-ra')">
+    <button class="bottom-back-btn map-back-icon-only" onclick="showScreenBack('screen-map', 'screen-ra')">
       <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-      <span>이전</span>
     </button>
   </div>
 
