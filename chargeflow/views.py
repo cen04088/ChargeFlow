@@ -14,7 +14,7 @@ from .serializers import (
 
 def config_view(request):
     return JsonResponse({
-        'kakao_key': settings.KAKAO_KEY,
+        'kakao_key': settings.KAKAO_JS_KEY,
     })
 
 # ──────────────────────────────────────────────
