@@ -1823,6 +1823,7 @@ async function initKakaoMap(prevIC, nextIC, data) {
 
   // 마커 위치 수집 후 겹침 방지 처리
   const markerPositions = [];
+  const seenStationIds = new Set(); // 중복 충전소 마커 방지
 
   [
     { ic: prevIC, stations: data?.previous_ic?.stations },
@@ -1838,6 +1839,9 @@ async function initKakaoMap(prevIC, nextIC, data) {
     displayStations.slice(0, 8).forEach(s => {
       const lat = parseFloat(s.latitude), lng = parseFloat(s.longitude);
       if (!lat || !lng) return;
+      // 같은 충전소가 prev/next IC 양쪽에 있으면 한 번만 표시
+      if (seenStationIds.has(s.id)) return;
+      seenStationIds.add(s.id);
       stationStore[s.id] = s;
       markerPositions.push({ lat, lng, type: 'station', id: s.id, name: s.name, is_recommended: s.is_recommended });
     });
