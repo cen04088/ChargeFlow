@@ -1,47 +1,26 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<script type="module" src="/src/main.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<script async src="https://www.googletagmanager.com/gtag/js?id={{ GA_MEASUREMENT_ID }}"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', '{{ GA_MEASUREMENT_ID }}');
-</script>
-<script type="text/javascript">
-  !function(e,t){var n=e.amplitude||{_q:[],_iq:{}};var r=t.createElement("script")
-  ;r.type="text/javascript"
-  ,r.integrity="sha384-u0it2S8Y9suAb9zL8pgFs7Xv8onTrZ7m0UuUpt2eGvV8/G9lWv/kAn0z08mE7K5C"
-  ,r.crossOrigin="anonymous",r.async=True
-  ,r.src="https://cdn.amplitude.com/libs/amplitude-8.21.0-min.gz.js"
-  ,r.onload=function(){if(!e.amplitude.runQueuedFunctions){console.log("[Amplitude] Error: could not load SDK")}}
-  ;var s=t.getElementsByTagName("script")[0];s.parentNode.insertBefore(r,s)
-  ;function i(e,t){e.prototype[t]=function(){this._q.push([t].concat(Array.prototype.slice.call(arguments,0)));return this}}
-  var o=function(){this._q=[];return this};var a=["add","append","clearAll","prepend","set","setOnce","unset","preInsert","postInsert","remove"]
-  ;for(var c=0;c<a.length;c++){i(o,a[c])}n.Identify=o;var u=function(){this._q=[]
-  ;return this};var l=["setProductId","setQuantity","setPrice","setRevenueType","setEventProperties"]
-  ;for(var p=0;p<l.length;p++){i(u,l[p])}n.Revenue=u;var d=["init","logEvent","logRevenue","setUserId","setUserProperties","setOptOut","setVersionName","setDomain","setDeviceId","enableTracking","setGlobalUserProperties","identify","clearUserProperties","setGroup","logRevenueV2","regenerateDeviceId","groupIdentify","onInit","onNewSessionStart","logEventWithTimestamp","logEventWithGroups","setSessionId","resetSessionId","getDeviceId","getUserId","setMinTimeBetweenSessionsMillis","setEventUploadThreshold","setEventUploadPeriod","setForceHttps","setServerZone","setServerUrl","setDataResidency","setUseDynamicConfig","setInformant","setAppEndpoint","setLanguage","getUtmData","setOptOut","setLibrary","setDeviceIdFromUrl"]
-  ;for(var v=0;v<d.length;v++){i(n,d[v])}e.amplitude=n}(window,document);
 
-  // 초기화
-  amplitude.init("{{ AMPLITUDE_API_KEY }}");
-</script>
 
 <title>⚡ ChargeFlow</title>
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
 
 <script>
-async function loadKakaoMap() {
-  const res = await fetch('https://chargeflow-production.up.railway.app/api/v1/config/');
-  const { kakao_key } = await res.json();
-  const script = document.createElement('script');
-  script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${kakao_key}&libraries=services&autoload=false`;
-  script.onload = () => kakao.maps.load(() => {});
-  document.head.appendChild(script);
-}
-loadKakaoMap();
+window.kakaoReady = new Promise((resolve) => {
+  fetch('https://chargeflow-production.up.railway.app/api/v1/config/')
+    .then(res => res.json())
+    .then(({ kakao_key }) => {
+      const script = document.createElement('script');
+      script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${kakao_key}&libraries=services&autoload=false`;
+      script.onload = () => kakao.maps.load(resolve);
+      document.head.appendChild(script);
+    })
+    .catch(err => console.error('[ChargeFlow] 카카오 키 로드 실패:', err));
+});
 </script>
 
 <style>
@@ -892,7 +871,7 @@ body {
   <div class="home-hero">
     <div class="hero-tag">⚡ Highway Bypass Guide</div>
     <h1 class="hero-title">Charge<span>Flow</span></h1>
-    <p class="hero-desc">휴게소 대기 60분 vs IC 밖 15분, 톨게이트 밖 빠른 충전하세요.</p>
+    <p class="hero-desc">휴게소 대기 60분 vs IC 밖 15분, 톨게이트 밖 빠른 <br>충전하세요.</p>
   </div>
 
   <div class="scroll-body">
@@ -900,7 +879,7 @@ body {
       <div class="tip-icon">💡</div>
       <div class="tip-text">
         <strong>왜 IC 우회인가요?</strong>
-        휴게소의 '충전 가능 표시'에 속아 헛걸음하신 적 있나요?<br>부정확한 실시간 데이터 대신, IC 근처 확실한 개방형 급속 충전소로 안내해 드릴게요.
+        휴게소의 '충전 가능 표시'에 속아 <br>헛걸음하신 적 있나요?<br>부정확한 실시간 데이터 대신, IC 근처 확실한 <br>개방형 급속 충전소로 안내해 드릴게요.
       </div>
     </div>
 
@@ -1825,11 +1804,8 @@ function cleanMarkerName(name) {
     .slice(0, 12);
 }
 
-function initKakaoMap(prevIC, nextIC, data) {
-  if (typeof kakao === 'undefined') {
-    document.getElementById('map-placeholder').style.display = 'flex';
-    return;
-  }
+async function initKakaoMap(prevIC, nextIC, data) {
+  await window.kakaoReady;
   document.getElementById('map-placeholder').style.display = 'none';
 
   overlays.forEach(o => o.setMap(null));
