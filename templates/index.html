@@ -106,7 +106,7 @@ body {
 
 /* ── 공통 헤더 ── */
 .header {
-  padding: 56px 20px 16px;
+  padding: 56px 24px 16px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -123,12 +123,55 @@ body {
   cursor: pointer;
   transition: background .15s;
   flex-shrink: 0;
-  margin-left: -8px; /* 터치영역 확보 및 정렬 */
+  margin-left: -8px;
 }
 .back-btn:active { background: var(--border2); }
 .back-btn svg { width: 24px; height: 24px; stroke: var(--text); }
 .header-text h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; color: var(--text); }
 .header-text .sub { font-size: 13px; color: var(--text-muted); margin-bottom: 2px; font-weight: 600; }
+
+/* ── 하단 뒤로가기 바 ── */
+.bottom-back-bar {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 16px 20px calc(16px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(0deg, var(--bg) 65%, transparent);
+  z-index: 50;
+  pointer-events: none;
+}
+.bottom-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border-radius: 100px;
+  padding: 15px 26px 15px 20px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  pointer-events: all;
+  transition: transform .18s cubic-bezier(.4,0,.2,1), box-shadow .18s;
+  border: none;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.bottom-back-btn:active {
+  transform: scale(0.95);
+  box-shadow: var(--shadow-sm);
+  background: var(--surface2);
+}
+.bottom-back-btn svg {
+  width: 20px; height: 20px;
+  stroke: var(--text); stroke-width: 2.5px;
+  stroke-linecap: round; stroke-linejoin: round;
+  fill: none; flex-shrink: 0;
+}
+.bottom-back-btn span {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.3px;
+}
 
 /* ── 스크롤 영역 ── */
 .scroll-body {
@@ -540,10 +583,6 @@ body {
   gap: 12px;
   background: linear-gradient(180deg, rgba(242,244,246,0.95) 40%, transparent);
 }
-.map-header .back-btn {
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-}
 .map-header-pill {
   background: var(--surface);
   border-radius: 100px;
@@ -553,6 +592,14 @@ body {
 }
 .mhp-label { font-size: 11px; color: var(--text-muted); font-weight: 600; }
 .mhp-name  { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; margin-top: 2px; color: var(--text); }
+
+/* 지도 하단 뒤로가기 플로팅 */
+.map-back-float {
+  position: absolute;
+  bottom: 178px; /* IC 탭 높이(~130px) + 여유 */
+  left: 20px;
+  z-index: 300;
+}
 
 /* 혼잡도 실시간 칩 */
 .map-congestion-chip {
@@ -916,9 +963,6 @@ body {
 
 <div class="screen hidden" id="screen-direction">
   <div class="header">
-    <div class="back-btn" onclick="goBack(2)">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-    </div>
     <div class="header-text">
       <div class="sub" id="dir-hw-sub">고속도로 선택됨</div>
       <h2 id="dir-hw-name">경부고속도로</h2>
@@ -947,15 +991,19 @@ body {
         <div class="dir-route" id="dir-up-route">부산 → 서울</div>
       </div>
     </div>
-    <div class="safe-bottom"></div>
+    <div style="height: 100px;"></div>
+  </div>
+
+  <div class="bottom-back-bar">
+    <button class="bottom-back-btn" onclick="goBack(2)">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      <span>이전</span>
+    </button>
   </div>
 </div>
 
 <div class="screen hidden" id="screen-ra">
   <div class="header">
-    <div class="back-btn" onclick="goBack(3)">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-    </div>
     <div class="header-text">
       <div class="sub" id="ra-hw-sub">경부 · 하행</div>
       <h2>휴게소 선택</h2>
@@ -986,14 +1034,19 @@ body {
 
   <div class="scroll-body" style="padding: 0;">
     <div class="ra-list-wrap" id="ra-list"></div>
+    <div style="height: 90px;"></div>
+  </div>
+
+  <div class="bottom-back-bar">
+    <button class="bottom-back-btn" onclick="goBack(3)">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      <span>이전</span>
+    </button>
   </div>
 </div>
 
 <div class="screen hidden" id="screen-charger">
   <div class="header">
-    <div class="back-btn" onclick="closeChargerScreen()">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-    </div>
     <div class="header-text">
       <div class="sub" id="charger-sub">전기차 충전소</div>
       <h2 id="charger-title">충전 현황</h2>
@@ -1001,7 +1054,14 @@ body {
   </div>
 
   <div class="scroll-body">
-    <div id="charger-results" style="padding: 16px 20px 80px;"></div>
+    <div id="charger-results" style="padding: 16px 20px 100px;"></div>
+  </div>
+
+  <div class="bottom-back-bar">
+    <button class="bottom-back-btn" onclick="closeChargerScreen()">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      <span>이전</span>
+    </button>
   </div>
 </div>
 
@@ -1015,9 +1075,6 @@ body {
   </div>
 
   <div class="map-header">
-    <div class="back-btn" onclick="showScreenBack('screen-map', 'screen-ra')">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-    </div>
     <div class="map-header-pill">
       <div class="mhp-label" id="map-hw-label">경부 하행</div>
       <div class="mhp-name" id="map-ra-name">기흥휴게소</div>
@@ -1029,6 +1086,14 @@ body {
   </div>
 
   <div class="map-hint" id="map-hint">⚡ 마커를 눌러 충전소 확인</div>
+
+  <!-- 지도 하단 뒤로가기 플로팅 버튼 -->
+  <div class="map-back-float">
+    <button class="bottom-back-btn" onclick="showScreenBack('screen-map', 'screen-ra')">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      <span>이전</span>
+    </button>
+  </div>
 
   <div class="ic-panel" id="ic-panel">
     <div class="ic-tabs" id="ic-tabs" style="display:none">
