@@ -1133,6 +1133,7 @@ let kakaoMap   = null;
 let overlays   = [];
 let raOverlays = [];  // RA 인근 충전소 마커
 let cache      = { nodes: {}, bypass: {} };
+let currentScreenId = 'screen-home';  // 현재 화면 추적 (popstate용)
 
 // ══════════════════════════════════════════════
 //  화면 전환
@@ -1143,17 +1144,16 @@ function showScreen(toId, fromId) {
   from.classList.add('slide-left');
   to.classList.remove('hidden', 'slide-left');
   setTimeout(() => from.classList.add('hidden'), 360);
+  currentScreenId = toId;
   history.pushState({ screen: toId }, '', '');
 }
 function showScreenBack(fromId, toId) {
-  document.getElementById(fromId).classList.add('hidden');
-  document.getElementById(toId).classList.remove('hidden', 'slide-left');
+  // UI 뒤로가기 버튼: history.back()으로 통일 → popstate 핸들러가 처리
+  history.back();
 }
 function goBack(cur) {
-  const list = ['screen-home','screen-direction','screen-ra','screen-charger','screen-map'];
-  document.getElementById(list[cur-1]).classList.add('hidden');
-  const prev = document.getElementById(list[cur-2]);
-  prev.classList.remove('hidden', 'slide-left');
+  // UI 뒤로가기 버튼: history.back()으로 통일 → popstate 핸들러가 처리
+  history.back();
 }
 
 // ══════════════════════════════════════════════
@@ -1245,10 +1245,8 @@ function renderChargerResults(places, el) {
 }
 
 function closeChargerScreen() {
-  const cur = document.getElementById('screen-charger');
-  const prev = document.getElementById('screen-ra');
-  cur.classList.add('hidden');
-  prev.classList.remove('hidden', 'slide-left');
+  // UI 뒤로가기 버튼: history.back()으로 통일 → popstate 핸들러가 처리
+  history.back();
 }
 
 // ══════════════════════════════════════════════
@@ -1922,29 +1920,33 @@ window.addEventListener('popstate', e => {
   const panel = document.getElementById('station-panel');
   if (panel && panel.classList.contains('open')) {
     closeStationPanel();
-    history.pushState({}, '', '');  // 히스토리 복원
+    // 패널을 닫은 뒤 현재 화면 히스토리 엔트리 복원
+    history.pushState({ screen: currentScreenId }, '', '');
     return;
   }
 
   const screens = ['screen-home', 'screen-direction', 'screen-ra', 'screen-charger', 'screen-map'];
+  const currentIdx = screens.indexOf(currentScreenId);
 
-  // 현재 보이는 화면 찾기
-  const currentIdx = screens.findIndex(id => {
-    const el = document.getElementById(id);
-    return !el.classList.contains('hidden') && !el.classList.contains('slide-left');
-  });
+  // 홈화면이면 기본 동작(앱 종료 다이얼로그) 허용
+  if (currentIdx <= 0) return;
 
-  if (currentIdx <= 0) return;  // 홈화면이면 그냥 나가기
-
-  // 이전 화면으로 전환 (screen-map은 screen-charger 건너뛰고 screen-ra로)
-  const currentScreen = document.getElementById(screens[currentIdx]);
-  const prevIdx = screens[currentIdx] === 'screen-map'
+  // 이전 화면 결정 (screen-map → screen-ra 건너뛰기)
+  const prevIdx = currentScreenId === 'screen-map'
     ? screens.indexOf('screen-ra')
     : currentIdx - 1;
-  const prevScreen = document.getElementById(screens[prevIdx]);
 
-  currentScreen.classList.add('hidden');
+  // 화면 전환
+  document.getElementById(currentScreenId).classList.add('hidden');
+  const prevScreen = document.getElementById(screens[prevIdx]);
   prevScreen.classList.remove('hidden', 'slide-left');
+  currentScreenId = screens[prevIdx];
+
+  // 홈이 아닌 화면으로 돌아온 경우: 히스토리 엔트리를 하나 더 쌓아
+  // 다음 뒤로가기도 popstate를 트리거하도록 보장
+  if (prevIdx > 0) {
+    history.pushState({ screen: screens[prevIdx] }, '', '');
+  }
 });
 
 // 초기 히스토리 등록
