@@ -3,14 +3,19 @@ from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-
+from django.conf import settings
 from .models import Highway, HighwayNode, ChargingStation, NodeStationMapping
+from django.http import JsonResponse 
 from .serializers import (
     HighwaySerializer,
     HighwayNodeSerializer,
     ChargingStationSerializer,
 )
 
+def config_view(request):
+    return JsonResponse({
+        'kakao_key': settings.KAKAO_KEY,
+    })
 
 # ──────────────────────────────────────────────
 # GET /api/v1/highways/
