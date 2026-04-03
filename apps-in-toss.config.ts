@@ -1,7 +1,7 @@
 import { defineConfig } from '@apps-in-toss/web-framework/config';
 
 export default defineConfig({
-  appName: 'chargeflow',
+  appName: 'Chargeflow',
   brand: {
     displayName: 'Chargeflow',
     primaryColor: '#3182F6',
