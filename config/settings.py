@@ -108,6 +108,11 @@ REST_FRAMEWORK = {
 KAKAO_API_KEY = os.getenv('KAKAO_API_KEY', '')   # REST API 키 (로컬 검색용)
 KAKAO_JS_KEY  = os.getenv('KAKAO_JS_KEY', '')    # JavaScript 키 (지도 SDK용)
 
+
 GA_MEASUREMENT_ID = os.environ.get('GA_MEASUREMENT_ID', '')
 AMPLITUDE_API_KEY = os.environ.get('AMPLITUDE_API_KEY', '')
 
+STATIC_URL = '/static/'
+
+STATICFILES_DIRS = [BASE_DIR / 'static']
+STATIC_ROOT = BASE_DIR / 'staticfiles'
