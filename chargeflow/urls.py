@@ -1,6 +1,9 @@
 from django.urls import path
 from chargeflow import views
 from chargeflow.views import RANearbyStationsView
+from django.conf import settings
+from django.conf.urls.static import static
+
 
 urlpatterns = [
     # 고속도로 목록
@@ -32,4 +35,4 @@ urlpatterns = [
     path('nodes/<int:pk>/nearby-stations/',
          RANearbyStationsView.as_view(),
          name='ra-nearby-stations'),
-]
+] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
