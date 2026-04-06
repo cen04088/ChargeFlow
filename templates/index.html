@@ -1033,7 +1033,7 @@ body {
   </button>
 
   <div class="alert-banner">
-    🚨 고장 여부에 따라 값이 정확하지 않을 수 있으며, <br>15분 이내가 아니라면 표시되지 않습니다.
+    🚨 고장 여부에 따라 값이 정확하지 않을 수 있으며, <br>15분 내의 충전소만 표시됩니다.
   </div>
 
   <div class="nearest-banner" id="nearest-banner">
@@ -1353,8 +1353,8 @@ function selectDirection(dir) {
     `${hw.name} · ${dir==='DOWN'?'하행':'상행'}`;
   document.getElementById('ra-search-input').value = '';
   // 위치 상태 초기화
-  document.getElementById('loc-btn').classList.remove('active');
-  document.getElementById('loc-status').textContent = '';
+  userPos = null;
+  resetLocBtn();
   document.getElementById('nearest-banner').classList.remove('visible');
 
   setTimeout(() => {
@@ -1424,17 +1424,10 @@ function renderRAList(nodes, filter = '') {
   }
 
   let html = '';
-
-  // 가장 가까운 항목 분리
-  if (userPos && filtered.length > 0) {
-    const nearest = filtered[0];
-    html += `<div class="ra-nearest-label">📍 내 위치에서 가장 가까운 휴게소</div>`;
-    html += renderRAItem(nearest, true);
+  if (userPos) {
     html += `<div class="ra-section-label">전체 목록 (거리 순)</div>`;
-    filtered.slice(1).forEach(n => { html += renderRAItem(n, false); });
-  } else {
-    filtered.forEach(n => { html += renderRAItem(n, false); });
   }
+  filtered.forEach(n => { html += renderRAItem(n, false); });
 
   list.innerHTML = html;
 }
@@ -1469,11 +1462,25 @@ function filterRA(val) { renderRAList(allRANodes, val); }
 // ══════════════════════════════════════════════
 //  위치 요청
 // ══════════════════════════════════════════════
+function resetLocBtn() {
+  const btn = document.getElementById('loc-btn');
+  btn.classList.remove('active');
+  btn.innerHTML = `
+    <span class="loc-icon">📍</span>
+    <span style="flex:1; text-align:left;">가까운 휴게소 찾기</span>
+    <span class="loc-status" id="loc-status"></span>
+  `;
+  btn.onclick = requestLocation;
+}
+
 function requestLocation() {
-  const btn    = document.getElementById('loc-btn');
-  const status = document.getElementById('loc-status');
+  const btn = document.getElementById('loc-btn');
   btn.classList.add('active');
-  status.textContent = '위치 확인 중...';
+  btn.innerHTML = `
+    <span class="loc-icon">📍</span>
+    <span style="flex:1; text-align:left;">위치 확인 중...</span>
+  `;
+  btn.onclick = null;
 
   if (!navigator.geolocation) {
     status.textContent = '미지원 브라우저';
@@ -1484,23 +1491,30 @@ function requestLocation() {
   navigator.geolocation.getCurrentPosition(
     pos => {
       userPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      status.textContent = '완료 ✓';
 
-      // 가장 가까운 RA 찾아서 배너 표시
       if (allRANodes.length) {
         const sorted = [...allRANodes].map(n => ({
           ...n, userDistKm: haversineKm(userPos.lat, userPos.lng, n.lat, n.lng)
         })).sort((a,b) => a.userDistKm - b.userDistKm);
 
         const nearest = sorted[0];
-        document.getElementById('nb-text').textContent  = `${nearest.name}`;
-        document.getElementById('nb-dist').textContent  = formatDist(nearest.userDistKm);
-        document.getElementById('nearest-banner').classList.add('visible');
+
+        // 버튼을 가장 가까운 휴게소 결과 카드로 교체
+        btn.innerHTML = `
+          <span class="loc-icon">🎯</span>
+          <div style="flex:1; text-align:left; min-width:0;">
+            <div style="font-size:15px; font-weight:700; color:var(--primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${nearest.name}</div>
+            <div style="font-size:12px; color:var(--text-muted); margin-top:2px; font-weight:500;">가장 가까운 휴게소 · 탭해서 선택</div>
+          </div>
+          <span style="font-size:14px; font-weight:700; color:var(--primary); flex-shrink:0;">${formatDist(nearest.userDistKm)}</span>
+        `;
+        btn.onclick = () => selectRA(nearest);
+
         renderRAList(allRANodes);
       }
     },
     err => {
-      status.textContent = '위치 거부됨';
+      resetLocBtn();
       btn.classList.remove('active');
     },
     { enableHighAccuracy: true, timeout: 8000 }
@@ -1893,12 +1907,11 @@ async function initKakaoMap(prevIC, nextIC, data) {
     kakaoMap.setLevel(8);
   }
 
-  addOverlay(ra.lat, ra.lng, `<div class="mk-ra">${ra.name}</div>`);
+  addOverlay(ra.lat, ra.lng, `<div class="mk-ra">🏁 ${ra.name}</div>`);
 
   // 마커 위치 수집 후 겹침 방지 처리
   const markerPositions = [];
   const seenStationIds = new Set(); // 중복 충전소 마커 방지
-  const seenStationKeys = new Set(); // 이름+좌표 기반 중복 방지
 
   [
     { ic: prevIC, stations: data?.previous_ic?.stations },
@@ -1915,12 +1928,8 @@ async function initKakaoMap(prevIC, nextIC, data) {
       const lat = parseFloat(s.latitude), lng = parseFloat(s.longitude);
       if (!lat || !lng) return;
       // 같은 충전소가 prev/next IC 양쪽에 있으면 한 번만 표시
-      const latRounded = Math.round(parseFloat(s.latitude) * 10000);
-      const lngRounded = Math.round(parseFloat(s.longitude) * 10000);
-      const stationKey = `${s.name}_${latRounded}_${lngRounded}`;
-      if (seenStationIds.has(s.id) || seenStationKeys.has(stationKey)) return;
+      if (seenStationIds.has(s.id)) return;
       seenStationIds.add(s.id);
-      seenStationKeys.add(stationKey);
       stationStore[s.id] = s;
       markerPositions.push({ lat, lng, type: 'station', id: s.id, name: s.name, is_recommended: s.is_recommended });
     });
@@ -1932,12 +1941,12 @@ async function initKakaoMap(prevIC, nextIC, data) {
   dedupedPositions.forEach(p => {
     if (p.type === 'ic') {
       addOverlay(p.lat, p.lng,
-        `<div class="mk-ic" onclick="activeTab='${p.icWhich}';updateTabActive();openStationPanel('${p.icWhich}')">${p.name}</div>`
+        `<div class="mk-ic" onclick="activeTab='${p.icWhich}';updateTabActive();openStationPanel('${p.icWhich}')">🔵 ${p.name}</div>`
       );
     } else {
       const icon = p.is_recommended ? '⚡' : '🔌';
       addOverlay(p.lat, p.lng,
-        `<div class="mk-station" onclick="showStationDetail(${p.id})">${cleanMarkerName(p.name)}</div>`
+        `<div class="mk-station" onclick="showStationDetail(${p.id})">${icon} ${cleanMarkerName(p.name)}</div>`
       );
     }
   });
