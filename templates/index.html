@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 
-<title>Chargeflow</title>
+<title>고속도로 충전 도우미</title>
 <meta name="application-name" content="Chargeflow">
 <meta property="og:title" content="Chargeflow">
 <meta property="og:description" content="고속도로 IC 우회 전기차 급속 충전소 안내">
@@ -1893,11 +1893,12 @@ async function initKakaoMap(prevIC, nextIC, data) {
     kakaoMap.setLevel(8);
   }
 
-  addOverlay(ra.lat, ra.lng, `<div class="mk-ra">🏁 ${ra.name}</div>`);
+  addOverlay(ra.lat, ra.lng, `<div class="mk-ra">${ra.name}</div>`);
 
   // 마커 위치 수집 후 겹침 방지 처리
   const markerPositions = [];
   const seenStationIds = new Set(); // 중복 충전소 마커 방지
+  const seenStationKeys = new Set(); // 이름+좌표 기반 중복 방지
 
   [
     { ic: prevIC, stations: data?.previous_ic?.stations },
@@ -1914,8 +1915,12 @@ async function initKakaoMap(prevIC, nextIC, data) {
       const lat = parseFloat(s.latitude), lng = parseFloat(s.longitude);
       if (!lat || !lng) return;
       // 같은 충전소가 prev/next IC 양쪽에 있으면 한 번만 표시
-      if (seenStationIds.has(s.id)) return;
+      const latRounded = Math.round(parseFloat(s.latitude) * 10000);
+      const lngRounded = Math.round(parseFloat(s.longitude) * 10000);
+      const stationKey = `${s.name}_${latRounded}_${lngRounded}`;
+      if (seenStationIds.has(s.id) || seenStationKeys.has(stationKey)) return;
       seenStationIds.add(s.id);
+      seenStationKeys.add(stationKey);
       stationStore[s.id] = s;
       markerPositions.push({ lat, lng, type: 'station', id: s.id, name: s.name, is_recommended: s.is_recommended });
     });
@@ -1927,12 +1932,12 @@ async function initKakaoMap(prevIC, nextIC, data) {
   dedupedPositions.forEach(p => {
     if (p.type === 'ic') {
       addOverlay(p.lat, p.lng,
-        `<div class="mk-ic" onclick="activeTab='${p.icWhich}';updateTabActive();openStationPanel('${p.icWhich}')">🔵 ${p.name}</div>`
+        `<div class="mk-ic" onclick="activeTab='${p.icWhich}';updateTabActive();openStationPanel('${p.icWhich}')">${p.name}</div>`
       );
     } else {
       const icon = p.is_recommended ? '⚡' : '🔌';
       addOverlay(p.lat, p.lng,
-        `<div class="mk-station" onclick="showStationDetail(${p.id})">${icon} ${cleanMarkerName(p.name)}</div>`
+        `<div class="mk-station" onclick="showStationDetail(${p.id})">${cleanMarkerName(p.name)}</div>`
       );
     }
   });
