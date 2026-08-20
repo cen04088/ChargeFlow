@@ -1,7 +1,8 @@
 from django.contrib import admin
 from .models import (
     Highway, HighwayNode, ChargingStation, NodeStationMapping,
-    HighwayNodeCharger, ChargerStatusLog, StationCongestion
+    HighwayNodeCharger, ChargerStatusLog, StationCongestion,
+    UserRoute, CongestionNotifySubscription,
 )
 
 
@@ -56,3 +57,19 @@ class StationCongestionAdmin(admin.ModelAdmin):
     list_display  = ['id', 'ra_node', 'level', 'change_count_30m', 'is_suspicious', 'updated_at']
     list_filter   = ['level', 'is_suspicious']
     search_fields = ['ra_node__name']
+
+
+@admin.register(UserRoute)
+class UserRouteAdmin(admin.ModelAdmin):
+    list_display  = ['id', 'user_key', 'ra_node', 'is_favorite', 'visit_count', 'last_used_at']
+    list_filter   = ['is_favorite', 'ra_node__highway']
+    search_fields = ['user_key', 'ra_node__name']
+    ordering      = ['-last_used_at']
+
+
+@admin.register(CongestionNotifySubscription)
+class CongestionNotifySubscriptionAdmin(admin.ModelAdmin):
+    list_display  = ['id', 'user_key', 'ra_node', 'is_active', 'created_at', 'notified_at']
+    list_filter   = ['is_active', 'ra_node__highway']
+    search_fields = ['user_key', 'ra_node__name']
+    ordering      = ['-created_at']

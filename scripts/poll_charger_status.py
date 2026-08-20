@@ -18,7 +18,14 @@ from datetime import timedelta
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from chargeflow.models import HighwayNode, HighwayNodeCharger, ChargerStatusLog, StationCongestion
+from chargeflow.models import (
+    HighwayNode, HighwayNodeCharger, ChargerStatusLog, StationCongestion,
+    CongestionNotifySubscription,
+)
+from chargeflow.services.toss_notify import send_congestion_cleared_message
+
+CLEARED_LEVELS = {'smooth', 'normal'}
+CONGESTED_LEVELS = {'busy', 'jammed'}
 
 API_URL          = 'https://apis.data.go.kr/B552584/EvCharger/getChargerStatus'
 CHANGE_THRESHOLD = 5
@@ -83,6 +90,17 @@ class Command(BaseCommand):
         parser.add_argument('--api-key', required=True)
         parser.add_argument('--limit',   type=int, default=None)
         parser.add_argument('--verbose', action='store_true')
+
+    def _notify_cleared_subscribers(self, ra_node, verbose):
+        subs = CongestionNotifySubscription.objects.filter(ra_node=ra_node, is_active=True)
+        for sub in subs:
+            sent = send_congestion_cleared_message(sub.user_key, ra_node)
+            if sent:
+                sub.is_active   = False
+                sub.notified_at = timezone.now()
+                sub.save(update_fields=['is_active', 'notified_at'])
+                if verbose:
+                    self.stdout.write(f'  🔔 알림 발송: {ra_node.name} → {sub.user_key}')
 
     def handle(self, *args, **options):
         api_key = options['api_key']
@@ -166,6 +184,9 @@ class Command(BaseCommand):
                 node_type='RA',
             )
             for same_ra in same_ras:
+                previous = StationCongestion.objects.filter(ra_node=same_ra).first()
+                previous_level = previous.level if previous else None
+
                 StationCongestion.objects.update_or_create(
                     ra_node=same_ra,
                     defaults={
@@ -174,6 +195,9 @@ class Command(BaseCommand):
                         'is_suspicious':    suspicious_count > 0,
                     }
                 )
+
+                if previous_level in CONGESTED_LEVELS and level in CLEARED_LEVELS:
+                    self._notify_cleared_subscribers(same_ra, verbose)
 
             if suspicious_count > 0:
                 suspicious_total += 1

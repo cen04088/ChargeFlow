@@ -29,6 +29,7 @@ class StationInBypassSerializer(serializers.Serializer):
         source='station.longitude', max_digits=9, decimal_places=6
     )
     power_kw        = serializers.IntegerField(source='station.power_kw', allow_null=True)
+    connector_type  = serializers.CharField(source='station.connector_type', allow_blank=True)
     charger_count   = serializers.IntegerField(source='station.charger_count')
     open_hours      = serializers.CharField(source='station.open_hours')
     distance_km     = serializers.FloatField()
@@ -53,6 +54,6 @@ class ChargingStationSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'address', 'place_type',
             'latitude', 'longitude',
-            'charger_count', 'power_kw', 'operator',
+            'charger_count', 'power_kw', 'connector_type', 'operator',
             'open_hours', 'is_verified',
         ]

@@ -61,6 +61,12 @@ class ChargingStation(models.Model):
         ('public',      '공공기관'),
         ('etc',         '기타'),
     ]
+    CONNECTOR_CHOICES = [
+        ('dc_combo',     'DC콤보'),
+        ('ac3',          'AC3상'),
+        ('dc_chademo',   'DC차데모'),
+        ('dc_ac_combo',  'DC콤보+AC3상 겸용'),
+    ]
 
     name          = models.CharField(max_length=100)
     address       = models.CharField(max_length=200, blank=True)
@@ -69,6 +75,7 @@ class ChargingStation(models.Model):
     place_type    = models.CharField(max_length=20, choices=PLACE_TYPE_CHOICES, default='etc')
     charger_count = models.PositiveSmallIntegerField(default=1)
     power_kw      = models.PositiveSmallIntegerField(null=True, blank=True)
+    connector_type = models.CharField(max_length=20, choices=CONNECTOR_CHOICES, blank=True)
     operator      = models.CharField(max_length=50, blank=True)
     open_hours    = models.CharField(max_length=50, blank=True)
     is_verified   = models.BooleanField(default=False)
@@ -184,3 +191,51 @@ class StationCongestion(models.Model):
 
     def __str__(self):
         return f'{self.ra_node.name} [{self.get_level_display()}]'
+
+
+class UserRoute(models.Model):
+    """사용자(userKey)별 최근 방문 · 즐겨찾기 휴게소"""
+
+    user_key     = models.CharField(max_length=64, db_index=True)
+    ra_node      = models.ForeignKey(
+        HighwayNode, on_delete=models.CASCADE,
+        related_name='user_routes',
+        limit_choices_to={'node_type': 'RA'},
+    )
+    is_favorite  = models.BooleanField(default=False)
+    visit_count  = models.PositiveIntegerField(default=1)
+    last_used_at = models.DateTimeField(auto_now=True)
+    created_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name        = '사용자 최근/즐겨찾기 경로'
+        verbose_name_plural = '사용자 최근/즐겨찾기 경로 목록'
+        unique_together     = ('user_key', 'ra_node')
+        ordering            = ['-last_used_at']
+
+    def __str__(self):
+        star = '★' if self.is_favorite else ''
+        return f'{self.user_key} → {self.ra_node.name} {star}'
+
+
+class CongestionNotifySubscription(models.Model):
+    """혼잡 해소 시 알림을 받기로 한 사용자 구독"""
+
+    user_key    = models.CharField(max_length=64, db_index=True)
+    ra_node     = models.ForeignKey(
+        HighwayNode, on_delete=models.CASCADE,
+        related_name='notify_subscriptions',
+        limit_choices_to={'node_type': 'RA'},
+    )
+    is_active   = models.BooleanField(default=True)
+    created_at  = models.DateTimeField(auto_now_add=True)
+    notified_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name        = '혼잡 해소 알림 구독'
+        verbose_name_plural = '혼잡 해소 알림 구독 목록'
+        unique_together     = ('user_key', 'ra_node')
+
+    def __str__(self):
+        state = '활성' if self.is_active else '완료/해지'
+        return f'{self.user_key} ← {self.ra_node.name} [{state}]'

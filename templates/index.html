@@ -16,17 +16,26 @@
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
 
 <script>
-window.kakaoReady = new Promise((resolve) => {
-  fetch('https://chargeflow-production.up.railway.app/api/v1/config/')
-    .then(res => res.json())
-    .then(({ kakao_key }) => {
-      const script = document.createElement('script');
-      script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${kakao_key}&libraries=services&autoload=false`;
-      script.onload = () => kakao.maps.load(resolve);
-      document.head.appendChild(script);
-    })
-    .catch(err => console.error('[ChargeFlow] 카카오 키 로드 실패:', err));
-});
+// 카카오맵 SDK는 초기 페이지 렌더 크리티컬 패스에서 빼고, 사용자가 노선을
+// 고르는 시점(selectHighway)에 미리 백그라운드로 로드해둔다. 실제 소비
+// 시점(지도 화면)의 `await window.kakaoReady`는 그대로 두되, 시작 시점만 늦춘다.
+let _kakaoLoadPromise = null;
+window.startKakaoLoad = function () {
+  if (_kakaoLoadPromise) return _kakaoLoadPromise;
+  _kakaoLoadPromise = new Promise((resolve) => {
+    fetch('https://chargeflow-production.up.railway.app/api/v1/config/')
+      .then(res => res.json())
+      .then(({ kakao_key }) => {
+        const script = document.createElement('script');
+        script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${kakao_key}&libraries=services&autoload=false`;
+        script.onload = () => kakao.maps.load(resolve);
+        document.head.appendChild(script);
+      })
+      .catch(err => console.error('[ChargeFlow] 카카오 키 로드 실패:', err));
+  });
+  return _kakaoLoadPromise;
+};
+window.kakaoReady = { then: (...args) => window.startKakaoLoad().then(...args) };
 </script>
 
 <style>
@@ -67,6 +76,47 @@ window.kakaoReady = new Promise((resolve) => {
   --radius:     24px;
   --radius-sm:  16px;
   --radius-xs:  10px;
+
+  --bg-fade: rgba(242,244,246,0.95);  /* map-header 그라데이션용 — --bg와 톤 맞춤 */
+}
+
+/* 야간 운전 시 눈부심 방지 — 시스템 다크모드를 그대로 따라감(별도 토글 없음) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:            #0F1114;
+    --surface:       #1C1E22;
+    --surface2:      #242629;
+    --surface-hover: #2A2D31;
+    --border:        #26282C;
+    --border2:       #33363B;
+
+    --primary:       #4B9BFF;
+    --primary-hover: #6FADFF;
+    --primary-lt:    rgba(75, 155, 255, 0.16);
+    --primary-dim:   rgba(75, 155, 255, 0.12);
+
+    --green:    #34D374;
+    --green-lt: rgba(52, 211, 116, 0.16);
+    --lime:     #34D374;
+    --lime-lt:  rgba(52, 211, 116, 0.16);
+    --orange:   #FFA733;
+    --orange-lt:rgba(255, 167, 51, 0.16);
+    --red:      #FF5C6A;
+    --red-lt:   rgba(255, 92, 106, 0.16);
+    --blue:     #4B9BFF;
+    --blue-lt:  rgba(75, 155, 255, 0.16);
+
+    --text:       #F2F3F5;
+    --text-mid:   #D3D6DA;
+    --text-muted: #9AA0A8;
+    --text-dim:   #6C7278;
+
+    --shadow-sm: 0 2px 8px rgba(0,0,0,0.28);
+    --shadow:    0 8px 20px rgba(0,0,0,0.38);
+    --shadow-lg: 0 16px 40px rgba(0,0,0,0.48);
+
+    --bg-fade: rgba(15,17,20,0.95);
+  }
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -270,6 +320,24 @@ body {
 .hw-info p  { font-size: 13px; color: var(--text-dim); margin-top: 4px; font-weight: 500; }
 .hw-arrow   { margin-left: auto; color: var(--border2); font-size: 24px; flex-shrink: 0; font-weight: 300; }
 
+/* 최근/즐겨찾기 카드 */
+.recent-card .hw-icon { background: var(--primary-lt); }
+.fav-star {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 36px; height: 36px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  font-size: 20px;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .15s;
+}
+.fav-star.active { color: var(--orange); }
+.fav-star:active { transform: scale(0.85); }
+
 /* 팁 카드 */
 .tip-card {
   margin: 8px 20px 24px;
@@ -280,7 +348,7 @@ body {
   gap: 12px;
 }
 .tip-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
-.tip-text { font-size: 14px; color: #1B64DA; line-height: 1.5; font-weight: 500; }
+.tip-text { font-size: 14px; color: var(--primary-hover); line-height: 1.5; font-weight: 500; }
 .tip-text strong { color: var(--primary); font-weight: 700; display: block; margin-bottom: 4px; }
 
 /* ══════════════════════════════
@@ -381,6 +449,7 @@ body {
 .loc-btn .loc-icon { font-size: 18px; }
 .loc-status { margin-left: auto; font-size: 13px; color: var(--text-dim); font-weight: 500; }
 .loc-btn.active .loc-status { color: var(--primary); }
+.quick-locate-btn { margin: 20px 20px 20px; }
 
 /* 가장 가까운 RA 배너 */
 .nearest-banner {
@@ -590,7 +659,7 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: linear-gradient(180deg, rgba(242,244,246,0.95) 40%, transparent);
+  background: linear-gradient(180deg, var(--bg-fade) 40%, transparent);
 }
 .map-header-pill {
   background: var(--surface);
@@ -601,6 +670,46 @@ body {
 }
 .mhp-label { font-size: 11px; color: var(--text-muted); font-weight: 600; }
 .mhp-name  { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; margin-top: 2px; color: var(--text); }
+.mhp-updated { font-size: 11px; color: var(--text-dim); font-weight: 600; margin-top: 2px; }
+
+/* 지도 헤더 아이콘 버튼(즐겨찾기 · 공유) */
+.map-icon-btn {
+  width: 40px; height: 40px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border: none;
+  border-radius: 50%;
+  font-size: 17px;
+  color: var(--text-dim);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .15s;
+}
+.map-icon-btn:active { transform: scale(0.9); }
+.map-icon-btn.active { color: var(--orange); }
+
+/* 혼잡 해소 알림 구독 CTA */
+.notify-cta {
+  position: absolute;
+  left: 20px; right: 20px;
+  top: 78px;
+  z-index: 90;
+  background: var(--surface);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+.notify-cta.visible { display: flex; }
+.notify-cta.subscribed { color: var(--green); }
 
 /* 지도 뒤로가기 플로팅 */
 .map-back-float {
@@ -932,12 +1041,23 @@ body {
   </div>
 
   <div class="scroll-body">
+    <button class="loc-btn quick-locate-btn" id="quick-locate-btn" onclick="quickLocate()">
+      <span class="loc-icon">📍</span>
+      <span style="flex:1; text-align:left;">지금 위치로 바로 찾기</span>
+      <span class="loc-status" id="quick-locate-status"></span>
+    </button>
+
     <div class="tip-card">
       <div class="tip-icon">💡</div>
       <div class="tip-text">
         <strong>왜 IC 우회인가요?</strong>
         휴게소의 '충전 가능 표시'에 속아 <br>헛걸음하신 적 있나요?<br>부정확한 실시간 데이터 대신, IC 근처 확실한 <br>개방형 급속 충전소로 안내해 드릴게요.
       </div>
+    </div>
+
+    <div id="recent-section" style="display:none;">
+      <div class="section-label">최근 · 즐겨찾기</div>
+      <div class="hw-list" id="recent-list"></div>
     </div>
 
     <div class="section-label">고속도로 선택</div>
@@ -1088,12 +1208,19 @@ body {
     <div class="map-header-pill">
       <div class="mhp-label" id="map-hw-label">경부 하행</div>
       <div class="mhp-name" id="map-ra-name">기흥휴게소</div>
+      <div class="mhp-updated" id="map-updated" style="display:none;"></div>
     </div>
+    <button class="map-icon-btn" id="map-fav-btn" onclick="toggleMapFavorite()" title="즐겨찾기">☆</button>
+    <button class="map-icon-btn" id="map-share-btn" onclick="shareCurrentRA()" title="공유">🔗</button>
     <div class="map-congestion-chip" id="map-cong-chip" style="display: none;">
       <div class="mcc-dot" id="mcc-dot" style="background: var(--text-dim)"></div>
       <span id="mcc-text">확인 중</span>
     </div>
   </div>
+
+  <button class="notify-cta" id="notify-cta" onclick="subscribeCongestionNotify()">
+    <span id="notify-cta-text">🔔 혼잡 풀리면 알려줘</span>
+  </button>
 
   <div class="map-hint" id="map-hint">⚡ 마커를 눌러 충전소 확인</div>
 
@@ -1141,25 +1268,78 @@ const CONFIG = {
   TIMEOUT_MS: 8000,
 };
 
+// ══════════════════════════════════════════════
+//  앱인토스 브릿지 — WebView 그대로 감싸는 배포 전제
+//  실제 전역 브릿지 객체명은 앱인토스 콘솔/문서 확인 후
+//  아래 window.AppsInToss.* 호출부만 교체하면 됨(캡슐화됨).
+//  브릿지가 없으면(일반 브라우저) 표준 웹 API로 폴백.
+// ══════════════════════════════════════════════
+const Bridge = {
+  async getLocation() {
+    if (window.AppsInToss?.getLocation) {
+      try { return await window.AppsInToss.getLocation(); } catch (e) { /* 폴백으로 진행 */ }
+    }
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) { reject(new Error('geolocation unsupported')); return; }
+      navigator.geolocation.getCurrentPosition(
+        p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+        reject,
+        { enableHighAccuracy: true, timeout: 8000 },
+      );
+    });
+  },
+  async share(path, title) {
+    const url = `${location.origin}${path}`;
+    if (window.AppsInToss?.getTossShareLink) {
+      try {
+        const shareUrl = await window.AppsInToss.getTossShareLink({ path, title });
+        if (navigator.share) { await navigator.share({ title, url: shareUrl }); return true; }
+        await navigator.clipboard.writeText(shareUrl);
+        return true;
+      } catch (e) { /* 폴백으로 진행 */ }
+    }
+    if (navigator.share) { await navigator.share({ title, url }); return true; }
+    await navigator.clipboard.writeText(url);
+    return true;
+  },
+  userKeyHeader() {
+    const key = window.AppsInToss?.userKey;
+    return key ? { 'X-Toss-User-Key': key } : {};
+  },
+};
+
 const api = {
-  async get(path) {
+  async request(method, path, body) {
     const url = `${CONFIG.BASE_URL}${CONFIG.API_PREFIX}${path}`;
     const ctrl = new AbortController();
     const t    = setTimeout(() => ctrl.abort(), CONFIG.TIMEOUT_MS);
     try {
-      const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: ctrl.signal });
+      const res = await fetch(url, {
+        method,
+        signal: ctrl.signal,
+        headers: {
+          Accept: 'application/json',
+          ...(body ? { 'Content-Type': 'application/json' } : {}),
+          ...Bridge.userKeyHeader(),
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
       clearTimeout(t);
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw { status: res.status, detail: err.detail || '오류가 발생했어요.' };
       }
+      if (res.status === 204) return null;
       return res.json();
     } catch (e) {
       clearTimeout(t);
       if (e.name === 'AbortError') throw { status: 408, detail: '서버 응답 시간이 초과됐어요.' };
       throw e;
     }
-  }
+  },
+  get(path)        { return this.request('GET', path); },
+  post(path, body) { return this.request('POST', path, body); },
+  del(path)        { return this.request('DELETE', path); },
 };
 
 // ══════════════════════════════════════════════
@@ -1170,6 +1350,14 @@ const HIGHWAYS = {
   seohaeAN:  { name:'서해안고속도로', icon:'🌊', range:'서울 ↔ 목포 · 340km',  down:'서울 → 목포', up:'목포 → 서울' },
   yeongdong: { name:'영동고속도로',  icon:'⛰️', range:'인천 ↔ 강릉 · 234km',  down:'인천 → 강릉', up:'강릉 → 인천' },
 };
+
+const CONNECTOR_LABELS = {
+  dc_combo:    'DC콤보',
+  ac3:         'AC3상',
+  dc_chademo:  'DC차데모',
+  dc_ac_combo: 'DC콤보+AC3상',
+};
+function connectorLabel(code) { return CONNECTOR_LABELS[code] || code; }
 
 // ══════════════════════════════════════════════
 //  혼잡도 — 외부 데이터 연동 예정
@@ -1208,6 +1396,8 @@ let overlays   = [];
 let raOverlays = [];  // RA 인근 충전소 마커
 let cache      = { nodes: {}, bypass: {} };
 let currentScreenId = 'screen-home';  // 현재 화면 추적 (popstate용)
+let mapBackTarget   = 'screen-ra';    // screen-map에서 뒤로가기 시 돌아갈 화면(원터치 진입은 screen-home)
+let recentRoutes     = { recent: [], favorites: [] };
 
 // ══════════════════════════════════════════════
 //  화면 전환
@@ -1327,6 +1517,7 @@ function closeChargerScreen() {
 //  STEP 1 — 고속도로 선택
 // ══════════════════════════════════════════════
 function selectHighway(code) {
+  window.startKakaoLoad();  // 지도 화면 도달 전에 백그라운드로 미리 로드
   state.highway = code;
   const hw = HIGHWAYS[code];
   document.getElementById('dir-hw-sub').textContent   = '고속도로 선택됨';
@@ -1526,8 +1717,94 @@ function requestLocation() {
 // ══════════════════════════════════════════════
 function selectRA(raNode) {
   state.ra = raNode;
+  mapBackTarget = 'screen-ra';
   showScreen('screen-map', 'screen-ra');
   loadMapScreen();
+  api.post('/me/routes/', { ra_node_id: raNode.id }).catch(() => {});  // 방문 기록(실패해도 UX 안 막음)
+}
+
+// ══════════════════════════════════════════════
+//  홈 화면 원터치 진입 (앱인토스 위치 브릿지 → 백엔드 nearest-ra)
+// ══════════════════════════════════════════════
+async function goToRA(highwayCode, direction, ra) {
+  state.highway  = highwayCode;
+  state.direction = direction;
+  state.ra       = ra;
+  mapBackTarget  = 'screen-home';
+  window.startKakaoLoad();
+  showScreen('screen-map', 'screen-home');
+  loadMapScreen();
+  api.post('/me/routes/', { ra_node_id: ra.id }).catch(() => {});
+}
+
+function goToSavedRoute(r) {
+  goToRA(r.highway_code, r.direction, { id: r.ra_node_id, name: r.name, lat: null, lng: null });
+}
+
+async function quickLocate() {
+  const btn = document.getElementById('quick-locate-btn');
+  const status = document.getElementById('quick-locate-status');
+  btn.classList.add('active');
+  status.textContent = '위치 확인 중...';
+  try {
+    const pos  = await Bridge.getLocation();
+    const data = await api.get(`/nodes/nearest-ra/?lat=${pos.lat}&lng=${pos.lng}&limit=1`);
+    const nearest = (data.stations || [])[0];
+    if (!nearest) { status.textContent = '가까운 휴게소를 찾지 못했어요'; return; }
+    status.textContent = '';
+    btn.classList.remove('active');
+    goToRA(nearest.highway_code, nearest.direction, {
+      id: nearest.id, name: nearest.name,
+      lat: parseFloat(nearest.latitude), lng: parseFloat(nearest.longitude),
+    });
+  } catch (e) {
+    status.textContent = '위치 권한을 확인해주세요';
+    btn.classList.remove('active');
+  }
+}
+
+// ══════════════════════════════════════════════
+//  최근 방문 / 즐겨찾기 (userKey 기준)
+// ══════════════════════════════════════════════
+async function loadRecentRoutes() {
+  try {
+    recentRoutes = await api.get('/me/routes/');
+  } catch (e) {
+    recentRoutes = { recent: [], favorites: [] };
+  }
+  renderRecentRoutes();
+}
+
+function renderRecentRoutes() {
+  const section = document.getElementById('recent-section');
+  const list    = document.getElementById('recent-list');
+  const items   = recentRoutes.recent || [];
+  if (!items.length) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  list.innerHTML = items.map(r => {
+    const hw = HIGHWAYS[r.highway_code];
+    return `
+    <div class="hw-card recent-card" onclick='goToSavedRoute(${JSON.stringify(r).replace(/'/g, '&#39;')})'>
+      <div class="hw-icon">${hw ? hw.icon : '🛣️'}</div>
+      <div class="hw-info">
+        <h3>${r.name}</h3>
+        <p>${hw ? hw.name : r.highway_name} · ${r.direction === 'DOWN' ? '하행' : '상행'}</p>
+      </div>
+      <button class="fav-star ${r.is_favorite ? 'active' : ''}"
+              onclick="event.stopPropagation(); toggleFavorite(${r.ra_node_id}, ${!r.is_favorite})">
+        ${r.is_favorite ? '★' : '☆'}
+      </button>
+    </div>`;
+  }).join('');
+}
+
+async function toggleFavorite(raNodeId, makeFavorite) {
+  try {
+    if (makeFavorite) await api.post(`/me/routes/${raNodeId}/favorite/`);
+    else await api.del(`/me/routes/${raNodeId}/favorite/`);
+  } catch (e) { /* 조용히 실패 */ }
+  await loadRecentRoutes();
+  updateMapFavButton();
 }
 
 async function loadMapScreen() {
@@ -1535,6 +1812,12 @@ async function loadMapScreen() {
   const dir = state.direction === 'DOWN' ? '하행' : '상행';
   document.getElementById('map-hw-label').textContent = `${hw.name} · ${dir}`;
   document.getElementById('map-ra-name').textContent  = state.ra.name;
+  document.getElementById('map-updated').style.display = 'none';
+
+  // 즐겨찾기 · 혼잡 알림 상태 초기화(휴게소가 바뀔 때마다)
+  notifySubscribed = false;
+  updateMapFavButton();
+  updateNotifyCTA('unknown');
 
   // 혼잡도 칩 업데이트
   updateCongestionChip();
@@ -1645,6 +1928,8 @@ async function fetchCongestion(raId) {
       label = '정보 없음';
     }
     setCongestion({ level: data.level, label, color });
+    updateMapUpdatedText(data.checked_at);
+    updateNotifyCTA(data.level);
 
     // 상세 stats 표시 (충전가능/충전중/점검중)
     if (data.stats && Object.keys(data.stats).length > 0) {
@@ -1656,6 +1941,69 @@ async function fetchCongestion(raId) {
   } catch(e) {
     // 조용히 실패
   }
+}
+
+// ══════════════════════════════════════════════
+//  데이터 신선도 표시 ("n분 전 갱신")
+// ══════════════════════════════════════════════
+function timeAgo(iso) {
+  const diffSec = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  if (diffSec < 60) return '방금';
+  const min = Math.floor(diffSec / 60);
+  if (min < 60) return `${min}분 전`;
+  return `${Math.floor(min / 60)}시간 전`;
+}
+
+function updateMapUpdatedText(iso) {
+  const el = document.getElementById('map-updated');
+  if (!iso) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  el.textContent = `${timeAgo(iso)} 갱신`;
+}
+
+// ══════════════════════════════════════════════
+//  즐겨찾기 · 공유 · 혼잡 해소 알림 (지도 화면)
+// ══════════════════════════════════════════════
+let notifySubscribed = false;
+
+function updateMapFavButton() {
+  const btn = document.getElementById('map-fav-btn');
+  if (!btn || !state.ra) return;
+  const fav = (recentRoutes.favorites || []).some(r => r.ra_node_id === state.ra.id);
+  btn.textContent = fav ? '★' : '☆';
+  btn.classList.toggle('active', fav);
+}
+
+async function toggleMapFavorite() {
+  if (!state.ra) return;
+  const isFav = (recentRoutes.favorites || []).some(r => r.ra_node_id === state.ra.id);
+  await toggleFavorite(state.ra.id, !isFav);
+}
+
+async function shareCurrentRA() {
+  if (!state.ra || !state.highway || !state.direction) return;
+  const path = `/?hw=${state.highway}&dir=${state.direction}&ra=${state.ra.id}`;
+  try {
+    await Bridge.share(path, `${state.ra.name} 충전 혼잡도 - ChargeFlow`);
+  } catch (e) { /* 조용히 실패 */ }
+}
+
+function updateNotifyCTA(level) {
+  const cta  = document.getElementById('notify-cta');
+  const text = document.getElementById('notify-cta-text');
+  const congested = level === 'busy' || level === 'jammed';
+  cta.classList.toggle('visible', congested);
+  cta.classList.toggle('subscribed', notifySubscribed);
+  text.textContent = notifySubscribed ? '🔔 알림 신청 완료' : '🔔 혼잡 풀리면 알려줘';
+}
+
+async function subscribeCongestionNotify() {
+  if (!state.ra || notifySubscribed) return;
+  try {
+    await api.post(`/nodes/${state.ra.id}/notify-me/`);
+    notifySubscribed = true;
+    updateNotifyCTA(currentCongestion.level);
+  } catch (e) { /* 조용히 실패 */ }
 }
 
 function updateCongestionChip() {
@@ -1763,6 +2111,7 @@ function showStationDetail(id) {
         </div>
         <div class="sc-tags">
           ${s.power_kw      ? `<span class="sc-tag blue">${s.power_kw}kW</span>` : ''}
+          ${s.connector_type ? `<span class="sc-tag">${connectorLabel(s.connector_type)}</span>` : ''}
           ${s.charger_count ? `<span class="sc-tag blue">급속 ${s.charger_count}기</span>` : ''}
           ${s.is_recommended ? '<span class="sc-tag green">추천</span>' : ''}
           ${route ? `<span class="sc-tag orange">${route}</span>` : ''}
@@ -1801,6 +2150,7 @@ function buildStationCard(s, best) {
         </div>
         <div class="sc-tags">
           ${s.power_kw       ? `<span class="sc-tag blue">${s.power_kw}kW</span>` : ''}
+          ${s.connector_type ? `<span class="sc-tag">${connectorLabel(s.connector_type)}</span>` : ''}
           ${s.charger_count  ? `<span class="sc-tag blue">급속 ${s.charger_count}기</span>` : ''}
           ${best             ? '<span class="sc-tag green">추천</span>' : ''}
           ${route            ? `<span class="sc-tag orange">${route}</span>` : ''}
@@ -1859,6 +2209,7 @@ function renderICSection(which, icData) {
           </div>
           <div class="sc-tags">
             ${s.power_kw  ? `<span class="sc-tag blue">${s.power_kw}kW</span>` : ''}
+            ${s.connector_type ? `<span class="sc-tag">${connectorLabel(s.connector_type)}</span>` : ''}
             ${s.charger_count ? `<span class="sc-tag blue">급속 ${s.charger_count}기</span>` : ''}
             ${best ? '<span class="sc-tag green">추천</span>' : ''}
             ${route ? `<span class="sc-tag orange">${route}</span>` : ''}
@@ -2028,9 +2379,9 @@ window.addEventListener('popstate', e => {
   // 홈화면이면 기본 동작(앱 종료 다이얼로그) 허용
   if (currentIdx <= 0) return;
 
-  // 이전 화면 결정 (screen-map → screen-ra 건너뛰기)
+  // 이전 화면 결정 (screen-map은 진입 경로에 따라 screen-ra 또는 screen-home으로)
   const prevIdx = currentScreenId === 'screen-map'
-    ? screens.indexOf('screen-ra')
+    ? screens.indexOf(mapBackTarget)
     : currentIdx - 1;
 
   // 화면 전환
@@ -2048,6 +2399,37 @@ window.addEventListener('popstate', e => {
 
 // 초기 히스토리 등록
 history.replaceState({ screen: 'screen-home' }, '', '');
+
+// ══════════════════════════════════════════════
+//  초기 로드: 최근/즐겨찾기 + 공유 링크 딥링크 진입
+// ══════════════════════════════════════════════
+loadRecentRoutes();
+
+async function enterDeepLink(hw, dir, raId) {
+  if (!HIGHWAYS[hw]) return;
+  state.highway   = hw;
+  state.direction = dir === 'UP' ? 'UP' : 'DOWN';
+  try {
+    const data  = await api.get(`/highways/${hw}/nodes/?direction=${state.direction}&type=RA`);
+    const nodes = data.nodes || data;
+    const found = nodes.find(n => String(n.id) === String(raId));
+    if (!found) return;
+    state.ra = { id: found.id, name: found.name, lat: parseFloat(found.latitude), lng: parseFloat(found.longitude) };
+    mapBackTarget = 'screen-home';
+    window.startKakaoLoad();
+    document.getElementById('screen-home').classList.add('hidden');
+    document.getElementById('screen-map').classList.remove('hidden');
+    currentScreenId = 'screen-map';
+    history.pushState({ screen: 'screen-map' }, '', '');
+    loadMapScreen();
+  } catch (e) { /* 조용히 실패 — 홈 화면 유지 */ }
+}
+
+(function initDeepLink() {
+  const params = new URLSearchParams(location.search);
+  const hw = params.get('hw'), dir = params.get('dir'), ra = params.get('ra');
+  if (hw && dir && ra) enterDeepLink(hw, dir, ra);
+})();
 
 // ══════════════════════════════════════════════
 //  바텀 시트

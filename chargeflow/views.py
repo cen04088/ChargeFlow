@@ -1,11 +1,16 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from django.conf import settings
+from django.db.models import F
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.conf import settings
-from .models import Highway, HighwayNode, ChargingStation, NodeStationMapping
-from django.http import JsonResponse 
+from .models import (
+    Highway, HighwayNode, ChargingStation, NodeStationMapping,
+    UserRoute, CongestionNotifySubscription,
+)
+from django.http import JsonResponse
+from .user_identity import UserScopedAPIView
 from .serializers import (
     HighwaySerializer,
     HighwayNodeSerializer,
@@ -133,6 +138,7 @@ class BypassStationView(APIView):
                     'latitude':       str(s.latitude),
                     'longitude':      str(s.longitude),
                     'power_kw':       s.power_kw,
+                    'connector_type': s.connector_type,
                     'charger_count':  s.charger_count,
                     'open_hours':     s.open_hours,
                     'distance_km':    m.distance_km,
@@ -229,17 +235,22 @@ class NodeCongestionView(APIView):
             if log.charger_id not in seen:
                 seen[log.charger_id] = log.stat
 
+        latest_checked_at = (
+            recent_logs.order_by('-checked_at').values_list('checked_at', flat=True).first()
+        )
+
         if not seen:
             return Response({
-                'node_id':   pk,
-                'rest_area': ra_node.name,
-                'level':     'unknown',
-                'label':     '정보 없음',
-                'color':     'gray',
-                'detail':    '아직 수집된 충전기 정보가 없어요.',
-                'stats':     {},
-                'available': None,
-                'total':     None,
+                'node_id':    pk,
+                'rest_area':  ra_node.name,
+                'level':      'unknown',
+                'label':      '정보 없음',
+                'color':      'gray',
+                'detail':     '아직 수집된 충전기 정보가 없어요.',
+                'stats':      {},
+                'available':  None,
+                'total':      None,
+                'checked_at': None,
             })
 
         # stat별 집계
@@ -265,15 +276,16 @@ class NodeCongestionView(APIView):
             level, color = 'normal', 'blue'
 
         return Response({
-            'node_id':   pk,
-            'rest_area': ra_node.name,
-            'level':     level,
-            'color':     color,
-            'available': available,
-            'charging':  charging,
-            'total':     total,
-            'stats':     stats,
-            'detail':    f'충전가능 {available}기 / 충전중 {charging}기 / 전체 {total}기',
+            'node_id':    pk,
+            'rest_area':  ra_node.name,
+            'level':      level,
+            'color':      color,
+            'available':  available,
+            'charging':   charging,
+            'total':      total,
+            'stats':      stats,
+            'detail':     f'충전가능 {available}기 / 충전중 {charging}기 / 전체 {total}기',
+            'checked_at': latest_checked_at.isoformat() if latest_checked_at else None,
         })
 
 
@@ -336,6 +348,171 @@ class RANearbyStationsView(APIView):
             'rest_area': ra_node.name,
             'stations':  result,
         })
+
+# ──────────────────────────────────────────────
+# GET /api/v1/nodes/nearest-ra/?lat=&lng=&limit=5
+# ──────────────────────────────────────────────
+def _haversine_km(lat1, lng1, lat2, lng2):
+    import math
+    R = 6371
+    to_r = math.pi / 180
+    d_lat = (lat2 - lat1) * to_r
+    d_lng = (lng2 - lng1) * to_r
+    a = (
+        math.sin(d_lat / 2) ** 2
+        + math.cos(lat1 * to_r) * math.cos(lat2 * to_r) * math.sin(d_lng / 2) ** 2
+    )
+    return R * 2 * math.asin(math.sqrt(a))
+
+
+class NearestRAView(APIView):
+    """현재 위치 기준 가장 가까운 휴게소(RA) N개 — 홈 화면 원터치 진입용"""
+
+    def get(self, request):
+        try:
+            lat = float(request.query_params.get('lat'))
+            lng = float(request.query_params.get('lng'))
+        except (TypeError, ValueError):
+            return Response(
+                {'detail': 'lat, lng 파라미터가 필요합니다.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            limit = int(request.query_params.get('limit', 5))
+        except ValueError:
+            limit = 5
+        limit = max(1, min(limit, 20))
+
+        ra_nodes = (
+            HighwayNode.objects
+            .filter(node_type='RA', is_active=True)
+            .select_related('highway')
+        )
+
+        ranked = sorted(
+            ra_nodes,
+            key=lambda n: _haversine_km(lat, lng, float(n.latitude), float(n.longitude)),
+        )[:limit]
+
+        results = [{
+            'id':           n.id,
+            'name':         n.name,
+            'highway_code': n.highway.code,
+            'highway_name': n.highway.name,
+            'direction':    n.direction,
+            'latitude':     str(n.latitude),
+            'longitude':    str(n.longitude),
+            'distance_km':  round(_haversine_km(lat, lng, float(n.latitude), float(n.longitude)), 2),
+        } for n in ranked]
+
+        return Response({'stations': results})
+
+
+# ──────────────────────────────────────────────
+# 사용자 최근 방문 / 즐겨찾기 (userKey 기준)
+# ──────────────────────────────────────────────
+def _serialize_user_route(ur: UserRoute) -> dict:
+    ra = ur.ra_node
+    return {
+        'ra_node_id':   ra.id,
+        'name':         ra.name,
+        'highway_code': ra.highway.code,
+        'highway_name': ra.highway.name,
+        'direction':    ra.direction,
+        'is_favorite':  ur.is_favorite,
+        'visit_count':  ur.visit_count,
+        'last_used_at': ur.last_used_at.isoformat(),
+    }
+
+
+class UserRouteListView(UserScopedAPIView):
+    """GET  /api/v1/me/routes/  — 최근 방문 + 즐겨찾기 목록
+       POST /api/v1/me/routes/  — 방문 기록(upsert), body: {ra_node_id}"""
+
+    def get(self, request):
+        qs = (
+            UserRoute.objects
+            .filter(user_key=self.user_key)
+            .select_related('ra_node__highway')
+            .order_by('-last_used_at')
+        )
+        recent    = list(qs[:10])
+        favorites = [ur for ur in qs if ur.is_favorite]
+        return Response({
+            'recent':    [_serialize_user_route(ur) for ur in recent],
+            'favorites': [_serialize_user_route(ur) for ur in favorites],
+        })
+
+    def post(self, request):
+        ra_node_id = request.data.get('ra_node_id')
+        ra_node = get_object_or_404(HighwayNode, pk=ra_node_id, node_type='RA')
+
+        obj, created = UserRoute.objects.get_or_create(
+            user_key=self.user_key, ra_node=ra_node,
+        )
+        if not created:
+            obj.visit_count = F('visit_count') + 1
+            obj.save(update_fields=['visit_count', 'last_used_at'])
+            obj.refresh_from_db()
+
+        return Response(
+            _serialize_user_route(obj),
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+
+class UserRouteFavoriteView(UserScopedAPIView):
+    """POST/DELETE /api/v1/me/routes/<ra_node_id>/favorite/ — 즐겨찾기 토글"""
+
+    def post(self, request, ra_node_id):
+        ra_node = get_object_or_404(HighwayNode, pk=ra_node_id, node_type='RA')
+        obj, _ = UserRoute.objects.get_or_create(user_key=self.user_key, ra_node=ra_node)
+        obj.is_favorite = True
+        obj.save(update_fields=['is_favorite'])
+        return Response(_serialize_user_route(obj))
+
+    def delete(self, request, ra_node_id):
+        UserRoute.objects.filter(
+            user_key=self.user_key, ra_node_id=ra_node_id,
+        ).update(is_favorite=False)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class UserRouteDeleteView(UserScopedAPIView):
+    """DELETE /api/v1/me/routes/<ra_node_id>/ — 최근 목록에서 완전 삭제"""
+
+    def delete(self, request, ra_node_id):
+        UserRoute.objects.filter(
+            user_key=self.user_key, ra_node_id=ra_node_id,
+        ).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ──────────────────────────────────────────────
+# 혼잡 해소 알림 구독 (메커니즘만 — 실제 발송은 toss_notify 참고)
+# ──────────────────────────────────────────────
+class CongestionNotifySubscribeView(UserScopedAPIView):
+    """POST/DELETE /api/v1/nodes/<pk>/notify-me/"""
+
+    def post(self, request, pk):
+        ra_node = get_object_or_404(HighwayNode, pk=pk, node_type='RA', is_active=True)
+        obj, created = CongestionNotifySubscription.objects.get_or_create(
+            user_key=self.user_key, ra_node=ra_node,
+            defaults={'is_active': True},
+        )
+        if not created and not obj.is_active:
+            obj.is_active   = True
+            obj.notified_at = None
+            obj.save(update_fields=['is_active', 'notified_at'])
+        return Response({'subscribed': True, 'rest_area': ra_node.name})
+
+    def delete(self, request, pk):
+        CongestionNotifySubscription.objects.filter(
+            user_key=self.user_key, ra_node_id=pk,
+        ).update(is_active=False)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 def index_view(request):
     kakao_key = getattr(settings, 'KAKAO_JS_KEY', '') or getattr(settings, 'KAKAO_API_KEY', '')
