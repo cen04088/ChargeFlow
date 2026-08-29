@@ -8,13 +8,13 @@
   cd chargeflow
 
   # 미리보기 (DB 수정 없음)
-  python scripts/update_road_distance.py --kakao-key REDACTED_KAKAO_API_KEY --dry-run
+  python scripts/update_road_distance.py --kakao-key YOUR_KAKAO_REST_API_KEY --dry-run
 
   # 실제 갱신
-  python scripts/update_road_distance.py --kakao-key REDACTED_KAKAO_API_KEY
+  python scripts/update_road_distance.py --kakao-key YOUR_KAKAO_REST_API_KEY
 
   # 특정 고속도로만 (테스트용)
-  python scripts/update_road_distance.py --kakao-key REDACTED_KAKAO_API_KEY --highway gyeongbu --dry-run
+  python scripts/update_road_distance.py --kakao-key YOUR_KAKAO_REST_API_KEY --highway gyeongbu --dry-run
 """
 import os, sys, time, argparse
 import urllib.request, urllib.parse, json

@@ -1,6 +1,8 @@
+import os
+
 import requests
 
-API_KEY = 'REDACTED_PUBLIC_DATA_API_KEY'
+API_KEY = os.environ['PUBLIC_DATA_API_KEY']
 targets = [
     ('망향휴게소', 36.855650, 127.180929),
     ('덕평자연휴게소', 37.241456, 127.390189),

@@ -4,7 +4,7 @@
 
 사용법:
   python scripts/map_ra_stations.py --api-key 공공데이터키 --dry-run
-  python scripts/map_ra_stations.py --api-key REDACTED_PUBLIC_DATA_API_KEY
+  python scripts/map_ra_stations.py --api-key YOUR_PUBLIC_DATA_API_KEY
 
 """
 import os, sys, json, time, math, argparse

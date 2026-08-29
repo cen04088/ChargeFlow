@@ -7,16 +7,16 @@
   cd chargeflow  (manage.py 있는 폴더)
 
   # 1단계: 결과 미리보기 (DB 수정 없음)
-  python scripts/fix_coordinates.py --kakao-key REDACTED_KAKAO_API_KEY --dry-run
+  python scripts/fix_coordinates.py --kakao-key YOUR_KAKAO_REST_API_KEY --dry-run
 
   # 2단계: 특정 고속도로만 먼저 테스트
-  python scripts/fix_coordinates.py --kakao-key REDACTED_KAKAO_API_KEY --highway gyeongbu --dry-run
+  python scripts/fix_coordinates.py --kakao-key YOUR_KAKAO_REST_API_KEY --highway gyeongbu --dry-run
 
   # 3단계: 실제 좌표 업데이트
-  python scripts/fix_coordinates.py --kakao-key REDACTED_KAKAO_API_KEY
+  python scripts/fix_coordinates.py --kakao-key YOUR_KAKAO_REST_API_KEY
 
   # 4단계: 신뢰도 낮은 결과만 따로 확인
-  python scripts/fix_coordinates.py --kakao-key REDACTED_KAKAO_API_KEY --show-low-confidence
+  python scripts/fix_coordinates.py --kakao-key YOUR_KAKAO_REST_API_KEY --show-low-confidence
 """
 import os
 import sys

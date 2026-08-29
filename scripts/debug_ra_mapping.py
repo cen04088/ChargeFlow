@@ -1,6 +1,6 @@
 """
 실제 환경부 API 데이터 샘플 확인
-사용법: python scripts/debug_ra_mapping.py --api-key REDACTED_PUBLIC_DATA_API_KEY
+사용법: python scripts/debug_ra_mapping.py --api-key YOUR_PUBLIC_DATA_API_KEY
 """
 import os, sys, json, math, argparse
 import urllib.request, urllib.parse

@@ -11,7 +11,7 @@ https://developers.kakao.com/docs/latest/ko/local/dev-guide
 
 사용법:
   python scripts/collect_kakao_place_ids.py --kakao-key 카카오REST키 --dry-run
-  python scripts/collect_kakao_place_ids.py --kakao-key REDACTED_KAKAO_API_KEY
+  python scripts/collect_kakao_place_ids.py --kakao-key YOUR_KAKAO_REST_API_KEY
 
   # 미매핑 항목만 재시도
   python scripts/collect_kakao_place_ids.py --kakao-key 카카오REST키 --missing-only

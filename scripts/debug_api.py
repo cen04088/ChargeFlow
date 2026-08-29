@@ -1,6 +1,6 @@
 """
 API 응답 구조 디버그 스크립트
-실행: python scripts/debug_api.py --api-key REDACTED_PUBLIC_DATA_API_KEY
+실행: python scripts/debug_api.py --api-key YOUR_PUBLIC_DATA_API_KEY
 """
 import json, urllib.request, urllib.parse, argparse
 

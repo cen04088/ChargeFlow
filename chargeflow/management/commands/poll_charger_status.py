@@ -2,7 +2,7 @@
 환경부 충전기 실시간 상태 폴링 + 혼잡도 계산
 ============================================================
 실행:
-  python manage.py poll_charger_status --api-key REDACTED_PUBLIC_DATA_API_KEY
+  python manage.py poll_charger_status --api-key YOUR_PUBLIC_DATA_API_KEY
 
 스케줄러 (cron 예시 — 3분마다):
   */3 * * * * cd /path/to/chargeflow && venv/bin/python manage.py poll_charger_status --api-key KEY

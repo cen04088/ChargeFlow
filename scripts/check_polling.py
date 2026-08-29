@@ -2,7 +2,7 @@
 충전기 상태 폴링 동작 확인 진단 스크립트
 ============================================================
 사용법:
-  python scripts/check_polling.py --api-key REDACTED_PUBLIC_DATA_API_KEY
+  python scripts/check_polling.py --api-key YOUR_PUBLIC_DATA_API_KEY
 """
 import os, sys, json, time
 import urllib.request, urllib.parse
