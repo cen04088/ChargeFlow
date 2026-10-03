@@ -97,13 +97,22 @@ class PollerTests(Fixture):
         self.run_poll(status_items=[item('ST1', '01', '2', '20261003120000')])
         self.assertEqual(ChargerState.objects.get(stat_id='ST1', charger_id='01').stat, '3')
 
-    def test_gap_triggers_baseline(self):
+    def test_gap_triggers_light_resync_only(self):
         self.run_poll(baseline_items=[item('ST1', '01', '2')])
         PollerStatus.objects.filter(key='charger').update(
-            last_status_at=timezone.now() - timedelta(minutes=30),
+            last_status_at=timezone.now() - timedelta(minutes=11),  # 10분 크론 + 기동 지연
         )
-        self.run_poll(baseline_items=[item('ST1', '01', '3', '20261003130000')])
+        station = self.run_poll(baseline_items=[item('ST1', '01', '3', '20261003130000')])
         self.assertEqual(ChargerState.objects.get(stat_id='ST1', charger_id='01').stat, '3')
+        station.assert_not_called()  # 개별 조회(전체 기준선)는 하루 1회만
+
+    def test_full_baseline_once_a_day(self):
+        self.run_poll(baseline_items=[item('ST1', '01', '2')])
+        PollerStatus.objects.filter(key='charger').update(
+            last_baseline_at=timezone.now() - timedelta(hours=25),
+        )
+        station = self.run_poll(baseline_items=[item('ST1', '01', '2')])
+        station.assert_called_once_with('KEY', 'ST2')
 
     def test_cleared_congestion_notifies_and_closes_subscription(self):
         self.run_poll(baseline_items=[item('ST1', '01', '3'), item('ST1', '02', '3')])

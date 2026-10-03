@@ -44,8 +44,8 @@ chargeflow/
 
 ### 충전기 상태 폴링
 - 증분: `getChargerStatus(period=주기+1분)`로 최근 상태를 보고한 전국 충전기를 받아 추적 중인 충전소만 반영 (주기당 1회 내외)
-- 기준선: 처음 실행·폴링 공백·24시간 경과 시 `getChargerInfo(kindDetail=C001)` 1회 + 빠진 휴게소 충전소만 statId로 보충
-- 호출량(5분 간격): 하루 약 300회 + 기준선 30회 이내 → 공공데이터 개발계정 한도(1,000회/일) 안
+- 기준선: 하루 1회 `getChargerInfo(kindDetail=C001)` 1회 + 빠진 휴게소 충전소만 statId로 보충. 실행 간격이 10분을 넘겨 공백이 생기면 C001 1회만 다시 받음
+- 호출량: 10분 간격 하루 약 450회, 5분 간격 약 600회 → 공공데이터 개발계정 한도(1,000회/일) 안
 
 ---
 
@@ -78,7 +78,7 @@ npm run build                                   # frontend.ait 생성
 ## ☁️ 배포 (Railway)
 
 - `web`: migrate → collectstatic → loaddata → gunicorn
-- `chargeflow-cron` 서비스: 크론 `*/5 * * * *`, 시작 명령 `python manage.py poll_charger_status` (1회 실행·조회 범위 10분)
+- `chargeflow-cron` 서비스: 크론 `*/10 * * * *`(5분도 가능), 시작 명령 `python manage.py poll_charger_status` (1회 실행·조회 범위 10분)
   (상주 워커를 쓰는 환경이면 `poll_charger_status --loop`)
 - 두 서비스 모두 `PUBLIC_DATA_API_KEY`, `DATABASE_URL`이 필요하고, web에는 `TOSS_APP_NAME`(CORS)을 설정
 - 알림 발송은 `TOSS_MTLS_CERT`·`TOSS_MTLS_KEY`와 콘솔에서 승인된 템플릿 코드가 있을 때만 동작

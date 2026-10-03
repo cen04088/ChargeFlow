@@ -11,14 +11,15 @@ API 키는 --api-key 또는 환경 변수 PUBLIC_DATA_API_KEY.
   1) 증분 동기화 — getChargerStatus(period=주기+1분)로 최근 상태를 보고한 전국
      충전기를 받아, 우리가 추적하는 statId(HighwayNodeCharger)만 반영한다.
      주기당 보통 1회(1만 건 이하) 호출.
-  2) 기준선 동기화 — 처음 실행했거나, 폴링 공백이 period를 넘었거나, 마지막
-     기준선이 BASELINE_MAX_AGE보다 오래되면 getChargerInfo(kindDetail=C001,
+  2) 기준선 동기화 — 하루 1회(처음 실행 포함) getChargerInfo(kindDetail=C001,
      고속도로 휴게소) 1회 + 그 분류에 없는 충전소만 statId로 개별 조회해 전체
-     상태를 다시 맞춘다. 하루 1회 수준.
+     상태를 다시 맞춘다. 실행 간격이 조회 범위를 넘겨 공백이 생기면 C001 1회만
+     다시 받는다(크론 10분 간격이면 거의 매번).
   3) 혼잡도 재계산 → 혼잡(busy/jammed/unavailable)에서 여유/보통으로 바뀐
      휴게소의 알림 구독자에게 토스 메시지를 보낸다.
 
-호출량(5분 간격 기준): 증분 약 300회/일 + 기준선 30회 이내/회.
+호출량: 5분 간격이면 하루 약 600회, 10분 간격이면 약 450회
+(증분 피드 2페이지 + 공백 보정 1회 + 전체 기준선 하루 30회 이내).
 공공데이터 개발계정 한도(1,000회/일) 안에 들어온다.
 """
 import logging
@@ -199,19 +200,25 @@ def run_cycle(api_key, stdout, force_baseline=False, interval_sec=300, period=No
     period = min(10, max(2, period or interval_sec // 60 + 1))
     status, _ = PollerStatus.objects.get_or_create(key='charger')
     gap = (now - status.last_status_at) if status.last_status_at else None
-    need_baseline = (
+    # 전체 기준선(휴게소 분류 1회 + 빠진 충전소 개별 조회 ~30회)은 하루 1회.
+    # 실행 간격이 조회 범위(최대 10분)를 넘겨 공백이 생기면 휴게소 분류 1회만 다시 받는다.
+    # → 10분 간격 크론에서도 하루 호출 수가 한도(1,000회) 안에 머문다.
+    need_full = (
         force_baseline
         or status.last_baseline_at is None
         or now - status.last_baseline_at > BASELINE_MAX_AGE
-        or gap is None
-        or gap > timedelta(minutes=period) - timedelta(seconds=30)
     )
+    need_light = not need_full and (gap is None or gap > timedelta(minutes=period) - timedelta(seconds=30))
 
     try:
-        if need_baseline:
+        if need_full:
             changed, extra = _sync_baseline(api_key, rest_ids, tracked, now)
             status.last_baseline_at = now
-            stdout.write(f'  📥 기준선 동기화: 개별 조회 {extra}곳, 상태 변화 {changed}건')
+            stdout.write(f'  📥 전체 기준선 동기화: 개별 조회 {extra}곳, 상태 변화 {changed}건')
+        elif need_light:
+            changed = _apply_items(list(ev_api.fetch_rest_area_chargers(api_key)), tracked, now)
+            stdout.write(f'  📥 휴게소 상태 다시 맞춤(공백 {gap.total_seconds() / 60:.0f}분): 변화 {changed}건'
+                         if gap else f'  📥 휴게소 상태 다시 맞춤: 변화 {changed}건')
 
         changed = _apply_items(ev_api.fetch_status_changes(api_key, period=period), tracked, now)
         status.last_status_at = now
