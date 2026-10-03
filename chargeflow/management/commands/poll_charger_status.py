@@ -2,7 +2,7 @@
 휴게소 충전기 실시간 상태 폴링 + 혼잡도 계산 + 혼잡 해소 알림
 ============================================================
 실행:
-  python manage.py poll_charger_status --period 10   # 1회 실행 (Railway 크론 */5 * * * *)
+  python manage.py poll_charger_status              # 1회 실행 (Railway 크론 */5 * * * *, 조회 범위 10분)
   python manage.py poll_charger_status --loop        # 상주 워커 (기본 5분 간격)
 
 API 키는 --api-key 또는 환경 변수 PUBLIC_DATA_API_KEY.
@@ -257,8 +257,9 @@ class Command(BaseCommand):
             raise CommandError('--api-key 또는 PUBLIC_DATA_API_KEY 환경 변수가 필요해요.')
 
         if not options['loop']:
+            # 크론 1회 실행: 실행 간격이 들쭉날쭉해도 공백이 생기지 않게 최대 범위(10분)를 기본으로
             run_cycle(api_key, self.stdout, force_baseline=options['baseline'],
-                      interval_sec=options['interval'], period=options['period'])
+                      interval_sec=options['interval'], period=options['period'] or 10)
             return
 
         interval = max(60, options['interval'])

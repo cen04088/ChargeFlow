@@ -78,7 +78,7 @@ npm run build                                   # frontend.ait 생성
 ## ☁️ 배포 (Railway)
 
 - `web`: migrate → collectstatic → loaddata → gunicorn
-- `chargeflow-cron` 서비스: 크론 `*/5 * * * *`, 시작 명령 `python manage.py poll_charger_status --period 10`
+- `chargeflow-cron` 서비스: 크론 `*/5 * * * *`, 시작 명령 `python manage.py poll_charger_status` (1회 실행·조회 범위 10분)
   (상주 워커를 쓰는 환경이면 `poll_charger_status --loop`)
 - 두 서비스 모두 `PUBLIC_DATA_API_KEY`, `DATABASE_URL`이 필요하고, web에는 `TOSS_APP_NAME`(CORS)을 설정
 - 알림 발송은 `TOSS_MTLS_CERT`·`TOSS_MTLS_KEY`와 콘솔에서 승인된 템플릿 코드가 있을 때만 동작
