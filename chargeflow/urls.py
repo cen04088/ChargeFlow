@@ -11,6 +11,11 @@ urlpatterns = [
          views.HighwayListView.as_view(),
          name='highway-list'),
 
+    # 구간(여행) 모드: 출발~도착 사이 휴게소와 도착 시각 기준 혼잡 예측
+    path('highways/<str:code>/trip/',
+         views.TripView.as_view(),
+         name='highway-trip'),
+
     # 노선별 노드(IC/RA) 시퀀스
     path('highways/<str:code>/nodes/',
          views.NodeListView.as_view(),
@@ -36,6 +41,11 @@ urlpatterns = [
          views.NodeCongestionView.as_view(),
          name='node-congestion'),
 
+    # 요일·시간대별 혼잡 패턴 + 예측
+    path('nodes/<int:pk>/pattern/',
+         views.NodePatternView.as_view(),
+         name='node-pattern'),
+
     # 혼잡 해소 알림 구독
     path('nodes/<int:pk>/notify-me/',
          views.CongestionNotifySubscribeView.as_view(),
@@ -53,6 +63,12 @@ urlpatterns = [
     path('me/routes/<int:ra_node_id>/favorite/',
          views.UserRouteFavoriteView.as_view(),
          name='user-route-favorite'),
+    path('me/routes/<int:ra_node_id>/notify/',
+         views.UserRouteNotifyView.as_view(),
+         name='user-route-notify'),
+    path('me/settings/',
+         views.UserSettingView.as_view(),
+         name='user-settings'),
     path('me/routes/<int:ra_node_id>/',
          views.UserRouteDeleteView.as_view(),
          name='user-route-delete'),

@@ -80,7 +80,7 @@ USE_I18N      = True
 USE_TZ        = True
 
 # ── 정적 파일 ──────────────────────────────────────────────
-STATIC_URL   = 'static/'
+STATIC_URL   = '/static/'
 STATIC_ROOT  = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
@@ -93,7 +93,27 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # ── CORS ──────────────────────────────────────────────────
-CORS_ALLOW_ALL_ORIGINS = True
+# 앱인토스 번들은 https://<appName>.apps.tossmini.com (실서비스),
+# https://<appName>.private-apps.tossmini.com (콘솔 QR 테스트)에서 호출한다.
+# TOSS_APP_NAME이 없으면 기존 동작(모든 Origin 허용)을 유지한다.
+from corsheaders.defaults import default_headers  # noqa: E402
+
+TOSS_APP_NAME = os.getenv('TOSS_APP_NAME', '')
+if TOSS_APP_NAME:
+    CORS_ALLOW_ALL_ORIGINS = False
+    # SDK 버전에 따라 출처가 다르다: 1.x·2.x·3.1.1+ → apps, 3.0.0~3.1.1 미만 → web
+    CORS_ALLOWED_ORIGINS = [
+        f'https://{TOSS_APP_NAME}.apps.tossmini.com',
+        f'https://{TOSS_APP_NAME}.private-apps.tossmini.com',
+        f'https://{TOSS_APP_NAME}.web.tossmini.com',
+        f'https://{TOSS_APP_NAME}.private-web.tossmini.com',
+        *[o for o in os.getenv('CORS_EXTRA_ORIGINS', '').split(',') if o],
+    ]
+    if DEBUG:
+        CORS_ALLOWED_ORIGINS += ['http://localhost:5173', 'http://127.0.0.1:5173']
+else:
+    CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_HEADERS = (*default_headers, 'x-anon-key', 'x-toss-user-key')
 
 # ── DRF ───────────────────────────────────────────────────
 REST_FRAMEWORK = {
@@ -112,7 +132,11 @@ KAKAO_JS_KEY  = os.getenv('KAKAO_JS_KEY', '')    # JavaScript 키 (지도 SDK용
 GA_MEASUREMENT_ID = os.environ.get('GA_MEASUREMENT_ID', '')
 AMPLITUDE_API_KEY = os.environ.get('AMPLITUDE_API_KEY', '')
 
-STATIC_URL = '/static/'
-
 STATICFILES_DIRS = [BASE_DIR / 'static']
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {'console': {'class': 'logging.StreamHandler'}},
+    'root': {'handlers': ['console'], 'level': 'INFO'},
+}

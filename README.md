@@ -2,104 +2,92 @@
 
 **앱인토스(App in Toss)**에서 서비스 중인 전기차 운전자를 위한 고속도로 급속충전소 혼잡도 안내 미니앱입니다.
 
-휴게소의 급속충전기가 모두 사용 중일 때, 무작정 기다리지 않고 **이전/다음 IC 인근의 대체 충전소(마트·주유소·호텔·공공기관 등)**로 우회할 수 있도록 실시간 혼잡도와 소요 시간을 안내합니다.
-
----
-
-## 🚗 문제 정의
-
-고속도로 휴게소 급속충전기는 대수가 적어 성수기·주말에 대기줄이 길게 늘어섭니다. 하지만 운전자는 현재 휴게소가 얼마나 혼잡한지, 대안이 있는지 알 방법이 없습니다. ChargeFlow는 **환경부 전기차 충전소 실시간 상태 데이터를 지속적으로 폴링해 혼잡도를 추정**하고, 혼잡할 경우 인근 IC 주변의 대체 충전소로 우회 경로를 제안합니다.
+휴게소의 급속충전기가 모두 사용 중일 때, 무작정 기다리지 않고 **이전/다음 IC 인근의 대체 충전소**로 우회할지 판단할 수 있도록 실시간 혼잡도·예상 대기 시간·우회 추가 시간을 안내합니다.
 
 ---
 
 ## ✨ 주요 기능
 
-### 1. 실시간 혼잡도 안내
-- 각 휴게소 충전기의 상태를 주기적으로 폴링(`poll_charger_status`)해 최근 10분간 상태 변화 이력을 분석
-- 충전기 상태가 짧은 시간 내 여러 번 바뀌면 "의심(대기줄로 인한 사용 반복)"으로 판단해 혼잡도(원활/보통/혼잡/정체)를 산출
-
-### 2. 우회 충전소 추천 (핵심 기능)
-- 혼잡한 휴게소 기준으로 이전/다음 IC 인근의 대체 충전소를 검색
-- Kakao Mobility Directions API로 실제 도로 기준 이동 거리·시간을 계산해 N분 이내 도달 가능한 곳만 추천
-
-### 3. 노선/휴게소 탐색
-- 경부·영동·서해안 고속도로의 IC/휴게소 순서를 지도에 시각화 (Kakao Maps)
-- 현재 위치 기준 "가장 가까운 휴게소" 원탭 조회
-
-### 4. 즐겨찾기 & 알림 구독
-- 자주 이용하는 노선/휴게소를 저장(쿠키 기반 익명 사용자 식별)
-- 혼잡이 해소되면 토스 파트너 메신저 API로 알림을 보내는 구독 기능
-
-### 5. 앱인토스 연동
-- `X-Toss-User-Key` 헤더로 토스 사용자 식별, 웹 접근 시 쿠키 기반 익명 식별로 폴백
-
----
-
-## 🛠️ 기술 스택
-
-| 영역 | 기술 |
+| 기능 | 내용 |
 |---|---|
-| Backend | Python, Django 4.2, Django REST Framework |
-| DB | SQLite(dev) / PostgreSQL(prod, `dj-database-url`) |
-| 거리/경로 계산 | Haversine 직선거리 + Kakao Mobility Directions API |
-| 지도/장소 검색 | Kakao Maps JS SDK, Kakao Local Search API |
-| 외부 데이터 | 공공데이터포털 환경부 전기차 충전소 API (실시간 상태 폴링) |
-| 알림 연동 | 토스 파트너 메신저 API |
-| 배포 | Railway (Procfile + Gunicorn), Whitenoise |
-| 플랫폼 | 앱인토스(App in Toss) 미니앱 |
+| 실시간 혼잡도 | 휴게소 충전기의 빈 충전기 비율로 여유/보통/혼잡/만석/이용 불가 판정. 30분 넘게 갱신이 없으면 "정보 없음" |
+| 기다릴까, 우회할까 | 만석이면 충전 시작 시각과 휴게소 40분 제한으로 예상 대기 시간을 추정하고, 우회 충전소의 추가 시간(IC 왕복+진출입)과 비교 |
+| 우회 충전소 실시간 | IC 근처 대체 충전소에도 빈 충전기 수를 표시 (환경부 실시간 상태) |
+| 내 차 커넥터 | DC콤보·차데모·AC3상·NACS 중 고르면 맞는 충전소만 표시 |
+| 가는 방향 휴게소 | 위치를 두 번 재서 진행 방향을 구하고, 앞으로 지날 같은 방향 휴게소만 거리순 표시 |
+| 혼잡 패턴·예측 | 요일·시간대별 혼잡 이력을 쌓아 평소 패턴과 1·2시간 뒤 혼잡 가능성(통계 예측) 표시 |
+| 구간 모드 | 출발·도착을 고르면 지날 휴게소와 도착 무렵 혼잡 예측을 순서대로 표시 |
+| 알림 | 빈자리 알림(1회성, 6시간 유효), 즐겨찾기 휴게소 상태 알림(혼잡해질 때·풀릴 때, 2시간 간격) |
+| 노선 | 경부·서해안·영동 + 중부·통영대전, 호남, 남해, 중부내륙, 중앙, 서울양양, 광주대구, 평택제천, 순천완주 (12개) |
 
 ---
 
-## 📁 프로젝트 구조
+## 🛠️ 구조
 
 ```
 chargeflow/
-├── config/                     # Django 프로젝트 설정
-├── chargeflow/                  # 메인 Django 앱
-│   ├── models.py                 # Highway, HighwayNode, ChargingStation, ChargerStatusLog, StationCongestion 등
-│   ├── views.py                   # 노선/혼잡도/우회 추천/즐겨찾기 API
-│   ├── user_identity.py           # 토스 사용자 키 / 익명 쿠키 식별
-│   ├── services/toss_notify.py     # 토스 파트너 메신저 알림 클라이언트
-│   └── management/commands/        # load_highway_nodes, poll_charger_status 등 배치 명령어
-├── scripts/                     # 데이터 수집·좌표 보정 등 1회성 파이프라인 스크립트
-├── templates/index.html          # Kakao Maps 기반 SPA 프론트엔드
-└── chargeflow_data.json          # IC/휴게소/충전소 시드 데이터 (loaddata fixture)
+├── config/                         # Django 설정 (CORS: TOSS_APP_NAME 기준 tossmini 도메인)
+├── chargeflow/
+│   ├── models.py                   # 노선·노드·충전소 / 충전기 상태·혼잡도·혼잡 패턴 / 사용자 설정·즐겨찾기·알림
+│   ├── views.py                    # REST API (/api/v1/...)
+│   ├── services/
+│   │   ├── ev_api.py               # 환경부 충전기 API 클라이언트
+│   │   ├── congestion.py           # 혼잡도 계산, 패턴 기록·예측, 대기 추정
+│   │   └── toss_notify.py          # 앱인토스 메시지 발송 (mTLS)
+│   └── management/commands/
+│       ├── poll_charger_status.py  # 상태 폴링 워커 (Procfile worker)
+│       └── build_catalog.py        # 신규 노선 구축 + 충전소 정보 보강 (로컬에서 실행 후 fixture 갱신)
+├── frontend/                       # 앱인토스 미니앱 (React + TDS + @apps-in-toss/web-framework)
+├── templates/index.html            # 구버전 화면 (새 번들 출시 전까지 유지)
+└── chargeflow_data.json            # 노선·노드·충전소 fixture (배포 때마다 loaddata)
 ```
+
+### 충전기 상태 폴링
+- 증분: `getChargerStatus(period=주기+1분)`로 최근 상태를 보고한 전국 충전기를 받아 추적 중인 충전소만 반영 (주기당 1회 내외)
+- 기준선: 처음 실행·폴링 공백·24시간 경과 시 `getChargerInfo(kindDetail=C001)` 1회 + 빠진 휴게소 충전소만 statId로 보충
+- 호출량(5분 간격): 하루 약 300회 + 기준선 30회 이내 → 공공데이터 개발계정 한도(1,000회/일) 안
 
 ---
 
 ## 🚀 로컬 실행
 
 ```bash
-git clone https://github.com/cen04088/chargeflow.git
-cd chargeflow
-python -m venv venv && venv\Scripts\activate
+python -m venv .venv && .venv\Scripts\activate
 pip install -r requirements.txt
-
 python manage.py migrate
 python manage.py loaddata chargeflow_data.json
-python manage.py runserver
+python manage.py runserver 8000
+
+# 실시간 상태 (PUBLIC_DATA_API_KEY 필요)
+python manage.py poll_charger_status            # 1회
+python manage.py poll_charger_status --loop     # 상주
+
+# 프론트 (브라우저 개발: devtools가 앱인토스 SDK를 mock)
+cd frontend
+echo VITE_API_BASE_URL=http://localhost:8000 > .env.development.local
+npm install && npm run dev
+npm run build                                   # frontend.ait 생성
 ```
 
-필요한 환경 변수 (`.env` 생성 후 입력):
+테스트: `python manage.py test chargeflow`
 
-```ini
-SECRET_KEY=your_django_secret_key
-DEBUG=True
-KAKAO_API_KEY=your_kakao_rest_api_key
-KAKAO_JS_KEY=your_kakao_javascript_key
-PUBLIC_DATA_API_KEY=your_data_go_kr_service_key   # 환경부 전기차 충전소 API
-TOSS_PARTNER_API_KEY=your_toss_partner_key         # 알림 기능(선택)
-```
-
-실시간 충전기 상태 폴링(선택, data.go.kr 키 필요):
-```bash
-python manage.py poll_charger_status
-```
+환경 변수는 [.env.example](.env.example)을 참고하세요.
 
 ---
 
-## ☁️ 배포
+## ☁️ 배포 (Railway)
 
-- **플랫폼:** Railway (`Procfile`: migrate → collectstatic → loaddata → gunicorn)
-- **서비스 채널:** 앱인토스(App in Toss) 미니앱 "ChargeFlow"
+- `web`: migrate → collectstatic → loaddata → gunicorn
+- `chargeflow-cron` 서비스: 크론 `*/5 * * * *`, 시작 명령 `python manage.py poll_charger_status --period 10`
+  (상주 워커를 쓰는 환경이면 `poll_charger_status --loop`)
+- 두 서비스 모두 `PUBLIC_DATA_API_KEY`, `DATABASE_URL`이 필요하고, web에는 `TOSS_APP_NAME`(CORS)을 설정
+- 알림 발송은 `TOSS_MTLS_CERT`·`TOSS_MTLS_KEY`와 콘솔에서 승인된 템플릿 코드가 있을 때만 동작
+
+### 노선·충전소 데이터 갱신
+`build_catalog`는 로컬에서 실행하고 결과를 fixture로 저장해 배포합니다. 이미 배포된 노선은 `--rebuild` 없이 다시 만들지 않습니다(노드 id가 바뀌면 즐겨찾기가 끊기기 때문).
+
+```bash
+python manage.py build_catalog                  # 전국 충전기 스캔(약 60회 호출) 포함
+python manage.py dumpdata chargeflow.highway chargeflow.highwaynode chargeflow.chargingstation \
+  chargeflow.nodestationmapping chargeflow.highwaynodecharger --indent 2 -o chargeflow_data.json
+```

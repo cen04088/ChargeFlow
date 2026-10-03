@@ -4,3 +4,9 @@ venv/
 myvenv/
 venv312/
 __pycache__/
+.venv/
+node_modules/
+dist/
+*.ait
+.env
+.cache/

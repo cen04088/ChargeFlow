@@ -1,10 +1,17 @@
 from django.db import models
+from django.utils import timezone
 
 
 class Highway(models.Model):
     code              = models.CharField(max_length=20, unique=True)
     name              = models.CharField(max_length=50)
     total_distance_km = models.FloatField(null=True, blank=True)
+    # 화면 표기: 기점·종점과 방향 이름 (DOWN = 하행, UP = 상행)
+    start_name        = models.CharField(max_length=20, blank=True)
+    end_name          = models.CharField(max_length=20, blank=True)
+    down_label        = models.CharField(max_length=20, blank=True)
+    up_label          = models.CharField(max_length=20, blank=True)
+    sort_order        = models.PositiveSmallIntegerField(default=100)
     created_at        = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -76,6 +83,8 @@ class ChargingStation(models.Model):
     charger_count = models.PositiveSmallIntegerField(default=1)
     power_kw      = models.PositiveSmallIntegerField(null=True, blank=True)
     connector_type = models.CharField(max_length=20, choices=CONNECTOR_CHOICES, blank=True)
+    # 환경부 chgerType에서 정리한 커넥터 목록 (콤마 구분: combo, chademo, ac3, nacs)
+    connectors     = models.CharField(max_length=40, blank=True)
     operator      = models.CharField(max_length=50, blank=True)
     open_hours    = models.CharField(max_length=50, blank=True)
     is_verified   = models.BooleanField(default=False)
@@ -106,6 +115,8 @@ class NodeStationMapping(models.Model):
     drive_minutes  = models.PositiveSmallIntegerField()
     route_memo     = models.TextField(blank=True)
     is_recommended = models.BooleanField(default=True)
+    # 길찾기 API 대신 직선거리로 추정한 값이면 True (신규 노선 자동 구축분)
+    is_estimated   = models.BooleanField(default=False)
 
     class Meta:
         verbose_name        = 'IC-충전소 매핑'
@@ -138,19 +149,40 @@ class HighwayNodeCharger(models.Model):
         return f'{self.ra_node.name} → {self.stat_name} ({self.stat_id})'
 
 
+STAT_CHOICES = [
+    ('1', '통신이상'), ('2', '충전가능'), ('3', '충전중'),
+    ('4', '운영중지'), ('5', '점검중'),   ('9', '상태미확인'),
+]
+
+
+class ChargerState(models.Model):
+    """환경부 충전기(statId+chgerId)별 최신 상태 스냅샷.
+
+    상하행 공용 휴게소는 같은 statId를 두 RA가 공유하므로 RA가 아니라
+    충전기 단위로 저장하고, 혼잡도는 HighwayNodeCharger로 묶어 집계한다."""
+
+    stat_id         = models.CharField(max_length=20)
+    charger_id      = models.CharField(max_length=10)
+    stat            = models.CharField(max_length=1, choices=STAT_CHOICES)
+    stat_updated_at = models.DateTimeField(null=True, blank=True)  # API statUpdDt
+    charging_since  = models.DateTimeField(null=True, blank=True)  # API nowTsdt (충전 중일 때)
+    chger_type      = models.CharField(max_length=2, blank=True)   # API chgerType
+    zcode           = models.CharField(max_length=2, blank=True)
+    synced_at       = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name        = '충전기 최신 상태'
+        verbose_name_plural = '충전기 최신 상태 목록'
+        unique_together     = ('stat_id', 'charger_id')
+
+    def __str__(self):
+        return f'{self.stat_id}/{self.charger_id} {self.get_stat_display()}'
+
+
 class ChargerStatusLog(models.Model):
-    """휴게소 충전기 상태 변화 이력"""
+    """충전기 상태 변화 이력 (회전율 계산용, 2시간 보관)"""
 
-    STAT_CHOICES = [
-        ('1', '통신이상'), ('2', '충전가능'), ('3', '충전중'),
-        ('4', '운영중지'), ('5', '점검중'),   ('9', '상태미확인'),
-    ]
-
-    ra_node    = models.ForeignKey(
-        HighwayNode, on_delete=models.CASCADE,
-        related_name='status_logs',
-        limit_choices_to={'node_type': 'RA'},
-    )
+    stat_id    = models.CharField(max_length=20)
     charger_id = models.CharField(max_length=10)
     stat       = models.CharField(max_length=1, choices=STAT_CHOICES)
     checked_at = models.DateTimeField(auto_now_add=True)
@@ -159,30 +191,36 @@ class ChargerStatusLog(models.Model):
         verbose_name        = '충전기 상태 이력'
         verbose_name_plural = '충전기 상태 이력 목록'
         ordering            = ['-checked_at']
-        indexes             = [models.Index(fields=['ra_node', 'checked_at'])]
+        indexes             = [models.Index(fields=['stat_id', 'checked_at'])]
 
     def __str__(self):
-        return f'{self.ra_node.name} [{self.charger_id}] {self.get_stat_display()}'
+        return f'{self.stat_id}/{self.charger_id} {self.get_stat_display()}'
 
 
 class StationCongestion(models.Model):
-    """휴게소(RA)별 혼잡도 집계 결과"""
+    """휴게소(RA)별 혼잡도 집계 결과 — 폴링 주기마다 갱신"""
 
     LEVEL_CHOICES = [
-        ('smooth', '원활'),
-        ('normal', '보통'),
-        ('busy',   '혼잡'),
-        ('jammed', '매우 혼잡'),
+        ('smooth',      '여유'),
+        ('normal',      '보통'),
+        ('busy',        '혼잡'),
+        ('jammed',      '만석'),
+        ('unavailable', '이용 불가'),
+        ('unknown',     '정보 없음'),
     ]
+    WAITING_LEVELS = ('busy', 'jammed', 'unavailable')
 
     ra_node          = models.OneToOneField(
         HighwayNode, on_delete=models.CASCADE,
         related_name='congestion',
         limit_choices_to={'node_type': 'RA'},
     )
-    change_count_30m = models.PositiveSmallIntegerField(default=0)
-    level            = models.CharField(max_length=10, choices=LEVEL_CHOICES, default='smooth')
-    is_suspicious    = models.BooleanField(default=False)
+    level            = models.CharField(max_length=12, choices=LEVEL_CHOICES, default='unknown')
+    available        = models.PositiveSmallIntegerField(default=0)
+    charging         = models.PositiveSmallIntegerField(default=0)
+    offline          = models.PositiveSmallIntegerField(default=0)
+    total            = models.PositiveSmallIntegerField(default=0)
+    change_count_30m = models.PositiveSmallIntegerField(default=0)  # 최근 30분 상태 변화 수(회전율)
     updated_at       = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -193,16 +231,79 @@ class StationCongestion(models.Model):
         return f'{self.ra_node.name} [{self.get_level_display()}]'
 
 
+class CongestionSample(models.Model):
+    """요일·시간대별 혼잡 누적 (폴링 주기마다 1표). 혼잡 패턴 안내에 쓴다."""
+
+    ra_node         = models.ForeignKey(
+        HighwayNode, on_delete=models.CASCADE,
+        related_name='congestion_samples',
+        limit_choices_to={'node_type': 'RA'},
+    )
+    weekday         = models.PositiveSmallIntegerField()  # 0=월 … 6=일 (KST)
+    hour            = models.PositiveSmallIntegerField()  # 0~23 (KST)
+    samples         = models.PositiveIntegerField(default=0)
+    waiting_samples = models.PositiveIntegerField(default=0)  # busy/jammed/unavailable
+    available_sum   = models.FloatField(default=0)            # 빈 충전기 비율 합
+
+    class Meta:
+        verbose_name        = '혼잡 패턴 표본'
+        verbose_name_plural = '혼잡 패턴 표본 목록'
+        unique_together     = ('ra_node', 'weekday', 'hour')
+
+
+class UserSetting(models.Model):
+    """사용자별 설정 (내 차 커넥터 등)"""
+
+    CONNECTOR_CHOICES = [
+        ('',        '전체'),
+        ('combo',   'DC콤보'),
+        ('chademo', 'DC차데모'),
+        ('ac3',     'AC3상'),
+        ('nacs',    'NACS(테슬라)'),
+    ]
+
+    user_key   = models.CharField(max_length=128, unique=True)
+    connector  = models.CharField(max_length=10, choices=CONNECTOR_CHOICES, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name        = '사용자 설정'
+        verbose_name_plural = '사용자 설정 목록'
+
+    def __str__(self):
+        return f'{self.user_key} [{self.connector or "전체"}]'
+
+
+class PollerStatus(models.Model):
+    """폴링 상태(싱글턴). 폴링 공백이 생기면 전체 재동기화 판단에 쓴다."""
+
+    key              = models.CharField(max_length=20, primary_key=True)
+    last_status_at   = models.DateTimeField(null=True, blank=True)
+    last_baseline_at = models.DateTimeField(null=True, blank=True)
+    last_error       = models.TextField(blank=True)
+    updated_at       = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name        = '폴링 상태'
+        verbose_name_plural = '폴링 상태'
+
+    def __str__(self):
+        return f'{self.key} (status {self.last_status_at}, baseline {self.last_baseline_at})'
+
+
 class UserRoute(models.Model):
     """사용자(userKey)별 최근 방문 · 즐겨찾기 휴게소"""
 
-    user_key     = models.CharField(max_length=64, db_index=True)
+    user_key     = models.CharField(max_length=128, db_index=True)
     ra_node      = models.ForeignKey(
         HighwayNode, on_delete=models.CASCADE,
         related_name='user_routes',
         limit_choices_to={'node_type': 'RA'},
     )
     is_favorite  = models.BooleanField(default=False)
+    # 즐겨찾기 휴게소 상태 알림 (혼잡해지면/풀리면)
+    notify_enabled   = models.BooleanField(default=False)
+    last_notified_at = models.DateTimeField(null=True, blank=True)
     visit_count  = models.PositiveIntegerField(default=1)
     last_used_at = models.DateTimeField(auto_now=True)
     created_at   = models.DateTimeField(auto_now_add=True)
@@ -221,15 +322,16 @@ class UserRoute(models.Model):
 class CongestionNotifySubscription(models.Model):
     """혼잡 해소 시 알림을 받기로 한 사용자 구독"""
 
-    user_key    = models.CharField(max_length=64, db_index=True)
+    user_key    = models.CharField(max_length=128, db_index=True)
     ra_node     = models.ForeignKey(
         HighwayNode, on_delete=models.CASCADE,
         related_name='notify_subscriptions',
         limit_choices_to={'node_type': 'RA'},
     )
-    is_active   = models.BooleanField(default=True)
-    created_at  = models.DateTimeField(auto_now_add=True)
-    notified_at = models.DateTimeField(null=True, blank=True)
+    is_active     = models.BooleanField(default=True)
+    created_at    = models.DateTimeField(auto_now_add=True)
+    subscribed_at = models.DateTimeField(default=timezone.now)  # 재구독 시 갱신 — 만료 계산 기준
+    notified_at   = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         verbose_name        = '혼잡 해소 알림 구독'

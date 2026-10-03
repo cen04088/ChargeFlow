@@ -5,7 +5,8 @@ from .models import Highway, HighwayNode, ChargingStation, NodeStationMapping
 class HighwaySerializer(serializers.ModelSerializer):
     class Meta:
         model = Highway
-        fields = ['id', 'code', 'name', 'total_distance_km']
+        fields = ['id', 'code', 'name', 'total_distance_km',
+                  'start_name', 'end_name', 'down_label', 'up_label']
 
 
 class HighwayNodeSerializer(serializers.ModelSerializer):

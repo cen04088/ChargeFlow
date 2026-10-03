@@ -1,0 +1,169 @@
+* {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: #fff;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.page {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background: #fff;
+}
+
+.section-pad {
+  padding: 8px 24px;
+}
+
+/* 자체 좌우 여백이 있는 TDS 컴포넌트용 */
+.section-pad--flush {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.section-pad--tight {
+  padding-top: 12px;
+  padding-bottom: 0;
+}
+
+.actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.actions > * {
+  min-height: 44px;
+}
+
+.callout {
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--adaptiveGrey50, #f9fafb);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.map {
+  height: 240px;
+  margin: 4px 24px 8px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--adaptiveGrey100, #f2f4f6);
+}
+
+/* 지도 위 라벨. 충전소 라벨은 투명 테두리로 탭 영역을 44px 이상 확보한다 */
+.map-label {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 16px;
+  white-space: nowrap;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.map-label--ra {
+  padding: 6px 12px;
+  color: #fff;
+  background-color: #191f28;
+}
+
+.map-label--ic {
+  padding: 5px 10px;
+  color: #191f28;
+  background-color: #fff;
+  box-shadow: inset 0 0 0 1px #d1d6db;
+}
+
+.map-label--station {
+  padding: 6px 12px;
+  border: 10px solid transparent;
+  color: #fff;
+  background-color: #3182f6;
+  cursor: pointer;
+}
+
+.map-label--focus {
+  background-color: #1b64da;
+  transform: scale(1.15);
+}
+
+/* 충전소 이름 옆 배지들 */
+.station-title {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 시간대별 혼잡 막대 */
+.pattern {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 88px;
+  padding: 4px 0;
+}
+
+.pattern-col {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.pattern-bar {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  background: #b0b8c1;
+}
+
+.pattern-bar--empty {
+  background: #e5e8eb;
+}
+
+.pattern-bar--now {
+  background: #3182f6;
+}
+
+.pattern-axis {
+  display: flex;
+  justify-content: space-between;
+  margin: 4px 0 8px;
+  font-size: 13px;
+  color: #8b95a1;
+}
+
+.row-focused {
+  background: var(--adaptiveBlue50, #e8f3ff);
+  transition: background 0.3s;
+}
+
+.footnote {
+  padding: 24px 24px calc(34px + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 481px) {
+  body {
+    background-color: #f5f5f5 !important;
+  }
+}
+
+.section-desc {
+  padding-top: 0;
+}

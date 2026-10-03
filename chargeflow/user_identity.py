@@ -1,31 +1,46 @@
 """
 사용자 식별 유틸
 ====================================
-앱인토스(App in Toss) WebView 브릿지가 `X-Toss-User-Key` 헤더를 실어 보내면
-그 값을 사용자 키로 쓰고, 아직 브릿지가 없거나(일반 브라우저 테스트) 헤더가
-없으면 서버가 발급하는 익명 쿠키(cf_uid)로 폴백한다.
+앱인토스 미니앱은 SDK getAnonymousKey()로 받은 미니앱 전용 식별키(hash)를
+`X-Anon-Key` 헤더로 보낸다. 기기를 바꿔도 같은 사용자면 같은 값이라 즐겨찾기·
+최근 기록이 유지되고, 혼잡 해소 알림도 이 키로 보낼 수 있다.
 
-이 앱은 Django 세션 인증을 쓰지 않으므로(REST_FRAMEWORK에 커스텀 인증 클래스
-없음, DEFAULT_PERMISSION_CLASSES=AllowAny) 이 쿠키는 DRF의 CSRF 검사 대상이
-아니다.
+헤더가 없으면(일반 브라우저 개발 환경) 서버가 발급하는 익명 쿠키(cf_uid)로
+폴백한다. 저장할 때는 출처를 접두사로 구분한다.
+
+이 앱은 Django 세션 인증을 쓰지 않으므로(DEFAULT_PERMISSION_CLASSES=AllowAny)
+이 쿠키는 DRF의 CSRF 검사 대상이 아니다.
 """
 import uuid
 
 from rest_framework.views import APIView
 
-USER_KEY_HEADER = 'X-Toss-User-Key'
-USER_KEY_COOKIE = 'cf_uid'
-COOKIE_MAX_AGE  = 60 * 60 * 24 * 365 * 2  # 2년
+ANON_KEY_HEADER  = 'X-Anon-Key'
+USER_KEY_HEADER  = 'X-Toss-User-Key'
+USER_KEY_COOKIE  = 'cf_uid'
+COOKIE_MAX_AGE   = 60 * 60 * 24 * 365 * 2  # 2년
+
+TOSS_ANON_PREFIX = 'ait:'   # getAnonymousKey hash
+TOSS_USER_PREFIX = 'tsu:'   # 토스 로그인 userKey (현재 미사용, 확장 대비)
+MAX_KEY_LENGTH   = 128      # UserRoute.user_key 등 컬럼 길이
+
+
+def _valid(value):
+    return bool(value) and len(value) <= MAX_KEY_LENGTH
 
 
 def resolve_user_key(request):
-    """(user_key, newly_issued_key_or_None) 튜플을 반환한다."""
-    header_key = request.headers.get(USER_KEY_HEADER)
-    if header_key:
-        return header_key, None
+    """(user_key, newly_issued_cookie_or_None) 튜플을 반환한다."""
+    anon_key = (request.headers.get(ANON_KEY_HEADER) or '').strip()
+    if anon_key and _valid(TOSS_ANON_PREFIX + anon_key):
+        return TOSS_ANON_PREFIX + anon_key, None
+
+    user_key = (request.headers.get(USER_KEY_HEADER) or '').strip()
+    if user_key and _valid(TOSS_USER_PREFIX + user_key):
+        return TOSS_USER_PREFIX + user_key, None
 
     cookie_key = request.COOKIES.get(USER_KEY_COOKIE)
-    if cookie_key:
+    if _valid(cookie_key):
         return cookie_key, None
 
     new_key = f'anon_{uuid.uuid4().hex}'

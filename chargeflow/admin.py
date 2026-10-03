@@ -1,8 +1,8 @@
 from django.contrib import admin
 from .models import (
     Highway, HighwayNode, ChargingStation, NodeStationMapping,
-    HighwayNodeCharger, ChargerStatusLog, StationCongestion,
-    UserRoute, CongestionNotifySubscription,
+    HighwayNodeCharger, ChargerState, ChargerStatusLog, StationCongestion,
+    PollerStatus, UserRoute, CongestionNotifySubscription,
 )
 
 
@@ -44,18 +44,26 @@ class HighwayNodeChargerAdmin(admin.ModelAdmin):
     search_fields = ['ra_node__name', 'stat_id', 'stat_name']
 
 
+@admin.register(ChargerState)
+class ChargerStateAdmin(admin.ModelAdmin):
+    list_display  = ['id', 'stat_id', 'charger_id', 'stat', 'stat_updated_at', 'zcode', 'synced_at']
+    list_filter   = ['stat', 'zcode']
+    search_fields = ['stat_id']
+
+
 @admin.register(ChargerStatusLog)
 class ChargerStatusLogAdmin(admin.ModelAdmin):
-    list_display  = ['id', 'ra_node', 'charger_id', 'stat', 'checked_at']
-    list_filter   = ['stat', 'ra_node__highway']
-    search_fields = ['ra_node__name', 'charger_id']
+    list_display  = ['id', 'stat_id', 'charger_id', 'stat', 'checked_at']
+    list_filter   = ['stat']
+    search_fields = ['stat_id', 'charger_id']
     ordering      = ['-checked_at']
 
 
 @admin.register(StationCongestion)
 class StationCongestionAdmin(admin.ModelAdmin):
-    list_display  = ['id', 'ra_node', 'level', 'change_count_30m', 'is_suspicious', 'updated_at']
-    list_filter   = ['level', 'is_suspicious']
+    list_display  = ['id', 'ra_node', 'level', 'available', 'charging', 'offline', 'total',
+                     'change_count_30m', 'updated_at']
+    list_filter   = ['level']
     search_fields = ['ra_node__name']
 
 
@@ -69,7 +77,11 @@ class UserRouteAdmin(admin.ModelAdmin):
 
 @admin.register(CongestionNotifySubscription)
 class CongestionNotifySubscriptionAdmin(admin.ModelAdmin):
-    list_display  = ['id', 'user_key', 'ra_node', 'is_active', 'created_at', 'notified_at']
+    list_display  = ['id', 'user_key', 'ra_node', 'is_active', 'subscribed_at', 'notified_at']
     list_filter   = ['is_active', 'ra_node__highway']
     search_fields = ['user_key', 'ra_node__name']
     ordering      = ['-created_at']
+
+@admin.register(PollerStatus)
+class PollerStatusAdmin(admin.ModelAdmin):
+    list_display = ['key', 'last_status_at', 'last_baseline_at', 'updated_at']
