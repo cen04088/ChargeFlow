@@ -1,3 +1,12 @@
+:root {
+  /* ChargeFlow 브랜드 — apps-in-toss.config.ts의 primaryColor와 같은 값 */
+  --brand-primary: #00a37a;
+  /* 흰 바탕 위 글자·흰 글자 배경용 진한 톤 (명도 대비 4.5:1 이상) */
+  --brand-strong: #007a5c;
+  --brand-tint: #e6f6f1;
+  --canvas: #f2f4f6;
+}
+
 * {
   -webkit-tap-highlight-color: transparent;
   box-sizing: border-box;
@@ -6,6 +15,11 @@
 html,
 body {
   margin: 0;
+  /* TDS 컴포넌트는 자체 폰트 스택(Tossface 포함)을 쓴다. Tossface 웹폰트를 따로 불러오면
+     본문 서체가 없는 환경(브라우저)에서 숫자·↔까지 이모지 모양으로 바뀌므로 불러오지 않는다.
+     이모지는 .tf로 감싼다 */
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo",
+    "Noto Sans KR", sans-serif;
   min-width: 320px;
   min-height: 100vh;
   background: #fff;
@@ -94,13 +108,25 @@ body {
   padding: 6px 12px;
   border: 10px solid transparent;
   color: #fff;
-  background-color: #3182f6;
+  background-color: var(--brand-strong);
   cursor: pointer;
 }
 
 .map-label--focus {
-  background-color: #1b64da;
+  background-color: #005c45;
   transform: scale(1.15);
+}
+
+/* 홈 상단 대표 그래픽 (공식 가이드: 아이콘 24~40px, 화면당 하나) */
+.hero-emoji {
+  display: inline-block;
+  font-size: 40px;
+  line-height: 1;
+}
+
+/* 글자형 버튼도 탭 영역은 44px */
+.text-link {
+  min-height: 44px;
 }
 
 /* 충전소 이름 옆 배지들 */
@@ -138,7 +164,7 @@ body {
 }
 
 .pattern-bar--now {
-  background: #3182f6;
+  background: var(--brand-primary);
 }
 
 .pattern-axis {
@@ -150,7 +176,7 @@ body {
 }
 
 .row-focused {
-  background: var(--adaptiveBlue50, #e8f3ff);
+  background: var(--brand-tint);
   transition: background 0.3s;
 }
 
@@ -166,4 +192,57 @@ body {
 
 .section-desc {
   padding-top: 0;
+}
+
+.tf {
+  font-family: "Tossface";
+  font-style: normal;
+}
+
+/* 충전소 상세 시트: 항목 이름 | 값 */
+.detail-list {
+  padding: 0 24px 8px;
+}
+
+.detail-row {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+/* 충전소 목록 셋째 줄: 평소와 다른 점(운영 시간·커넥터) */
+.station-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+}
+
+/* 휴게소 화면 오른쪽 위 아이콘 버튼 (탭 영역 44px) */
+.top-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.top-actions button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* 휴게소 화면 첫 카드: 가장 빨리 다녀올 곳 */
+.best-card {
+  padding: 20px;
+  border-radius: 20px;
+  background: var(--brand-tint);
+}
+
+.best-card__actions {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+}
+
+/* 하단 시트 안 내용: 홈 인디케이터에 닿지 않게 */
+.sheet-body {
+  padding: 8px 24px calc(24px + env(safe-area-inset-bottom));
 }

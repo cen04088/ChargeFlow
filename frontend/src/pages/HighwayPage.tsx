@@ -50,11 +50,6 @@ export default function HighwayPage() {
     );
   }, [nodes.data, query]);
 
-  const availableCount = list.filter(
-    (n) =>
-      n.congestion &&
-      (n.congestion.level === "smooth" || n.congestion.level === "normal"),
-  ).length;
 
   if (highways.data && !hw) return <Navigate to="/" replace />;
 
@@ -110,7 +105,7 @@ export default function HighwayPage() {
           <ListRow.Texts
             type="2RowTypeA"
             top="구간 정하고 미리 보기"
-            bottom="출발·도착 사이 휴게소와 도착 무렵 혼잡 예측"
+            bottom="출발·도착을 고르면 지날 휴게소를 순서대로"
           />
         }
         arrowType="right"
@@ -130,7 +125,7 @@ export default function HighwayPage() {
             <Paragraph typography="t6" color={adaptive.grey600}>
               {list.length === 0
                 ? `'${query}'와 일치하는 휴게소가 없어요.`
-                : `빈 충전기가 있는 곳 ${availableCount}곳 · 가는 방향 순서`}
+                : `휴게소 ${list.length}곳 · 가는 방향 순서예요`}
             </Paragraph>
           </div>
           {list.map((n) => (

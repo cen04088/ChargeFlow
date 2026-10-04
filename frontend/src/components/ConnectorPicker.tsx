@@ -5,7 +5,11 @@ import { CONNECTOR_OPTIONS, useConnector } from "../lib/store";
 import { logClick } from "../lib/toss";
 
 /** 내 차 충전 규격 선택 — 고르면 대체 충전소 목록이 그 규격으로 걸러진다 */
-export function ConnectorPicker() {
+export function ConnectorPicker({
+  onPicked,
+}: {
+  onPicked?: (c: Connector) => void;
+}) {
   const [connector, save] = useConnector();
   const { openToast } = useToast();
 
@@ -14,6 +18,7 @@ export function ConnectorPicker() {
     logClick("connector_pick", { connector: value || "all" });
     try {
       await save(value);
+      onPicked?.(value);
     } catch {
       openToast("저장하지 못했어요. 잠시 후 다시 시도해 주세요");
     }

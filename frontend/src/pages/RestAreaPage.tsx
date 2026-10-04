@@ -1,13 +1,17 @@
 import { Notification } from "@apps-in-toss/web-framework";
 import {
+  BottomSheet,
   Border,
   Button,
+  Chip,
+  ChipItem,
+  IconButton,
   ListHeader,
+  ListRow,
   Paragraph,
   Skeleton,
   Spacing,
   Tab,
-  TextButton,
   Top,
   useToast,
 } from "@toss/tds-mobile";
@@ -21,31 +25,42 @@ import type {
   BypassResponse,
   BypassStation,
   Connector,
-  Forecast,
-  NotifySubscription,
 } from "../api/types";
-import { SectionHeader } from "../components/SectionHeader";
+import { ConnectorPicker } from "../components/ConnectorPicker";
 import { ErrorState } from "../components/ErrorState";
 import { PatternChart } from "../components/PatternChart";
 import { RestAreaMap } from "../components/RestAreaMap";
-import { StationRow } from "../components/StationRow";
 import {
-  LEVEL_TEXT_COLOR,
+  StationRow,
+  StationSheet,
+  summary,
+} from "../components/StationRow";
+import {
   availabilityText,
   directionLabel,
-  formatMinutes,
-  needsBypass,
+  isAlwaysOpen,
+  isClosedToPublic,
   shortName,
   timeAgo,
   weekdayName,
 } from "../lib/format";
 import { connectorName, useConnector, useHighways } from "../lib/store";
-import { logClick, logScreen, shareRestArea } from "../lib/toss";
+import {
+  logClick,
+  logScreen,
+  openDirections,
+  shareRestArea,
+} from "../lib/toss";
 import { useAsync } from "../lib/useAsync";
 
 const REFRESH_MS = 60_000;
+/** 처음엔 가까운 몇 곳만 — 나머지는 "더 보기"로 */
+const INITIAL_COUNT = 5;
 const NOTIFY_TEMPLATE = import.meta.env.VITE_NOTIFY_TEMPLATE_CODE as
   string | undefined;
+
+/** "100kW 이상" 필터 기준 */
+const FAST_KW = 100;
 
 type Which = "prev" | "next";
 
@@ -100,16 +115,30 @@ function fits(station: BypassStation, connector: Connector) {
   );
 }
 
-/** 가장 빨리 충전할 수 있는 우회 충전소: 빈 충전기가 확인된 곳 우선, 그다음 우회 시간 */
-function bestDetour(stations: BypassStation[]) {
-  const score = (s: BypassStation) =>
-    (s.realtime ? (s.realtime.available > 0 ? 0 : 1000) : 100) +
-    s.detour_extra_minutes;
-  return [...stations].sort((a, b) => score(a) - score(b))[0];
+interface Filters {
+  fast: boolean;
+  allDay: boolean;
 }
 
-function forecastText(f: Forecast) {
-  return `${f.hours_ahead}시간 뒤 ${f.label}`;
+function passes(s: BypassStation, f: Filters) {
+  if (f.fast && (s.power_kw ?? 0) < FAST_KW) return false;
+  if (f.allDay && !isAlwaysOpen(s.open_hours)) return false;
+  return true;
+}
+
+/** 더 걸리는 시간이 짧은 순, 같으면 출력이 높은 순 */
+function byDetour(a: BypassStation, b: BypassStation) {
+  return (
+    a.detour_extra_minutes - b.detour_extra_minutes ||
+    (b.power_kw ?? 0) - (a.power_kw ?? 0)
+  );
+}
+
+/** 가장 빨리 다녀올 곳 — 지금 문을 닫았을 수 있는 곳(운영 시간 제한)은 뒤로 미룬다 */
+function pickBest(list: BypassStation[]) {
+  const open = list.filter((s) => !isClosedToPublic(s.open_hours));
+  const allDay = open.filter((s) => isAlwaysOpen(s.open_hours));
+  return [...(allDay.length ? allDay : open)].sort(byDetour)[0] ?? null;
 }
 
 function RestAreaView({
@@ -127,19 +156,25 @@ function RestAreaView({
   const highways = useHighways().data;
   const [connector] = useConnector();
   const [favorite, setFavorite] = useState(false);
-  const [favNotify, setFavNotify] = useState(false);
-  const [notify, setNotify] = useState<NotifySubscription | null>(null);
   const [focusId, setFocusId] = useState<number | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [filters, setFilters] = useState<Filters>({
+    fast: false,
+    allDay: false,
+  });
+  const [expanded, setExpanded] = useState(false);
+  const [sheet, setSheet] = useState<BypassStation | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
   const pattern = useAsync(() => api.pattern(ra.id), [ra.id]);
 
   const ics = [data.previous_ic, data.next_ic].filter(Boolean) as BypassIC[];
   const [tab, setTab] = useState<Which>(data.previous_ic ? "prev" : "next");
   const activeIC = tab === "prev" ? data.previous_ic : data.next_ic;
-  const filter = (list: BypassStation[]) =>
-    showAll ? list : list.filter((s) => fits(s, connector));
+  const visible = (s: BypassStation) =>
+    (showAll || fits(s, connector)) && passes(s, filters);
 
-  // 지도·판단에는 두 IC의 충전소를 함께, 중복 없이 쓴다
+  // 지도·추천에는 두 IC의 충전소를 함께, 중복 없이 쓴다
   const allStations = useMemo(() => {
     const seen = new Set<number>();
     return ics
@@ -147,33 +182,17 @@ function RestAreaView({
       .filter((s) => !seen.has(s.id) && !!seen.add(s.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.previous_ic, data.next_ic]);
-  const usable = allStations.filter((s) => fits(s, connector));
-  const best = bestDetour(usable);
+  const candidates = allStations.filter(visible);
+  const best = pickBest(candidates);
+  const icOf = (st: BypassStation) =>
+    ics.find((ic) => ic.stations.some((x) => x.id === st.id));
 
   useEffect(() => {
     api.recordVisit(ra.id).then(
-      (r) => {
-        setFavorite(r.is_favorite);
-        setFavNotify(r.notify_enabled);
-      },
+      (r) => setFavorite(r.is_favorite),
       () => {},
     );
-    api.notifyStatus(ra.id).then(setNotify, () => {});
   }, [ra.id]);
-
-  const toggleFavorite = async () => {
-    const next = !favorite;
-    setFavorite(next);
-    if (!next) setFavNotify(false);
-    logClick("rest_area_favorite", { on: next ? 1 : 0 });
-    try {
-      await (next ? api.addFavorite(ra.id) : api.removeFavorite(ra.id));
-      openToast(next ? "즐겨찾기에 추가했어요" : "즐겨찾기에서 뺐어요");
-    } catch {
-      setFavorite(!next);
-      openToast("잠시 후 다시 시도해 주세요");
-    }
-  };
 
   const askAgreement = async () => {
     // 콘솔에 알림 템플릿이 등록돼 있으면 토스 알림 동의를 먼저 받는다
@@ -194,29 +213,30 @@ function RestAreaView({
     });
   };
 
-  const toggleFavoriteNotify = async () => {
-    const next = !favNotify;
-    logClick("rest_area_favorite_notify", { on: next ? 1 : 0 });
-    if (next && !(await askAgreement())) {
-      openToast("알림을 허용하면 상태가 바뀔 때 알려드릴 수 있어요");
-      return;
-    }
-    setFavNotify(next);
+  // 즐겨찾기 하나로 상태 알림까지 켠다 (알림 동의를 거절해도 즐겨찾기는 남는다)
+  const toggleFavorite = async () => {
+    const next = !favorite;
+    logClick("rest_area_favorite", { on: next ? 1 : 0 });
+    setFavorite(next);
     try {
-      if (next) {
-        const res = await api.enableFavoriteNotify(ra.id);
-        setFavorite(true);
-        openToast(
-          res.deliverable
-            ? "붐비거나 다시 여유로워지면 알려드릴게요"
-            : "토스 앱에서 열면 알림을 받을 수 있어요",
-        );
-      } else {
-        await api.disableFavoriteNotify(ra.id);
-        openToast("상태 알림을 껐어요");
+      if (!next) {
+        await api.removeFavorite(ra.id);
+        openToast("즐겨찾기에서 뺐어요");
+        return;
       }
+      await api.addFavorite(ra.id);
+      if (!(await askAgreement())) {
+        openToast("즐겨찾기에 추가했어요");
+        return;
+      }
+      const res = await api.enableFavoriteNotify(ra.id);
+      openToast(
+        res.deliverable
+          ? "즐겨찾기에 추가했어요. 붐비거나 여유로워지면 알려 드릴게요"
+          : "즐겨찾기에 추가했어요",
+      );
     } catch {
-      setFavNotify(!next);
+      setFavorite(!next);
       openToast("잠시 후 다시 시도해 주세요");
     }
   };
@@ -230,45 +250,26 @@ function RestAreaView({
     }
   };
 
-  const subscribe = async () => {
-    logClick("rest_area_notify", { on: 1 });
-    if (!(await askAgreement())) {
-      openToast("알림을 허용하면 충전기가 빌 때 알려드릴 수 있어요");
-      return;
-    }
-    try {
-      const res = await api.subscribeNotify(ra.id);
-      setNotify(res);
-      openToast(
-        res.deliverable === false
-          ? "토스 앱에서 열면 알림을 받을 수 있어요"
-          : "충전기가 비면 토스 알림으로 알려드릴게요",
-      );
-    } catch {
-      openToast("잠시 후 다시 시도해 주세요");
-    }
+  const openSheet = (st: BypassStation) => {
+    setFocusId(st.id);
+    setSheet(st);
   };
 
-  const unsubscribe = async () => {
-    logClick("rest_area_notify", { on: 0 });
-    try {
-      await api.unsubscribeNotify(ra.id);
-      setNotify({ subscribed: false });
-      openToast("알림을 껐어요");
-    } catch {
-      openToast("잠시 후 다시 시도해 주세요");
-    }
+  const toggleFilter = (key: keyof Filters) => {
+    logClick("station_filter", { filter: key, on: filters[key] ? 0 : 1 });
+    setFilters((f) => ({ ...f, [key]: !f[key] }));
+    setExpanded(false);
   };
 
-  const waiting = needsBypass(congestion);
+  const filtering = filters.fast || filters.allDay;
   const known = congestion.level !== "unknown";
-  const wait = data.decision.wait_minutes;
-  const forecasts = data.decision.prediction.filter((f) => f.label);
   const now = new Date();
   const icStations = activeIC?.stations ?? [];
-  const visibleStations = filter(icStations);
-  const hiddenCount =
-    icStations.length - icStations.filter((s) => fits(s, connector)).length;
+  const visibleStations = icStations.filter(visible).sort(byDetour);
+  const shownStations = expanded
+    ? visibleStations
+    : visibleStations.slice(0, INITIAL_COUNT);
+  const bestIC = best ? icOf(best) : undefined;
 
   return (
     <div className="page">
@@ -280,147 +281,115 @@ function RestAreaView({
           </Top.SubtitleParagraph>
         }
         title={
-          <Top.TitleParagraph size={22}>
-            {shortName(ra.name)}
-          </Top.TitleParagraph>
+          <Top.TitleParagraph size={22}>{shortName(ra.name)}</Top.TitleParagraph>
         }
-        subtitleBottom={
-          <Top.SubtitleParagraph size={17}>
-            <span
-              style={{
-                color: LEVEL_TEXT_COLOR[congestion.level],
-                fontWeight: 700,
-              }}
-            >
-              {congestion.label}
-            </span>
-            {known && ` · ${availabilityText(congestion)}`}
-          </Top.SubtitleParagraph>
+        right={
+          <div className="top-actions">
+            <IconButton
+              name="icon-star-mono"
+              variant="clear"
+              iconSize={24}
+              color={favorite ? "var(--brand-primary)" : adaptive.grey400}
+              aria-label={favorite ? "즐겨찾기 해제" : "즐겨찾기"}
+              aria-pressed={favorite}
+              onClick={toggleFavorite}
+            />
+            <IconButton
+              name="icon-share-mono"
+              variant="clear"
+              iconSize={24}
+              color={adaptive.grey600}
+              aria-label="공유하기"
+              onClick={share}
+            />
+          </div>
         }
       />
 
       <div className="section-pad">
-        <Paragraph typography="t6" color={adaptive.grey600}>
-          {known
-            ? `${timeAgo(congestion.checked_at)} · 1분마다 새로 확인해요`
-            : "지금은 충전기 정보를 받아오지 못했어요. 아래 IC 밖 충전소는 그대로 이용할 수 있어요."}
-        </Paragraph>
-        {forecasts.length > 0 && (
-          <Paragraph typography="t6" color={adaptive.grey700}>
-            혼잡 예측 {forecasts.map(forecastText).join(" · ")}
-            {forecasts.some((f) => f.based_on_history)
-              ? " (평소 패턴 반영)"
-              : " (지금 상태 기준)"}
-          </Paragraph>
-        )}
-        <div className="actions">
-          <TextButton
-            size="medium"
-            variant="clear"
-            color={adaptive.grey700}
-            onClick={toggleFavorite}
-          >
-            {favorite ? "즐겨찾기 해제" : "즐겨찾기"}
-          </TextButton>
-          <TextButton
-            size="medium"
-            variant="clear"
-            color={adaptive.grey700}
-            onClick={toggleFavoriteNotify}
-          >
-            {favNotify ? "상태 알림 끄기" : "상태 알림 받기"}
-          </TextButton>
-          <TextButton
-            size="medium"
-            variant="clear"
-            color={adaptive.grey700}
-            onClick={share}
-          >
-            공유하기
-          </TextButton>
-        </div>
-      </div>
-
-      {waiting && (
-        <div className="section-pad">
-          <div className="callout">
-            <Paragraph typography="t5" fontWeight="bold">
-              {congestion.level === "unavailable"
-                ? "이 휴게소 충전기를 지금 쓸 수 없어요"
-                : wait != null && wait <= 5
-                  ? "곧 자리가 날 수 있지만 지금은 모두 사용 중이에요"
-                  : wait != null
-                    ? `도착하면 약 ${formatMinutes(wait)} 기다려야 해요`
-                    : "도착하면 기다려야 할 수 있어요"}
+        {best ? (
+          <div className="best-card">
+            <Paragraph typography="t7" color="var(--brand-strong)">
+              가장 빨리 다녀올 곳
             </Paragraph>
+            <Spacing size={4} />
+            <Paragraph
+              typography="t4"
+              fontWeight="bold"
+              color={adaptive.grey900}
+            >
+              {best.name}
+            </Paragraph>
+            <Spacing size={4} />
             <Paragraph typography="t6" color={adaptive.grey700}>
-              {best
-                ? `우회 추천 ${best.name} · ${best.is_estimated ? "약 " : ""}${best.detour_extra_minutes}분 더 걸려요` +
-                  (best.realtime
-                    ? ` · 빈 충전기 ${best.realtime.available}/${best.realtime.total}`
-                    : "") +
-                  (wait != null && congestion.level !== "unavailable"
-                    ? best.detour_extra_minutes < wait
-                      ? " — 우회하는 편이 빨라요."
-                      : " — 기다리는 편이 빨라요."
-                    : "")
-                : "IC로 잠깐 나가면 기다리지 않고 충전할 수 있는 곳이 있는지 아래에서 확인해 보세요."}
+              {summary(best)}
             </Paragraph>
-            <Spacing size={12} />
-            {notify?.subscribed ? (
+            {bestIC && (
+              <Paragraph typography="t7" color={adaptive.grey600}>
+                {bestIC.name}에서 나가요
+              </Paragraph>
+            )}
+            <Spacing size={16} />
+            <div className="best-card__actions">
               <Button
-                display="full"
-                size="medium"
+                size="large"
                 variant="weak"
-                color="dark"
-                onClick={unsubscribe}
+                onClick={() => {
+                  logClick("best_detail");
+                  openSheet(best);
+                }}
               >
-                빈자리 알림 끄기
+                자세히
               </Button>
-            ) : (
               <Button
+                size="large"
                 display="full"
-                size="medium"
-                variant="weak"
-                onClick={subscribe}
+                onClick={() => {
+                  logClick("best_directions", { station_id: best.id });
+                  void openDirections(best.name, best.latitude, best.longitude);
+                }}
               >
-                충전기가 비면 알림 받기
+                길찾기
               </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="best-card">
+            <Paragraph
+              typography="t5"
+              fontWeight="bold"
+              color={adaptive.grey900}
+            >
+              IC 밖 {maxMinutes}분 안에는 맞는 충전소가 없어요
+            </Paragraph>
+            <Spacing size={4} />
+            <Paragraph typography="t6" color={adaptive.grey700}>
+              {filtering
+                ? "아래 조건을 풀거나 거리를 넓혀 보세요."
+                : "거리를 넓혀서 다시 찾아볼 수 있어요."}
+            </Paragraph>
+            {maxMinutes < 30 && (
+              <>
+                <Spacing size={16} />
+                <Button size="large" display="full" onClick={onWiden}>
+                  30분 거리까지 찾아보기
+                </Button>
+              </>
             )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <Border variant="height16" />
 
-      <SectionHeader
-        title="IC 밖 대체 충전소"
-        description={`고속도로를 나가 ${maxMinutes}분 안에 갈 수 있는 곳이에요${connector ? ` · ${connectorName(connector)}` : ""}`}
-      />
-
-      {ics.length > 0 && (
-        <RestAreaMap
-          restArea={{
-            lat: +ra.latitude,
-            lng: +ra.longitude,
-            name: shortName(ra.name),
-          }}
-          ics={ics}
-          stations={showAll ? allStations : usable}
-          focusId={focusId}
-          onSelectStation={(sid) => {
-            const inPrev = data.previous_ic?.stations.some((s) => s.id === sid);
-            setTab(inPrev ? "prev" : "next");
-            setFocusId(sid);
-            document
-              .getElementById(`station-${sid}`)
-              ?.scrollIntoView({ behavior: "smooth", block: "center" });
-          }}
-        />
-      )}
-
       {ics.length > 1 && (
-        <Tab onChange={(i) => setTab(i === 0 ? "prev" : "next")} fluid>
+        <Tab
+          onChange={(i) => {
+            setTab(i === 0 ? "prev" : "next");
+            setExpanded(false);
+          }}
+          fluid
+        >
           <Tab.Item selected={tab === "prev"}>휴게소 전에 나가기</Tab.Item>
           <Tab.Item selected={tab === "next"}>휴게소 지나서 나가기</Tab.Item>
         </Tab>
@@ -429,46 +398,79 @@ function RestAreaView({
       {activeIC ? (
         <>
           <div className="section-pad section-pad--tight">
-            <Paragraph typography="t6" color={adaptive.grey600}>
-              {activeIC.name}에서 나가는 경로예요
-            </Paragraph>
-            {connector && hiddenCount > 0 && (
-              <TextButton
-                size="small"
-                variant="underline"
-                color={adaptive.grey600}
-                onClick={() => setShowAll((v) => !v)}
+            <Chip kind="select" size="medium" margin="none">
+              <ChipItem
+                selected={!!connector && !showAll}
+                onClick={() => {
+                  if (!connector) {
+                    logClick("station_filter", { filter: "connector_pick" });
+                    setPickerOpen(true);
+                    return;
+                  }
+                  logClick("station_filter", {
+                    filter: "connector",
+                    on: showAll ? 1 : 0,
+                  });
+                  setShowAll((v) => !v);
+                  setExpanded(false);
+                }}
               >
-                {showAll
-                  ? `${connectorName(connector)} 충전소만 보기`
-                  : `${connectorName(connector)}가 없는 ${hiddenCount}곳을 숨겼어요 · 모두 보기`}
-              </TextButton>
-            )}
+                {connector ? connectorName(connector) : "충전 규격"}
+              </ChipItem>
+              <ChipItem
+                selected={filters.fast}
+                onClick={() => toggleFilter("fast")}
+              >
+                {`${FAST_KW}kW 이상`}
+              </ChipItem>
+              <ChipItem
+                selected={filters.allDay}
+                onClick={() => toggleFilter("allDay")}
+              >
+                24시간
+              </ChipItem>
+            </Chip>
+            <Spacing size={8} />
+            <Paragraph typography="t7" color={adaptive.grey600}>
+              {activeIC.name}에서 나가요 · 더 걸리는 시간이 짧은 순
+            </Paragraph>
           </div>
           {visibleStations.length === 0 ? (
             <div className="section-pad">
-              <Paragraph typography="t5">
-                이 IC 근처엔 맞는 충전소가 없어요.
+              <Paragraph typography="t6" color={adaptive.grey700}>
+                {filtering || (connector && !showAll)
+                  ? "조건에 맞는 충전소가 이 IC 근처엔 없어요."
+                  : "이 IC 근처엔 충전소가 없어요."}
               </Paragraph>
-              {maxMinutes < 30 && (
-                <>
-                  <Spacing size={12} />
-                  <Button size="medium" variant="weak" onClick={onWiden}>
-                    30분 거리까지 찾아보기
-                  </Button>
-                </>
-              )}
             </div>
           ) : (
-            visibleStations.map((s, i) => (
-              <StationRow
-                key={s.id}
-                station={s}
-                best={i === 0 && s.is_recommended}
-                focused={focusId === s.id}
-                onFocus={setFocusId}
-              />
-            ))
+            <>
+              {shownStations.map((s) => (
+                <StationRow
+                  key={s.id}
+                  station={s}
+                  best={s.id === best?.id}
+                  focused={focusId === s.id}
+                  connector={connector}
+                  onOpen={openSheet}
+                />
+              ))}
+              {visibleStations.length > shownStations.length && (
+                <div className="section-pad section-pad--tight">
+                  <Button
+                    size="large"
+                    variant="weak"
+                    display="full"
+                    onClick={() => {
+                      logClick("station_more");
+                      setExpanded(true);
+                    }}
+                  >
+                    {`${visibleStations.length - shownStations.length}곳 더 보기`}
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </>
       ) : (
@@ -479,29 +481,94 @@ function RestAreaView({
         </div>
       )}
 
-      <Border variant="height16" />
-      <ListHeader
-        title={
-          <ListHeader.TitleParagraph fontWeight="bold">
-            평소 {weekdayName((now.getDay() + 6) % 7)}요일 혼잡도
-          </ListHeader.TitleParagraph>
-        }
-      />
-      <div className="section-pad">
-        {pattern.data ? (
-          <PatternChart pattern={pattern.data} nowHour={now.getHours()} />
-        ) : (
-          <Skeleton custom={["card"]} repeatLastItemCount={1} />
-        )}
-      </div>
+      {ics.length > 0 && (
+        <>
+          <ListRow
+            contents={
+              <ListRow.Texts
+                type="1RowTypeA"
+                top={mapOpen ? "지도 접기" : "지도로 보기"}
+              />
+            }
+            arrowType={mapOpen ? "up" : "down"}
+            onClick={() => {
+              logClick("rest_area_map", { open: mapOpen ? 0 : 1 });
+              setMapOpen((v) => !v);
+            }}
+          />
+          {mapOpen && (
+            <RestAreaMap
+              restArea={{
+                lat: +ra.latitude,
+                lng: +ra.longitude,
+                name: shortName(ra.name),
+              }}
+              ics={ics}
+              stations={candidates}
+              focusId={focusId}
+              onSelectStation={(sid) => {
+                const st = allStations.find((s) => s.id === sid);
+                if (!st) return;
+                const inPrev = data.previous_ic?.stations.some(
+                  (s) => s.id === sid,
+                );
+                setTab(inPrev ? "prev" : "next");
+                openSheet(st);
+              }}
+            />
+          )}
+        </>
+      )}
+
+      {pattern.data?.has_pattern && (
+        <>
+          <Border variant="height16" />
+          <ListHeader
+            title={
+              <ListHeader.TitleParagraph fontWeight="bold">
+                평소 {weekdayName((now.getDay() + 6) % 7)}요일 휴게소 혼잡도
+              </ListHeader.TitleParagraph>
+            }
+          />
+          <div className="section-pad">
+            <PatternChart pattern={pattern.data} nowHour={now.getHours()} />
+          </div>
+        </>
+      )}
 
       <div className="footnote">
-        <Paragraph typography="t7" color={adaptive.grey500}>
-          충전기 상태는 환경부 공공데이터 기준이에요. 대기 시간은 휴게소
-          급속충전 40분 제한을 바탕으로 한 추정이고, ‘약’이 붙은 거리는
-          직선거리로 계산했어요.
+        <Paragraph typography="t7" color={adaptive.grey600}>
+          {known
+            ? `휴게소 충전기: ${congestion.label} · ${availabilityText(congestion)} · ${timeAgo(congestion.checked_at)} (공공데이터 기준이라 참고만 해 주세요)`
+            : "휴게소 충전기 상태는 지금 받아오지 못했어요."}
+        </Paragraph>
+        <Spacing size={8} />
+        <Paragraph typography="t7" color={adaptive.grey600}>
+          ‘약’이 붙은 시간은 직선거리로 계산했어요. 운영 시간과 요금은
+          충전소에서 한 번 더 확인해 주세요.
         </Paragraph>
       </div>
+
+      <StationSheet
+        station={sheet}
+        icName={sheet ? icOf(sheet)?.name : undefined}
+        onClose={() => setSheet(null)}
+      />
+
+      <BottomSheet
+        open={pickerOpen}
+        onDimmerClick={() => setPickerOpen(false)}
+        header={<BottomSheet.Header>내 차 충전 규격</BottomSheet.Header>}
+        headerDescription={
+          <BottomSheet.HeaderDescription>
+            고르면 맞는 충전소만 보여 드려요. 다음에도 기억해요.
+          </BottomSheet.HeaderDescription>
+        }
+      >
+        <div className="sheet-body">
+          <ConnectorPicker onPicked={() => setPickerOpen(false)} />
+        </div>
+      </BottomSheet>
     </div>
   );
 }

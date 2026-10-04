@@ -1,5 +1,4 @@
 import {
-  Badge,
   ListRow,
   Paragraph,
   SegmentedControl,
@@ -11,8 +10,8 @@ import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { api } from "../api/client";
-import type { Direction, Forecast } from "../api/types";
-import { CongestionBadge } from "../components/Congestion";
+import type { Direction } from "../api/types";
+import { CongestionNote } from "../components/Congestion";
 import { SectionHeader } from "../components/SectionHeader";
 import { ErrorState } from "../components/ErrorState";
 import {
@@ -25,7 +24,6 @@ import { useHighways } from "../lib/store";
 import { logClick, logScreen } from "../lib/toss";
 import { useAsync } from "../lib/useAsync";
 
-const FORECAST_COLOR = { 높음: "red", 보통: "yellow", 낮음: "green" } as const;
 
 /**
  * 구간 모드 — 단계마다 주소(쿼리)를 바꿔서 토스 뒤로가기로 이전 단계에 돌아갈 수 있다.
@@ -200,15 +198,6 @@ function PickPoint({
   );
 }
 
-function forecastBadge(f: Forecast | null) {
-  if (!f?.label) return null;
-  return (
-    <Badge size="xsmall" variant="weak" color={FORECAST_COLOR[f.label]}>
-      도착 무렵 혼잡 {f.label}
-    </Badge>
-  );
-}
-
 function TripResult({
   code,
   direction,
@@ -230,9 +219,6 @@ function TripResult({
     return <ErrorState error={trip.error} onRetry={trip.reload} />;
   if (!trip.data) return <Skeleton pattern="topList" repeatLastItemCount={6} />;
   const t = trip.data;
-  const free = t.stops.filter(
-    (s) => s.congestion.level === "smooth" || s.congestion.level === "normal",
-  ).length;
 
   return (
     <div className="page">
@@ -242,20 +228,19 @@ function TripResult({
         }
         title={
           <Top.TitleParagraph size={22}>
-            {shortName(t.from.name)} → {shortName(t.to.name)}
+            {shortName(t.from.name)}에서 {shortName(t.to.name)}까지
           </Top.TitleParagraph>
         }
         subtitleBottom={
           <Top.SubtitleParagraph size={15}>
-            {Math.round(t.total_km)}km · 휴게소 {t.stops.length}곳 · 지금 바로
-            충전 가능 {free}곳
+            {Math.round(t.total_km)}km · 휴게소 {t.stops.length}곳
           </Top.SubtitleParagraph>
         }
       />
       <SectionHeader
         title="지날 휴게소"
         description={
-          "도착 시각은 시속 90km 기준이에요. 혼잡 예측은 평소 같은 시간대 기록을 반영해요."
+          "도착 시각은 시속 90km 기준이에요. 오른쪽 충전기 상태는 참고만 해 주세요."
         }
       />
       {t.stops.length === 0 && (
@@ -265,24 +250,27 @@ function TripResult({
           </Paragraph>
         </div>
       )}
-      {t.stops.map((s) => (
+      {t.stops.map((s, i) => (
         <ListRow
           key={s.id}
+          left={
+            <ListRow.AssetText
+              shape="squircle"
+              size="medium"
+              backgroundColor="var(--brand-tint)"
+              color="var(--brand-strong)"
+            >
+              {`${i + 1}`}
+            </ListRow.AssetText>
+          }
           contents={
             <ListRow.Texts
-              type="3RowTypeA"
+              type="2RowTypeA"
               top={shortName(s.name)}
-              middle={`${Math.round(s.km_from_start)}km · 약 ${formatMinutes(s.eta_minutes)} 뒤 도착`}
-              middleProps={{ typography: "t6", color: adaptive.grey700 }}
-              bottom={
-                <span className="station-title">
-                  {forecastBadge(s.forecast)}
-                  <span>지금 {shortAvailability(s.congestion)}</span>
-                </span>
-              }
+              bottom={`${Math.round(s.km_from_start)}km · 약 ${formatMinutes(s.eta_minutes)} 뒤`}
             />
           }
-          right={<CongestionBadge congestion={s.congestion} />}
+          right={<CongestionNote congestion={s.congestion} />}
           arrowType="right"
           onClick={() => {
             logClick("trip_open_rest_area");

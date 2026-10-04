@@ -1,10 +1,11 @@
 import {
+  BottomSheet,
+  Border,
   Button,
   ListHeader,
   ListRow,
   Paragraph,
   Skeleton,
-  Spacing,
   Top,
 } from "@toss/tds-mobile";
 import { adaptive } from "@toss/tds-colors";
@@ -20,9 +21,10 @@ import {
   directionLabel,
   formatKm,
   highwayRange,
+  routeNumber,
   shortName,
 } from "../lib/format";
-import { useHighways } from "../lib/store";
+import { connectorName, useConnector, useHighways } from "../lib/store";
 import { getLocationWithHeading, logClick, logScreen } from "../lib/toss";
 import { useAsync } from "../lib/useAsync";
 
@@ -42,6 +44,8 @@ export default function HomePage() {
   const routes = useAsync(() => api.myRoutes(), []);
   const highways = useHighways();
   const [nearby, setNearby] = useState<NearbyState>({ status: "idle" });
+  const [connector] = useConnector();
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => logScreen("home"), []);
 
@@ -98,18 +102,30 @@ export default function HomePage() {
     .filter((r) => !favoriteIds.has(r.ra_node_id))
     .slice(0, 3);
 
+  // 다시 온 사람은 저장한 휴게소가 첫 화면에 보이도록 머리말을 줄인다
+  const returning = favorites.length > 0 || recent.length > 0;
+
   return (
     <div className="page">
       <Top
+        upper={
+          returning ? undefined : (
+            <span className="tf hero-emoji" aria-hidden="true">
+              ⚡
+            </span>
+          )
+        }
         title={
-          <Top.TitleParagraph size={22}>
-            휴게소 충전기, 가기 전에 확인하세요
+          <Top.TitleParagraph size={returning ? 22 : 28}>
+            휴게소가 붐빌 때 IC 밖 충전소를 찾아 드려요
           </Top.TitleParagraph>
         }
         subtitleBottom={
-          <Top.SubtitleParagraph size={15}>
-            붐비면 IC 밖 가까운 충전소로 안내해 드려요
-          </Top.SubtitleParagraph>
+          returning ? undefined : (
+            <Top.SubtitleParagraph size={15}>
+              가는 길 휴게소를 고르면 나가서 들를 충전소를 알려 드려요
+            </Top.SubtitleParagraph>
+          )
         }
       />
 
@@ -117,7 +133,6 @@ export default function HomePage() {
         <Button
           display="full"
           size="large"
-          variant="weak"
           loading={nearby.status === "loading"}
           onClick={findNearby}
         >
@@ -158,6 +173,8 @@ export default function HomePage() {
         </div>
       )}
 
+      <Border variant="height16" />
+
       {routes.loading && !routes.data && (
         <Skeleton pattern="listOnly" repeatLastItemCount={2} />
       )}
@@ -177,22 +194,39 @@ export default function HomePage() {
         onOpen={(id) => openRestArea(id, "recent")}
       />
 
-      <Spacing size={8} />
-      <SectionHeader
-        title="내 차 충전 규격"
-        description={"고르면 맞는 충전소만 보여 드려요"}
+      {returning && <Border variant="height16" />}
+      <ListRow
+        contents={
+          <ListRow.Texts
+            type="2RowTypeA"
+            top="내 차 충전 규격"
+            bottom={
+              connector
+                ? `${connectorName(connector)} 충전소만 보여 드려요`
+                : "고르면 맞는 충전소만 보여 드려요"
+            }
+          />
+        }
+        right={
+          <Paragraph
+            typography="t6"
+            color={connector ? "var(--brand-strong)" : adaptive.grey600}
+          >
+            {connector ? connectorName(connector) : "고르기"}
+          </Paragraph>
+        }
+        arrowType="right"
+        onClick={() => {
+          logClick("home_open_connector");
+          setPickerOpen(true);
+        }}
       />
-      <div className="section-pad">
-        <ConnectorPicker />
-      </div>
-
-      <Spacing size={8} />
       <ListRow
         contents={
           <ListRow.Texts
             type="2RowTypeA"
             top="구간 정하고 미리 보기"
-            bottom="출발·도착을 고르면 지날 휴게소와 도착 무렵 혼잡 예측을 보여 드려요"
+            bottom="출발·도착을 고르면 지날 휴게소를 순서대로 보여 드려요"
           />
         }
         arrowType="right"
@@ -202,6 +236,7 @@ export default function HomePage() {
         }}
       />
 
+      <Border variant="height16" />
       <ListHeader
         title={
           <ListHeader.TitleParagraph fontWeight="bold">
@@ -222,6 +257,16 @@ export default function HomePage() {
       {hw?.map((h) => (
         <ListRow
           key={h.code}
+          left={
+            <ListRow.AssetText
+              shape="squircle"
+              size="medium"
+              backgroundColor="var(--brand-tint)"
+              color="var(--brand-strong)"
+            >
+              {routeNumber(h.code)}
+            </ListRow.AssetText>
+          }
           contents={
             <ListRow.Texts
               type="2RowTypeA"
@@ -238,11 +283,26 @@ export default function HomePage() {
       ))}
 
       <div className="footnote">
-        <Paragraph typography="t7" color={adaptive.grey500}>
-          충전기 상태는 환경부 공공데이터를 5분마다 반영해요. 실제 현장과 다를
-          수 있어요.
+        <Paragraph typography="t7" color={adaptive.grey600}>
+          충전기 상태는 환경부 공공데이터를 10분마다 반영해요. 실제 현장과
+          다를 수 있어요.
         </Paragraph>
       </div>
+
+      <BottomSheet
+        open={pickerOpen}
+        onDimmerClick={() => setPickerOpen(false)}
+        header={<BottomSheet.Header>내 차 충전 규격</BottomSheet.Header>}
+        headerDescription={
+          <BottomSheet.HeaderDescription>
+            고르면 맞는 충전소만 보여 드려요. 다음에도 기억해요.
+          </BottomSheet.HeaderDescription>
+        }
+      >
+        <div className="sheet-body">
+          <ConnectorPicker onPicked={() => setPickerOpen(false)} />
+        </div>
+      </BottomSheet>
     </div>
   );
 }

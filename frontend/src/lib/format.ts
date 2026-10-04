@@ -21,7 +21,7 @@ export function directionLabel(
 
 const CAPITAL_AREA = ["서울", "인천", "하남", "양평", "평택"];
 
-/** "서울 ↔ 부산 · 416km" — 수도권 쪽 끝을 앞에 둔다 */
+/** "서울–부산 · 416km" — 수도권 쪽 끝을 앞에 둔다 */
 export function highwayRange(hw: Highway) {
   const km = hw.total_distance_km
     ? ` · ${Math.round(hw.total_distance_km)}km`
@@ -29,7 +29,27 @@ export function highwayRange(hw: Highway) {
   const [a, b] = CAPITAL_AREA.includes(hw.start_name)
     ? [hw.start_name, hw.end_name]
     : [hw.end_name, hw.start_name];
-  return `${a} ↔ ${b}${km}`;
+  return `${a}–${b}${km}`;
+}
+
+/** 고속도로 노선번호 — 목록 왼쪽 타일에 쓴다 */
+const ROUTE_NUMBER: Record<string, string> = {
+  gyeongbu: "1",
+  namhae: "10",
+  gwangjudaegu: "12",
+  seohaeAN: "15",
+  honam: "25",
+  suncheonwanju: "27",
+  jungbu: "35",
+  pyeongtaekjecheon: "40",
+  jungbunaeryuk: "45",
+  yeongdong: "50",
+  jungang: "55",
+  seoulyangyang: "60",
+};
+
+export function routeNumber(code: string) {
+  return ROUTE_NUMBER[code] ?? "";
 }
 
 /** 상태 문구: "바로 충전 2대 / 4대" */
@@ -112,3 +132,13 @@ export const LEVEL_TEXT_COLOR: Record<CongestionLevel, string> = {
   unavailable: adaptive.grey600,
   unknown: adaptive.grey600,
 };
+
+/** "24시간 이용가능"처럼 평범한 운영 시간인지 (목록에서는 숨긴다) */
+export function isAlwaysOpen(hours: string) {
+  return !hours || /24\s*시간/.test(hours);
+}
+
+/** 공공데이터에서 "미개방"으로 표시된 충전소 */
+export function isClosedToPublic(hours: string) {
+  return hours.includes("미개방");
+}
