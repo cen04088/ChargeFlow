@@ -28,7 +28,7 @@ import time
 from datetime import timedelta
 
 from django.core.management.base import BaseCommand, CommandError
-from django.db import close_old_connections, transaction
+from django.db import close_old_connections, connection, transaction
 from django.utils import timezone
 
 from chargeflow.models import (
@@ -188,7 +188,23 @@ def _notify_favorites(transitions, now, stdout):
         stdout.write(f'  ⭐ 즐겨찾기 알림 {sent}건')
 
 
+def _skip_query_stats():
+    """이 연결의 쿼리를 pg_stat_statements에 남기지 않는다.
+
+    bulk_update/bulk_create는 행 수마다 모양이 다른 거대한 쿼리를 만들어,
+    실행할 때마다 원문(수백 KB)이 pg_stat_tmp/pgss_query_texts.stat에 새로 쌓인다.
+    Railway Postgres 볼륨(500MB)을 이 파일이 채우던 문제를 막는다."""
+    if connection.vendor != 'postgresql':
+        return
+    try:
+        with connection.cursor() as cur:
+            cur.execute("SET pg_stat_statements.track = 'none'")
+    except Exception:  # 확장이 없거나 권한이 없으면 그냥 넘어간다
+        logger.warning('pg_stat_statements.track 끄기 실패', exc_info=True)
+
+
 def run_cycle(api_key, stdout, force_baseline=False, interval_sec=300, period=None):
+    _skip_query_stats()
     now = timezone.now()
     rest_ids, bypass_ids = _tracked_ids()
     tracked = rest_ids | bypass_ids
