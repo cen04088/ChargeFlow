@@ -11,8 +11,11 @@
 개발계정 일일 호출 한도는 1,000건이라, 휴게소마다 호출하지 않고 주기당 한두 번만
 호출하도록 설계했다.
 """
+import http.client
 import json
 import logging
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime
@@ -24,6 +27,9 @@ BASE_URL  = 'https://apis.data.go.kr/B552584/EvCharger'
 PAGE_SIZE = 9999
 KST       = ZoneInfo('Asia/Seoul')
 
+RETRY_ATTEMPTS    = 3  # 최악이면 60초×3 + 대기 15초 ≈ 3분 15초로 10분 크론 간격 안에 끝난다
+RETRY_BACKOFF_SEC = 5  # 5초, 10초
+
 KIND_HIGHWAY_REST_AREA = 'C001'  # 고속도로 휴게소 (전국 약 2천 대, 1페이지)
 
 
@@ -31,7 +37,14 @@ class EvApiError(Exception):
     pass
 
 
-def _get(operation, api_key, params, timeout=30):
+def _is_retryable(e):
+    # 4xx(키 오류 등)는 다시 해도 같으니 바로 실패, 타임아웃·연결 끊김·5xx만 재시도
+    if isinstance(e, urllib.error.HTTPError):
+        return e.code >= 500
+    return isinstance(e, (urllib.error.URLError, http.client.HTTPException, OSError))
+
+
+def _get(operation, api_key, params, timeout=60):
     query = urllib.parse.urlencode({
         'serviceKey': api_key,
         'dataType':   'JSON',
@@ -41,11 +54,18 @@ def _get(operation, api_key, params, timeout=30):
         f'{BASE_URL}/{operation}?{query}',
         headers={'Accept': 'application/json'},
     )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as res:
-            raw = res.read().decode('utf-8')
-    except Exception as e:
-        raise EvApiError(f'{operation} 요청 실패: {e}') from e
+    # 공공데이터 포털은 간헐적으로 타임아웃·연결 끊김이 나서 몇 번 다시 시도한다
+    for attempt in range(1, RETRY_ATTEMPTS + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as res:
+                raw = res.read().decode('utf-8')
+            break
+        except Exception as e:
+            if attempt == RETRY_ATTEMPTS or not _is_retryable(e):
+                raise EvApiError(f'{operation} 요청 실패({attempt}회 시도): {e}') from e
+            logger.warning('[ev_api] %s 요청 실패(%d/%d), %d초 뒤 재시도: %s',
+                           operation, attempt, RETRY_ATTEMPTS, RETRY_BACKOFF_SEC * attempt, e)
+            time.sleep(RETRY_BACKOFF_SEC * attempt)
 
     try:
         data = json.loads(raw)
