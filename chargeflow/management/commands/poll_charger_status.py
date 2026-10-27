@@ -41,6 +41,7 @@ from chargeflow.services.congestion import record_samples, recompute_all
 logger = logging.getLogger(__name__)
 
 BASELINE_MAX_AGE    = timedelta(hours=24)
+API_OUTAGE_ALERT    = timedelta(hours=1)  # 공공데이터 API 장애가 이보다 길면 크론을 실패로 끝내 알린다
 LOG_RETENTION       = timedelta(hours=2)
 SUBSCRIPTION_TTL    = timedelta(hours=6)  # 이동 중 한 번의 충전을 위한 구독이므로 짧게 둔다
 VALID_STATS         = {'1', '2', '3', '4', '5', '9'}
@@ -242,6 +243,12 @@ def run_cycle(api_key, stdout, force_baseline=False, interval_sec=300, period=No
     except ev_api.EvApiError as e:
         status.last_error = str(e)[:1000]
         status.save()
+        # 공공데이터 포털은 504가 몇 분씩 이어지곤 해서, 재시도까지 실패해도 크론을 CRASHED로
+        # 끝내지 않고 이번 주기만 건너뛴다. 다음 실행이 공백을 보고 휴게소 상태를 다시 맞춘다.
+        if gap is not None and gap < API_OUTAGE_ALERT:
+            stdout.write(f'⚠️ 공공데이터 API 오류로 이번 주기 건너뜀 '
+                         f'(마지막 성공 {gap.total_seconds() / 60:.0f}분 전): {e}')
+            return
         raise CommandError(str(e))
     status.save()
 

@@ -2,6 +2,7 @@ from datetime import timedelta
 from io import StringIO
 from unittest import mock
 
+from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -105,6 +106,25 @@ class PollerTests(Fixture):
         station = self.run_poll(baseline_items=[item('ST1', '01', '3', '20261003130000')])
         self.assertEqual(ChargerState.objects.get(stat_id='ST1', charger_id='01').stat, '3')
         station.assert_not_called()  # 개별 조회(전체 기준선)는 하루 1회만
+
+    def test_api_error_skips_cycle_unless_outage_is_long(self):
+        self.run_poll(baseline_items=[item('ST1', '01', '2')])
+        last_ok = PollerStatus.objects.get(key='charger').last_status_at
+        err = poller.ev_api.EvApiError('getChargerStatus 요청 실패(3회 시도): HTTP Error 504: Gateway Timeout')
+
+        # 직전 성공이 최근이면 크론을 실패로 끝내지 않는다
+        with mock.patch.object(poller.ev_api, 'fetch_status_changes', side_effect=err):
+            poller.run_cycle('KEY', StringIO())
+        status = PollerStatus.objects.get(key='charger')
+        self.assertEqual(status.last_status_at, last_ok)  # 다음 실행이 공백을 보고 다시 맞춘다
+        self.assertIn('504', status.last_error)
+
+        # 장애가 1시간을 넘기면 실패로 끝내 알린다
+        PollerStatus.objects.filter(key='charger').update(last_status_at=timezone.now() - timedelta(hours=2))
+        with mock.patch.object(poller.ev_api, 'fetch_rest_area_chargers', side_effect=err), \
+             mock.patch.object(poller.ev_api, 'fetch_status_changes', side_effect=err):
+            with self.assertRaises(CommandError):
+                poller.run_cycle('KEY', StringIO())
 
     def test_full_baseline_once_a_day(self):
         self.run_poll(baseline_items=[item('ST1', '01', '2')])
