@@ -1,8 +1,28 @@
 # ⚡ ChargeFlow — 고속도로 충전 도우미
 
-**앱인토스(App in Toss)**에서 서비스 중인 전기차 운전자를 위한 고속도로 급속충전소 혼잡도 안내 미니앱입니다.
+![ChargeFlow](frontend/assets/thumbnail.png)
+
+> **휴게소 급속충전기가 꽉 찼을 때, 기다릴지 우회할지 알려 주는 전기차 운전자용 미니앱**
+
+**토스 앱인토스(Apps in Toss) 출시 · 자동차 카테고리 9위 · DAU 15 → 50명 (최고 77명)**
 
 휴게소의 급속충전기가 모두 사용 중일 때, 무작정 기다리지 않고 **이전/다음 IC 인근의 대체 충전소**로 우회할지 판단할 수 있도록 실시간 혼잡도·예상 대기 시간·우회 추가 시간을 안내합니다.
+
+<p align="center">
+  <img src="frontend/assets/screenshot-1.png" width="30%" alt="ChargeFlow 화면 1" />
+  <img src="frontend/assets/screenshot-2.png" width="30%" alt="ChargeFlow 화면 2" />
+  <img src="frontend/assets/screenshot-3.png" width="30%" alt="ChargeFlow 화면 3" />
+</p>
+
+## 한눈에 보기
+
+| | |
+|---|---|
+| **문제** | 고속도로 휴게소 급속충전기는 수가 적고 40분 이용 제한이 있어, 도착해서야 만석을 알게 되고 기다릴지 떠날지 판단할 근거가 없다 |
+| **해결** | 환경부 실시간 충전기 상태로 혼잡도를 판정하고, 예상 대기 시간과 우회 추가 시간(IC 왕복 + 진출입)을 나란히 비교 |
+| **범위** | 전국 12개 고속도로 노선의 휴게소와 IC 인근 대체 충전소 |
+| **운영** | 공공데이터 개발계정 한도(1,000회/일) 안에서 5~10분 주기 증분 폴링으로 전국 상태 갱신 |
+| **스택** | Django · DRF · PostgreSQL · React · TypeScript · Vite · TDS · Railway |
 
 ---
 
@@ -19,6 +39,19 @@
 | 구간 모드 | 출발·도착을 고르면 지날 휴게소와 도착 무렵 혼잡 예측을 순서대로 표시 |
 | 알림 | 빈자리 알림(1회성, 6시간 유효), 즐겨찾기 휴게소 상태 알림(혼잡해질 때·풀릴 때, 2시간 간격) |
 | 노선 | 경부·서해안·영동 + 중부·통영대전, 호남, 남해, 중부내륙, 중앙, 서울양양, 광주대구, 평택제천, 순천완주 (12개) |
+
+---
+
+## 🧰 기술 스택
+
+| 구분 | 사용 기술 |
+|---|---|
+| Backend | Python, Django 4.2, Django REST Framework, gunicorn, WhiteNoise |
+| DB | PostgreSQL (Railway), 로컬은 SQLite |
+| Frontend | React 18, TypeScript, Vite, TDS(Toss Design System), `@apps-in-toss/web-framework` |
+| 데이터 | 공공데이터포털 한국환경공단 전기자동차 충전소 API, Kakao API |
+| 알림 | 앱인토스 메시지 발송 (mTLS) |
+| 배포 | Railway (web + cron 서비스) |
 
 ---
 
