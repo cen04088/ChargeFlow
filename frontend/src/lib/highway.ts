@@ -99,7 +99,7 @@ export function listedRestAreas(nodes: HighwayNode[]): HighwayNode[] {
 /**
  * IC 밖 충전소 핀: 숫자가 무엇인지 글자로 붙인다.
  * 빈 대수를 알면 윗줄 "빈 N대"(없으면 "빈 곳 없음"), 아랫줄 "우회 +M분"(M = 우회하면 더 걸리는 시간).
- * 모르면 윗줄만 "정보 없음"(회색)으로 바꾼 같은 두 줄 — 핀마다 모양이 달라 헷갈리지 않게. known false.
+ * 모르면 윗줄만 "확인 필요"(노란 띠)로 바꾼 같은 두 줄 — 핀마다 모양이 달라 헷갈리지 않게. known false.
  */
 export function stationPin(s: BypassStation): {
   text: string;
@@ -117,7 +117,7 @@ export function stationPin(s: BypassStation): {
       known: true,
     };
   }
-  return { text: "정보 없음", sub: detour, kind: "unavailable", known: false };
+  return { text: "확인 필요", sub: detour, kind: "unavailable", known: false };
 }
 
 export function loadLastHighway(): { code: string; dir: Direction } | null {

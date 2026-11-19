@@ -134,9 +134,9 @@ test("stationPin: 빈 대수를 알면 '빈 N대' + '우회 +M분'", () => {
   ).toEqual({ text: "빈 곳 없음", sub: "우회 +9분", kind: "full", known: true });
 });
 
-test("stationPin: 모르면 윗줄만 '정보 없음'인 같은 두 줄, known false", () => {
+test("stationPin: 모르면 윗줄만 '확인 필요'인 같은 두 줄, known false", () => {
   expect(stationPin(st({ realtime: null, detour_extra_minutes: 16 }))).toEqual({
-    text: "정보 없음",
+    text: "확인 필요",
     sub: "우회 +16분",
     kind: "unavailable",
     known: false,
