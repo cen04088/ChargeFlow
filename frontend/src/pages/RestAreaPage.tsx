@@ -344,7 +344,9 @@ function RestAreaView({
 
   /** 휴게소 충전기 상태 한 줄(빈 대수 / 전체 · 갱신 시각) */
   const statusDetail = known
-    ? `${congestion.label} · ${availabilityText(congestion)}` +
+    ? (congestion.total != null && congestion.level !== "unavailable"
+        ? `급속 충전기 ${congestion.total}대 중 ${congestion.available ?? 0}대가 비어 있어요`
+        : availabilityText(congestion)) +
       (congestion.checked_at ? ` · ${timeAgo(congestion.checked_at)}` : "")
     : null;
 
@@ -683,7 +685,9 @@ function RestAreaView({
       <div className="nearby-peek">
         {verdictBox}
         <p className="nearby-peek__label rest-peek__label">
-          가장 빨리 다녀올 곳
+          {raLabel.kind === "available"
+            ? "IC 밖으로 나간다면"
+            : "대신 가기 좋은 IC 밖 충전소"}
         </p>
         <div
           className={
@@ -716,7 +720,9 @@ function RestAreaView({
                 <span
                   className={`nearby-row__count nearby-row__count--${stationPin(peek.station).kind}`}
                 >
-                  {`${peek.station.realtime.available}대`}
+                  {peek.station.realtime.available > 0
+                    ? `빈 ${peek.station.realtime.available}대`
+                    : "빈 곳 없음"}
                 </span>
               ) : undefined
             }
@@ -789,6 +795,7 @@ function RestAreaView({
         lat: +s.latitude,
         lng: +s.longitude,
         text: p.text,
+        sub: p.sub,
         kind: p.kind,
         known: p.known,
         ariaLabel:

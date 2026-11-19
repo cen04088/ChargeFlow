@@ -389,6 +389,26 @@ body {
     background-color 200ms ease;
 }
 
+/* 두 줄 핀(휴게소 화면의 IC 밖 충전소): 윗줄 빈 대수, 아랫줄 우회 시간 */
+.nearby-pin--two:not(.nearby-pin--dot) {
+  flex-direction: column;
+  gap: 1px;
+  min-height: 52px;
+  padding: 6px 14px;
+  border-radius: 18px;
+}
+
+.nearby-pin__sub {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  opacity: 0.95;
+}
+
+.nearby-pin--dot .nearby-pin__sub {
+  display: none;
+}
+
 .nearby-pin:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: 4px;

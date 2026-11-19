@@ -87,9 +87,9 @@ test("AUTO_PICK_KM", () => {
 });
 
 test("raPin: 설계 표 그대로", () => {
-  expect(raPin(cg({ level: "smooth", available: 4 }))).toEqual({ text: "4대", kind: "available" });
-  expect(raPin(cg({ level: "normal", available: 3 }))).toEqual({ text: "3대", kind: "available" });
-  expect(raPin(cg({ level: "busy", available: 1 }))).toEqual({ text: "1대", kind: "full" });
+  expect(raPin(cg({ level: "smooth", available: 4 }))).toEqual({ text: "빈 4대", kind: "available" });
+  expect(raPin(cg({ level: "normal", available: 3 }))).toEqual({ text: "빈 3대", kind: "available" });
+  expect(raPin(cg({ level: "busy", available: 1 }))).toEqual({ text: "빈 1대", kind: "full" });
   expect(raPin(cg({ level: "jammed", available: 0 }))).toEqual({ text: "만석", kind: "full" });
   expect(raPin(cg({ level: "unavailable" }))).toEqual({ text: "이용 불가", kind: "unavailable" });
   expect(raPin(cg({ level: "unknown", available: null }))).toEqual({ text: "정보 없음", kind: "unavailable" });
@@ -125,18 +125,18 @@ test("listedRestAreas: 모든 휴게소가 정보 없음이면(집계가 멈춤)
   expect(listedRestAreas([])).toEqual([]);
 });
 
-test("stationPin: 빈 대수를 알면 'N대 · M분'", () => {
+test("stationPin: 빈 대수를 알면 '빈 N대' + '우회 +M분'", () => {
   expect(
     stationPin(st({ realtime: { available: 3, total: 4, checked_at: "" }, detour_extra_minutes: 6 })),
-  ).toEqual({ text: "3대 · 6분", kind: "available", known: true });
+  ).toEqual({ text: "빈 3대", sub: "우회 +6분", kind: "available", known: true });
   expect(
     stationPin(st({ realtime: { available: 0, total: 2, checked_at: "" }, detour_extra_minutes: 9 })),
-  ).toEqual({ text: "0대 · 9분", kind: "full", known: true });
+  ).toEqual({ text: "빈 곳 없음", sub: "우회 +9분", kind: "full", known: true });
 });
 
-test("stationPin: 모르면 'M분', 쓸 수 있는 곳으로 두되 known false", () => {
+test("stationPin: 모르면 '우회 +M분' 한 줄, 쓸 수 있는 곳으로 두되 known false", () => {
   expect(stationPin(st({ realtime: null, detour_extra_minutes: 16 }))).toEqual({
-    text: "16분",
+    text: "우회 +16분",
     kind: "available",
     known: false,
   });
