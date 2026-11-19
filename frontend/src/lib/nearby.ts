@@ -57,19 +57,28 @@ export function isDotLevel(level: number): boolean {
 /** 접힌 시트 높이가 이만큼(px) 이상 바뀌어야 범위를 다시 맞춘다 */
 export const INSET_REFIT_MIN_PX = 16;
 
+/** 맞춘 뒤 이 시간(ms) 안에 온 시트 높이 변화만 다시 맞춤의 대상이다 */
+export const INSET_REFIT_WINDOW_MS = 1000;
+
 /**
  * 지도 아래를 가리는 시트 높이가 바뀌었을 때 범위를 한 번 더 맞출지.
- * 이 기준점으로 이미 맞췄고, 이용자가 지도를 건드리지 않았고, 높이가 실제로 바뀐 경우만.
- * (첫 맞춤 때는 시트에 아직 "찾고 있어요" 한 줄이라 높이가 작다)
+ * 첫 맞춤 때는 시트에 아직 "찾고 있어요" 한 줄이라 높이가 작다 — 그 직후 실제 높이가 오는
+ * 경우만 고친다. 맞춤마다 기회는 한 번(refitSpent)이고, 맞춘 직후(INSET_REFIT_WINDOW_MS)만,
+ * 이용자가 지도를 건드리지 않았고, 높이가 실제로(INSET_REFIT_MIN_PX 이상) 바뀐 경우만.
+ * 한참 뒤의 변화(60초 갱신 등)로 보고 있는 지도가 움직이지 않게 한다.
  */
 export function shouldRefitForInset(input: {
   userMoved: boolean;
   hasFitted: boolean;
+  refitSpent: boolean;
+  msSinceFit: number;
   prevInset: number;
   nextInset: number;
 }): boolean {
-  const { userMoved, hasFitted, prevInset, nextInset } = input;
-  if (userMoved || !hasFitted) return false;
+  const { userMoved, hasFitted, refitSpent, msSinceFit, prevInset, nextInset } =
+    input;
+  if (userMoved || !hasFitted || refitSpent) return false;
+  if (msSinceFit >= INSET_REFIT_WINDOW_MS) return false;
   return Math.abs(nextInset - prevInset) >= INSET_REFIT_MIN_PX;
 }
 

@@ -1138,6 +1138,7 @@ html body {
 
 /* 목록 시트(비모달). 높이는 펼친 높이로 고정하고 transform으로 접는다 */
 .nearby-sheet {
+  --sheet-handle-h: 44px;
   position: absolute;
   left: 0;
   right: 0;
@@ -1165,7 +1166,7 @@ html body {
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 44px;
+  min-height: var(--sheet-handle-h);
   margin: 0;
   padding: 0;
   border: 0;
@@ -1193,7 +1194,26 @@ html body {
 }
 
 .nearby-sheet__peek {
+  position: relative;
   padding-bottom: var(--bottom-space);
+}
+
+/* 새로 찾는 중 한 줄: 손잡이 줄(왼쪽, 가운데 막대 옆)에 겹쳐 두어 접힌 높이를 바꾸지 않는다.
+   누르기는 아래 손잡이로 그대로 간다 */
+.nearby-peek__status {
+  position: absolute;
+  top: calc(-1 * var(--sheet-handle-h));
+  left: 0;
+  display: flex;
+  align-items: center;
+  height: var(--sheet-handle-h);
+  margin: 0;
+  padding: 0 var(--gutter);
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.35;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 .nearby-sheet__body {

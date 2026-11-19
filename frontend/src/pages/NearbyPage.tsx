@@ -535,7 +535,7 @@ export default function NearbyPage() {
   });
 
   /** 접힌 시트에 보이는 줄: 가장 가까운 빈 곳, 또는 지금 상태의 안내 제목 */
-  const peekContent =
+  const peekBody =
     peek.kind === "station" ? (
       <div className="nearby-peek">
         <p className="nearby-peek__label">{peek.label}</p>
@@ -596,6 +596,17 @@ export default function NearbyPage() {
         )}
       </div>
     );
+
+  /** 새로 찾는 중(조용한 60초 갱신은 제외)이면 손잡이 줄에 상태 한 줄을 겹쳐 둔다 —
+   *  접힌 시트 높이(지도 여백·떠 있는 버튼 자리)는 바뀌지 않는다 */
+  const peekContent = (
+    <div className="nearby-peek-wrap" aria-busy={peek.status != null}>
+      <p className="nearby-peek__status" role="status">
+        {peek.status ?? ""}
+      </p>
+      {peekBody}
+    </div>
+  );
 
   const { showHere, showMe } = floatButtons({
     space: floatSpace,
@@ -667,6 +678,7 @@ export default function NearbyPage() {
             focusId={liveSheet?.id ?? null}
             mode={mapLayout ? pinMode : "count"}
             bottomInset={mapLayout ? peekH : 0}
+            layoutKey={mapLayout ? "sheet" : "stacked"}
             onSelect={(id) => {
               const s = stations.find((x) => x.id === id);
               if (s) openStation(s, "pin");

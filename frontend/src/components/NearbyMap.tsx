@@ -30,6 +30,8 @@ interface NearbyMapProps {
   onFailed: () => void;
   /** 지도 빈 곳을 눌렀다(핀을 누른 것은 제외) */
   onMapTap?: () => void;
+  /** 지도를 둘러싼 배치 이름 — 바뀌면(크기가 바뀜) 이용자가 옮기지 않은 경우 한 번 다시 맞춘다 */
+  layoutKey?: string;
 }
 
 const MAX_PINS = 30;
@@ -105,6 +107,7 @@ export function NearbyMap({
   onMoved,
   onFailed,
   onMapTap,
+  layoutKey = "",
 }: NearbyMapProps) {
   const box = useRef<HTMLDivElement>(null);
   /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -126,7 +129,9 @@ export function NearbyMap({
   const dot = useRef(false);
   /** 마지막 범위 맞춤에 쓴 시트 높이 */
   const fittedInset = useRef(0);
-  /** 이 기준점에서 시트 높이 때문에 한 번 더 맞췄다(한 번만 허용) */
+  /** 마지막 범위 맞춤 시각(performance.now) */
+  const fittedAt = useRef(0);
+  /** 맞춘 뒤 시트 높이 다시 맞춤의 기회를 썼다(맞춤마다 한 번) */
   const insetRefitDone = useRef(false);
   /** 마지막으로 핀을 누른 시각 — 그 직후의 지도 click은 빈 곳 누르기가 아니다 */
   const pinTapAt = useRef(0);
@@ -260,6 +265,9 @@ export function NearbyMap({
       );
     const inset = Math.max(0, insetRef.current);
     fittedInset.current = inset;
+    fittedAt.current = performance.now();
+    // 배치가 막 바뀌었으면 ResizeObserver보다 먼저 올 수 있다 — 지금 크기를 알게 한다
+    map.current.relayout();
     // zoom_changed가 호출 중에 바로 오든 조금 뒤에 오든 이 맞춤은 이용자 조작으로 치지 않는다
     programmatic.current = true;
     try {
@@ -329,27 +337,52 @@ export function NearbyMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, signature]);
 
-  // 첫 맞춤 때 시트는 아직 "찾고 있어요" 한 줄이라 낮다. 접힌 시트가 실제 높이로 바뀌면
-  // (이용자가 지도를 건드리기 전에 한해) 이 기준점에서 한 번만 다시 맞춘다. 한 프레임 모아서.
-  // 시트를 펼쳐도 bottomInset(접힌 높이)은 그대로라 여기서 다시 맞추지 않는다
+  // 배치(지도 시트 ↔ 쌓인 배치)가 바뀌면 지도 크기가 달라진다. 이용자가 지도를 건드리지
+  // 않았으면 새 크기로 한 번 맞춘다. 이 맞춤이 시트 높이 변화(0 ↔ 접힌 높이)까지 함께 처리하므로
+  // 아래 시트 높이 다시 맞춤의 기회는 쓴 것으로 친다(아래 효과보다 먼저 선언)
+  const prevLayoutKey = useRef(layoutKey);
   useEffect(() => {
-    if (!ready || insetRefitDone.current) return;
-    if (
-      !shouldRefitForInset({
-        userMoved: userMoved.current,
-        hasFitted: !needsFit.current,
-        prevInset: fittedInset.current,
-        nextInset: bottomInset,
-      })
-    ) {
-      return;
-    }
+    if (prevLayoutKey.current === layoutKey) return;
+    prevLayoutKey.current = layoutKey;
+    if (!ready || needsFit.current) return;
+    insetRefitDone.current = true;
+    if (userMoved.current) return;
     const frame = requestAnimationFrame(() => {
-      if (userMoved.current || needsFit.current || insetRefitDone.current) return;
-      insetRefitDone.current = true;
+      if (userMoved.current || needsFit.current) return;
       fitToNearest();
     });
     return () => cancelAnimationFrame(frame);
+  }, [ready, layoutKey, fitToNearest]);
+
+  // 첫 맞춤 때 시트는 아직 "찾고 있어요" 한 줄이라 낮다. 맞춘 직후 접힌 시트가 실제 높이로
+  // 바뀌면(이용자가 지도를 건드리기 전에 한해) 한 번만 다시 맞춘다. 기회는 맞춤마다 한 번이고,
+  // 맞춘 뒤 처음 오는 높이 변화가 다시 맞추든 아니든 그 기회를 쓴다 — 한참 뒤의 변화(60초 갱신,
+  // 시트를 접을 때 다시 잰 높이 등)로 보고 있는 지도가 움직이지 않게. 한 프레임 모아서 맞춘다.
+  // 시트를 펼쳐도 bottomInset(접힌 높이)은 그대로라 여기서 다시 맞추지 않는다
+  useEffect(() => {
+    if (!ready || insetRefitDone.current || needsFit.current) return;
+    if (bottomInset === fittedInset.current) return;
+    const refit = shouldRefitForInset({
+      userMoved: userMoved.current,
+      hasFitted: true,
+      refitSpent: false,
+      msSinceFit: performance.now() - fittedAt.current,
+      prevInset: fittedInset.current,
+      nextInset: bottomInset,
+    });
+    insetRefitDone.current = true;
+    if (!refit) return;
+    let fired = false;
+    const frame = requestAnimationFrame(() => {
+      fired = true;
+      if (userMoved.current || needsFit.current) return;
+      fitToNearest();
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      // 같은 프레임에 높이가 또 바뀌었다 — 마지막 값으로 다시 판단하게 기회를 돌려준다
+      if (!fired) insetRefitDone.current = false;
+    };
   }, [ready, bottomInset, fitToNearest]);
 
   // 글자 모드가 바뀌면 핀 글자만 바꾼다(다시 그리거나 지도를 옮기지 않는다)

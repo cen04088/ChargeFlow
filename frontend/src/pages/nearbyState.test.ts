@@ -435,6 +435,33 @@ test("peekInfo: 지난번 위치 안내는 안내 문구와 함께여도 남는�
   );
 });
 
+test("peekInfo: 이전 결과를 둔 채 새로 찾는 동안은 접힌 줄 위에 상태 한 줄", () => {
+  const p = { radiusKm: 5, hasOrigin: true };
+  const list = nearbyView({
+    ...base,
+    hasOrigin: true,
+    source: "me",
+    result: res([st(1, "available"), st(2, "available")]),
+  });
+  expect(peekInfo({ ...p, searching: true, view: list })).toMatchObject({
+    kind: "station",
+    station: { id: 1 },
+    status: "새로 찾고 있어요",
+  });
+  expect(
+    peekInfo({ ...p, searching: true, view: { kind: "stale", notice: false } }),
+  ).toMatchObject({ kind: "message", action: "retry", status: "새로 찾고 있어요" });
+  expect(
+    peekInfo({ ...p, searching: true, view: { kind: "none", notice: false } }),
+  ).toMatchObject({ status: "새로 찾고 있어요" });
+  // 조용한 갱신(searching false)에는 없다
+  expect(peekInfo({ ...p, searching: false, view: list })).not.toHaveProperty("status");
+  // 결과가 없을 때는 제목이 이미 찾는 중이라 따로 두지 않는다
+  expect(
+    peekInfo({ ...p, searching: true, view: { kind: "loading" } }),
+  ).not.toHaveProperty("status");
+});
+
 test("peekInfo: 다시 시도 중에도 정보 수신 불가 줄과 버튼을 그대로 둔다", () => {
   expect(
     peekInfo({
@@ -447,6 +474,7 @@ test("peekInfo: 다시 시도 중에도 정보 수신 불가 줄과 버튼을 �
     kind: "message",
     title: "지금 충전소 정보를 받지 못하고 있어요",
     action: "retry",
+    status: "새로 찾고 있어요",
   });
 });
 

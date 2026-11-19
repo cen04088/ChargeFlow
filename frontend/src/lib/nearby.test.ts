@@ -4,6 +4,7 @@ import type { NearbyStation } from "../api/types";
 import {
   DOT_LEVEL,
   INSET_REFIT_MIN_PX,
+  INSET_REFIT_WINDOW_MS,
   REGIONS,
   ULTRA_FAST_KW,
   checkedText,
@@ -109,8 +110,40 @@ test("isUltraFast / pinLabel", () => {
   expect(pinLabel(st({ state: "unavailable", available: 0 }), "count")).toBe("이용 불가");
   expect(pinLabel(st({ power_kw: 200, state: "full", available: 0 }), "power")).toBe("200kW");
 });
+test("shouldRefitForInset: one chance per fit, only right after it", () => {
+  const fit = { userMoved: false, hasFitted: true, refitSpent: false };
+  expect(INSET_REFIT_WINDOW_MS).toBe(1000);
+  // 맞출 때 이미 맞는 높이였고, 한참 뒤(60초 갱신 등)에 바뀌면 → 다시 맞추지 않는다
+  expect(
+    shouldRefitForInset({ ...fit, msSinceFit: 60_000, prevInset: 236, nextInset: 111 }),
+  ).toBe(false);
+  // 맞출 때 너무 낮았고(찾는 중 한 줄), 곧 실제 높이가 오면 → 한 번 다시 맞춘다
+  expect(
+    shouldRefitForInset({ ...fit, msSinceFit: 200, prevInset: 111, nextInset: 236 }),
+  ).toBe(true);
+  // 그 기회를 쓴 뒤의 두 번째 변화 → 다시 맞추지 않는다
+  expect(
+    shouldRefitForInset({
+      ...fit,
+      refitSpent: true,
+      msSinceFit: 400,
+      prevInset: 236,
+      nextInset: 300,
+    }),
+  ).toBe(false);
+  expect(
+    shouldRefitForInset({ ...fit, msSinceFit: 1000, prevInset: 111, nextInset: 236 }),
+  ).toBe(false);
+});
 test("shouldRefitForInset: only before the user moves, after a fit, on a real change", () => {
-  const ok = { userMoved: false, hasFitted: true, prevInset: 111, nextInset: 236 };
+  const ok = {
+    userMoved: false,
+    hasFitted: true,
+    refitSpent: false,
+    msSinceFit: 100,
+    prevInset: 111,
+    nextInset: 236,
+  };
   expect(INSET_REFIT_MIN_PX).toBe(16);
   expect(shouldRefitForInset(ok)).toBe(true);
   expect(shouldRefitForInset({ ...ok, userMoved: true })).toBe(false);

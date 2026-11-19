@@ -174,10 +174,18 @@ export function sheetSnap(input: {
 
 /** 접힌 시트에 보일 한 줄: 가장 가까운 빈 곳, 또는 지금 상태의 안내 제목 */
 export type PeekInfo =
-  | { kind: "station"; label: string; station: NearbyStation; more: number }
+  | {
+      kind: "station";
+      label: string;
+      station: NearbyStation;
+      more: number;
+      /** 이전 결과를 둔 채 새로 찾는 중이면 접힌 줄 위에 보일 한 줄 */
+      status?: string;
+    }
   | {
       kind: "message";
       title: string;
+      status?: string;
       /** 지난번 위치로 보여 주는 중이면 제목 아래 한 줄 */
       subtitle?: string;
       action?: "retry";
@@ -187,10 +195,12 @@ export type PeekInfo =
     };
 
 const LAST_LOCATION_SUBTITLE = "지난번 위치 기준이에요";
+const SEARCHING_STATUS = "새로 찾고 있어요";
 
 /**
- * searching은 지금 검색이 진행 중인지다. 이전 결과가 있으면 그 결과의 줄을 그대로 두고
- * (본문이 진행을 알린다), 결과가 없을 때(view가 loading)만 찾는 중 문구가 된다.
+ * searching은 조용하지 않은 검색이 진행 중인지다. 이전 결과가 있으면 그 결과의 줄을 그대로 두고
+ * 그 위에 status("새로 찾고 있어요") 한 줄을 붙인다. 결과가 없을 때(view가 loading)는
+ * 제목이 이미 찾는 중 문구다.
  */
 export function peekInfo(input: {
   view: NearbyView;
@@ -198,7 +208,7 @@ export function peekInfo(input: {
   searching: boolean;
   hasOrigin: boolean;
 }): PeekInfo {
-  const { view, radiusKm, hasOrigin } = input;
+  const { view, radiusKm, searching, hasOrigin } = input;
   // 지역 선택·오류 화면에는 시트가 없다. 혹시 불려도 찾는 중 문구로 둔다
   if (view.kind === "loading" || view.kind === "regions" || view.kind === "error") {
     return {
@@ -207,16 +217,23 @@ export function peekInfo(input: {
     };
   }
   const notice = view.notice ? { subtitle: LAST_LOCATION_SUBTITLE } : {};
+  const status = searching ? { status: SEARCHING_STATUS } : {};
   if (view.kind === "stale") {
     return {
       kind: "message",
       title: "지금 충전소 정보를 받지 못하고 있어요",
       ...notice,
       action: "retry",
+      ...status,
     };
   }
   if (view.kind === "none") {
-    return { kind: "message", title: "30km 안에 급속충전소가 없어요", ...notice };
+    return {
+      kind: "message",
+      title: "30km 안에 급속충전소가 없어요",
+      ...notice,
+      ...status,
+    };
   }
   if (view.fallback) {
     const n = view.rows.length;
@@ -226,6 +243,7 @@ export function peekInfo(input: {
       ...notice,
       more: n,
       moreLabel: view.fallback === "full" ? `충전 중인 ${n}곳 보기` : `${n}곳 보기`,
+      ...status,
     };
   }
   return {
@@ -233,6 +251,7 @@ export function peekInfo(input: {
     label: view.notice ? "지난번 위치에서 가장 가까운 빈 곳" : "가장 가까운 빈 곳",
     station: view.rows[0],
     more: view.rows.length - 1,
+    ...status,
   };
 }
 
