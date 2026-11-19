@@ -91,11 +91,17 @@ export const api = {
         (heading == null ? "" : `&heading=${Math.round(heading)}`),
     ),
 
-  nearbyStations: (lat: number, lng: number, connector: Connector) =>
+  nearbyStations: (
+    lat: number,
+    lng: number,
+    connector: Connector,
+    minKw = 0,
+  ) =>
     request<NearbyStationsResponse>("POST", "/stations/nearby/", {
       lat: roundCoord(lat),
       lng: roundCoord(lng),
       connector,
+      ...(minKw ? { min_kw: minKw } : {}),
     }),
 
   pattern: (raId: number) =>

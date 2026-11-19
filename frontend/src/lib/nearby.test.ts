@@ -267,8 +267,8 @@ test("listRows with available stations or nothing has no fallback", () => {
   expect(listRows([], false)).toEqual({ rows: [], hidden: 0, fallback: false });
 });
 test("summaryText", () => {
-  expect(summaryText([st({}), st({ state: "full", available: 0 })])).toBe("급속 · 빈 곳 1곳");
-  expect(summaryText([st({ state: "full", available: 0 })])).toBe("급속 · 빈 곳 없음");
+  expect(summaryText([st({}), st({ state: "full", available: 0 })])).toBe("빈 곳 1곳");
+  expect(summaryText([st({ state: "full", available: 0 })])).toBe("빈 곳 없음");
 });
 test("REGIONS covers 17 regions inside Korea", () => {
   expect(REGIONS).toHaveLength(17);

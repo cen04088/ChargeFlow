@@ -52,7 +52,7 @@ export function StationRow({
             type="2RowTypeA"
             top={
               <span className="station-title">
-                <span>{s.name}</span>
+                <span className="station-title__name">{s.name}</span>
                 {best && (
                   <Badge size="small" variant="weak" color="green">
                     추천
@@ -77,6 +77,21 @@ export function StationRow({
             }
             bottomProps={{ typography: "t6", color: adaptive.grey700 }}
           />
+        }
+        right={
+          s.realtime ? (
+            <span
+              className={`nearby-row__count nearby-row__count--${
+                s.realtime.available > 0 ? "available" : "full"
+              }`}
+            >
+              {s.realtime.available > 0
+                ? `빈 ${s.realtime.available}대`
+                : "빈 곳 없음"}
+            </span>
+          ) : (
+            <span className="station-unknown">확인 필요</span>
+          )
         }
         arrowType="right"
         onClick={() => {

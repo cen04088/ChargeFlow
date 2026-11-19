@@ -19,12 +19,12 @@ export function raPin(c: Congestion): { text: string; kind: PinKind } {
     case "smooth":
     case "normal":
       return {
-        text: c.available == null ? c.label : `${c.available}대`,
+        text: c.available == null ? c.label : `빈 ${c.available}대`,
         kind: "available",
       };
     case "busy":
       return {
-        text: c.available == null ? c.label : `${c.available}대`,
+        text: c.available == null ? c.label : `빈 ${c.available}대`,
         kind: "full",
       };
     case "jammed":
@@ -97,22 +97,27 @@ export function listedRestAreas(nodes: HighwayNode[]): HighwayNode[] {
 }
 
 /**
- * IC 밖 충전소 핀: 빈 대수를 알면 "N대 · M분"(M = 우회하면 더 걸리는 시간), 모르면 "M분".
- * 모르는 곳은 쓸 수 있는 곳으로 두되 known false — 상태색 대신 중립색으로 그린다.
+ * IC 밖 충전소 핀: 숫자가 무엇인지 글자로 붙인다.
+ * 빈 대수를 알면 윗줄 "빈 N대"(없으면 "빈 곳 없음"), 아랫줄 "우회 +M분"(M = 우회하면 더 걸리는 시간).
+ * 모르면 윗줄만 "확인 필요"(노란 띠)로 바꾼 같은 두 줄 — 핀마다 모양이 달라 헷갈리지 않게. known false.
  */
 export function stationPin(s: BypassStation): {
   text: string;
+  sub?: string;
   kind: PinKind;
   known: boolean;
 } {
+  const detour = `우회 +${s.detour_extra_minutes}분`;
   if (s.realtime) {
+    const free = s.realtime.available;
     return {
-      text: `${s.realtime.available}대 · ${s.detour_extra_minutes}분`,
-      kind: s.realtime.available > 0 ? "available" : "full",
+      text: free > 0 ? `빈 ${free}대` : "빈 곳 없음",
+      sub: detour,
+      kind: free > 0 ? "available" : "full",
       known: true,
     };
   }
-  return { text: `${s.detour_extra_minutes}분`, kind: "available", known: false };
+  return { text: "확인 필요", sub: detour, kind: "unavailable", known: false };
 }
 
 export function loadLastHighway(): { code: string; dir: Direction } | null {

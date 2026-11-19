@@ -5,7 +5,6 @@ import {
   Chip,
   ChipItem,
   IconButton,
-  ListRow,
   Paragraph,
   Skeleton,
   Tab,
@@ -35,7 +34,6 @@ import { SheetHeading } from "../components/SheetHeading";
 import { StationRow, StationSheet } from "../components/StationRow";
 import {
   availabilityText,
-  detourSummary,
   directionLabel,
   isAlwaysOpen,
   isClosedToPublic,
@@ -204,6 +202,8 @@ function RestAreaView({
   const pattern = useAsync(() => api.pattern(ra.id), [ra.id]);
   /** 지도 위 시트가 펼쳐져 있다 */
   const [listOpen, setListOpen] = useState(false);
+  /** 접힌 시트를 한 번 더 내려 결론 한 줄만 남겼다 */
+  const [collapsed, setCollapsed] = useState(false);
   const [peekH, setPeekH] = useState(0);
   const [mapFailed, setMapFailed] = useState(false);
   const [viewportH, setViewportH] = useState(() => window.innerHeight);
@@ -312,6 +312,7 @@ function RestAreaView({
   const toggleList = (open: boolean, by: SheetToggleBy) => {
     logClick("rest_area_sheet_toggle", { open: open ? 1 : 0, by });
     setListOpen(open);
+    if (open) setCollapsed(false);
   };
   /** 접힌 시트의 버튼으로 펼친다. 누른 버튼은 펼치면 숨으므로 포커스를 손잡이로 옮긴다 */
   const openListFrom = (by: SheetToggleBy) => {
@@ -343,15 +344,41 @@ function RestAreaView({
   );
 
   /** 휴게소 충전기 상태 한 줄(빈 대수 / 전체 · 갱신 시각) */
-  const statusDetail = known
-    ? `${congestion.label} · ${availabilityText(congestion)}` +
-      (congestion.checked_at ? ` · ${timeAgo(congestion.checked_at)}` : "")
-    : null;
+  /** 펼친 시트 맨 위: 이 휴게소의 충전기 상태 카드(큰 숫자 + 전체 대수 + 확인 시각) */
+  const counted =
+    known && congestion.total != null && congestion.level !== "unavailable";
+  const statusCard = (
+    <div className={`rest-status rest-status--${raLabel.kind}`}>
+      <div className="rest-status__main">
+        <span className="rest-status__label">이 휴게소 급속 충전기</span>
+        <span className="rest-status__value">
+          {counted ? (
+            <>
+              빈 충전기 {congestion.available ?? 0}대
+              <span className="rest-status__total">
+                {" "}
+                / 전체 {congestion.total}대
+              </span>
+            </>
+          ) : known ? (
+            availabilityText(congestion)
+          ) : (
+            "상태를 받지 못했어요"
+          )}
+        </span>
+      </div>
+      {known && congestion.checked_at && (
+        <span className="rest-status__time">
+          {timeAgo(congestion.checked_at)}
+        </span>
+      )}
+    </div>
+  );
 
   /** IC 앞/뒤 탭 → 필터 → 충전소 줄 → 더 보기 (지도 시트의 펼친 본문, 쌓인 배치의 목록) */
   const stationsSection = activeIC ? (
     <section className="flow-section rest-stations">
-      <SectionHeader title="IC 밖 대체 충전소" />
+      <SectionHeader title="IC 밖 충전소" />
       <div className="sticky-bar">
         {ics.length > 1 && (
           <Tab
@@ -361,8 +388,12 @@ function RestAreaView({
             }}
             fluid
           >
-            <Tab.Item selected={tab === "prev"}>휴게소 전 IC</Tab.Item>
-            <Tab.Item selected={tab === "next"}>휴게소 후 IC</Tab.Item>
+            <Tab.Item selected={tab === "prev"}>
+              {data.previous_ic ? `${data.previous_ic.name} (전)` : "휴게소 전 IC"}
+            </Tab.Item>
+            <Tab.Item selected={tab === "next"}>
+              {data.next_ic ? `${data.next_ic.name} (후)` : "휴게소 후 IC"}
+            </Tab.Item>
           </Tab>
         )}
         <div className="filter-row">
@@ -406,8 +437,8 @@ function RestAreaView({
           </Chip>
         </div>
         <div className="filter-caption">
-          <Paragraph typography="t7" color={adaptive.grey600}>
-            {activeIC.name}에서 나가요 · 더 걸리는 시간이 짧은 순
+          <Paragraph typography="t6" color={adaptive.grey600}>
+            {activeIC.name}에서 나가요 · 우회 시간이 짧은 순
           </Paragraph>
         </div>
       </div>
@@ -663,7 +694,6 @@ function RestAreaView({
       <p className="verdict__text" aria-live="polite">
         {peek.verdict}
       </p>
-      {statusDetail && <p className="verdict__detail">{statusDetail}</p>}
     </div>
   );
 
@@ -678,62 +708,47 @@ function RestAreaView({
     </Button>
   );
 
-  const peekContent =
-    peek.kind === "best" ? (
+  const peekContent = collapsed ? (
+    <div className="nearby-peek">{verdictBox}</div>
+  ) : peek.kind === "best" ? (
       <div className="nearby-peek">
         {verdictBox}
-        <p className="nearby-peek__label rest-peek__label">
-          가장 빨리 다녀올 곳
-        </p>
         <div
           className={
-            focusId === peek.station.id
-              ? "nearby-peek__row row-focused"
-              : "nearby-peek__row"
+            focusId === peek.station.id ? "rest-mini row-focused" : "rest-mini"
           }
         >
-          <ListRow
-            as="div"
-            className="nearby-row"
-            horizontalPadding="small"
-            arrowType="right"
-            border="none"
-            withTouchEffect
-            contents={
-              <ListRow.Texts
-                type="2RowTypeA"
-                top={peek.station.name}
-                topProps={{ fontWeight: "bold" }}
-                bottom={
-                  detourSummary(peek.station) +
-                  (peek.icName ? ` · ${peek.icName}에서 나가요` : "")
-                }
-                bottomProps={{ typography: "t6", color: "var(--muted)" }}
-              />
-            }
-            right={
-              peek.station.realtime ? (
-                <span
-                  className={`nearby-row__count nearby-row__count--${stationPin(peek.station).kind}`}
-                >
-                  {`${peek.station.realtime.available}대`}
-                </span>
-              ) : undefined
-            }
+          <button
+            type="button"
+            className="rest-mini__info press"
             onClick={() => {
               logClick("best_detail");
               openSheet(peek.station);
             }}
-          />
-        </div>
-        <div className="nearby-peek__action rest-peek__actions">
-          {moreButton(`IC 밖 충전소 ${peek.more}곳 보기`)}
-          <Button
-            size="large"
-            display="full"
-            onClick={() => directions(peek.station)}
           >
+            <span className="rest-mini__name">{peek.station.name}</span>
+            <span className="rest-mini__sub">
+              {"IC 밖 · " +
+                (peek.station.realtime
+                  ? peek.station.realtime.available > 0
+                    ? `빈 ${peek.station.realtime.available}대 · `
+                    : "빈 곳 없음 · "
+                  : "") +
+                `우회 +${peek.station.detour_extra_minutes}분`}
+            </span>
+          </button>
+          <Button size="medium" onClick={() => directions(peek.station)}>
             길찾기
+          </Button>
+        </div>
+        <div className="nearby-peek__action rest-mini__more">
+          <Button
+            size="medium"
+            variant="weak"
+            display="full"
+            onClick={() => openListFrom("button")}
+          >
+            {`IC 밖 충전소 ${peek.more}곳 보기`}
           </Button>
         </div>
       </div>
@@ -789,6 +804,9 @@ function RestAreaView({
         lat: +s.latitude,
         lng: +s.longitude,
         text: p.text,
+        sub: p.sub,
+        badge: s.realtime ? String(s.realtime.available) : "?",
+        title: s.name,
         kind: p.kind,
         known: p.known,
         ariaLabel:
@@ -842,7 +860,13 @@ function RestAreaView({
           onPeekHeight={setPeekH}
           handleRef={handleRef}
           label="IC 밖 대체 충전소 목록"
+          collapsed={collapsed}
+          onCollapse={(v) => {
+            logClick("rest_sheet_collapse", { collapsed: v ? 1 : 0 });
+            setCollapsed(v);
+          }}
         >
+          {statusCard}
           {stationsSection}
           {tail}
         </NearbyListSheet>

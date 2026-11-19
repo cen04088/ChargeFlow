@@ -18,6 +18,12 @@ export interface RoutePin {
   lat: number;
   lng: number;
   text: string;
+  /** 아랫줄 작은 글자(예: "우회 +6분") */
+  sub?: string;
+  /** 원 안에 넣을 짧은 글자(빈 대수 숫자, 모르면 "?"). 주면 이 핀은 원으로 먼저 보이고 누르면 글자가 된다 */
+  badge?: string;
+  /** 눌러서 글자로 펼쳤을 때 맨 위에 보일 이름 */
+  title?: string;
   kind: PinKind;
   /** false면 상태를 모른다 — 상태색 대신 중립색 */
   known?: boolean;
@@ -75,8 +81,11 @@ const FOCUS_SCALE = 1.15;
 /** 점이 하나뿐이면 이만큼(도) 둘레를 넣어 맞춘다(너무 확대되지 않게) */
 const SINGLE_POINT_SPAN = 0.02;
 /** 노선 선: 흰 테두리 위에 브랜드 파랑 */
-const LINE_OUTER_PX = 8;
-const LINE_INNER_PX = 4;
+/* 노선은 띠 화면과 같은 "도로" 모양: 흰 테두리 → 진한 가장자리 → 주황 노면 → 흰 점선 중앙선 */
+const LINE_CASING_PX = 15;
+const LINE_EDGE_PX = 11;
+const LINE_ROAD_PX = 8;
+const LINE_CENTER_PX = 2;
 
 /** 겹침 순서: 강조 > 글자 핀(빈 곳 > 충전 중 > 이용 불가) > 점. 내 위치 점은 0, 이름표는 1 */
 function pinZ(kind: PinKind, pill: boolean, top: boolean) {
@@ -85,11 +94,12 @@ function pinZ(kind: PinKind, pill: boolean, top: boolean) {
   return pill ? 5 + rank : 1 + rank;
 }
 
-function brandColor() {
+/** CSS 변수 색을 읽는다(없으면 기본값) */
+function cssColor(name: string, fallback: string) {
   const v = getComputedStyle(document.documentElement)
-    .getPropertyValue("--brand-primary")
+    .getPropertyValue(name)
     .trim();
-  return v || "#2463d7";
+  return v || fallback;
 }
 
 /** DB에서 온 이름이 HTML로 해석되지 않도록 DOM으로 만든다 */
@@ -99,11 +109,31 @@ function pinElement(p: RoutePin, focused: boolean, onClick: () => void) {
     `nearby-pin nearby-pin--${p.kind}` +
     (p.known === false ? " nearby-pin--neutral" : "") +
     (p.emphasized ? " route-pin--emph" : "") +
+    (p.sub ? " nearby-pin--two" : "") +
+    (p.badge != null ? " route-pin--num" : "") +
     (focused ? " nearby-pin--focus" : "");
+  if (p.badge != null) {
+    const badge = document.createElement("span");
+    badge.className = "route-pin__badge";
+    badge.textContent = p.badge;
+    el.appendChild(badge);
+  }
+  if (p.title) {
+    const title = document.createElement("span");
+    title.className = "route-pin__title";
+    title.textContent = p.title;
+    el.appendChild(title);
+  }
   const text = document.createElement("span");
   text.className = "nearby-pin__text";
   text.textContent = p.text;
   el.appendChild(text);
+  if (p.sub) {
+    const sub = document.createElement("span");
+    sub.className = "nearby-pin__sub";
+    sub.textContent = p.sub;
+    el.appendChild(sub);
+  }
   el.setAttribute("role", "button");
   el.setAttribute("aria-label", p.ariaLabel);
   el.tabIndex = 0;
@@ -145,6 +175,8 @@ export function RouteMap({
   /* eslint-enable @typescript-eslint/no-explicit-any */
   const pinEls = useRef<Map<number, HTMLElement>>(new Map());
   const pillSizes = useRef<Map<string, { w: number; h: number }>>(new Map());
+  /** 원으로 먼저 보이는 핀(badge) 가운데 눌러서 글자로 펼친 것 */
+  const revealed = useRef<number | null>(null);
   const measureBox = useRef<HTMLDivElement | null>(null);
   const lastDotsKey = useRef("");
   const [ready, setReady] = useState(false);
@@ -178,7 +210,7 @@ export function RouteMap({
 
   /** 글자 핀일 때의 크기(px). 화면 밖 상자에 한 번 그려 재고 캐시한다 */
   const pillSize = useCallback((p: RoutePin) => {
-    const key = `${p.kind}|${p.known === false ? 0 : 1}|${p.emphasized ? 1 : 0}|${p.text}`;
+    const key = `${p.kind}|${p.known === false ? 0 : 1}|${p.emphasized ? 1 : 0}|${p.text}|${p.sub ?? ""}`;
     const hit = pillSizes.current.get(key);
     if (hit) return hit;
     if (!measureBox.current) {
@@ -217,15 +249,18 @@ export function RouteMap({
         id: p.id,
         rect: { left: pt.x - w / 2, right: pt.x + w / 2, top: bottom - h, bottom },
         priority: p.priority,
-        focused: focused || !!p.emphasized,
+        // 늘 글자로 두는 것은 누른 핀과 휴게소 핀뿐 — 강조한 추천 충전소도 겹치면 점이 된다
+        focused: focused || p.priority < 0 || p.id === revealed.current,
+        // 원으로 먼저 보이는 핀은 누르기 전에는 글자가 되지 않는다
+        dotOnly: p.badge != null && p.priority >= 0,
       };
     });
     const top = topInsetRef.current;
     const pills = declutterPins(
-      items,
+      items.filter((it) => it.focused || !it.dotOnly),
       top > 0 ? [{ left: -Infinity, top: -Infinity, right: Infinity, bottom: top }] : [],
     );
-    const key = `${focus}|${[...pills].sort((a, b) => a - b).join(",")}`;
+    const key = `${focus}|${revealed.current}|${[...pills].sort((a, b) => a - b).join(",")}`;
     if (key === lastDotsKey.current) return;
     lastDotsKey.current = key;
     list.forEach((p) => {
@@ -234,6 +269,7 @@ export function RouteMap({
       if (!el || !o) return;
       const pill = pills.has(p.id);
       el.classList.toggle("nearby-pin--dot", !pill);
+      el.classList.toggle("route-pin--revealed", pill && p.id === revealed.current);
       o.setZIndex(pinZ(p.kind, pill, p.id === focus || !!p.emphasized));
     });
   }, [pillSize]);
@@ -270,6 +306,11 @@ export function RouteMap({
       const onIdle = () => applyDots();
       const onClick = () => {
         if (Date.now() - pinTapAt.current < PIN_TAP_GUARD_MS) return;
+        // 빈 곳을 누르면 펼친 핀을 다시 원으로
+        if (revealed.current != null) {
+          revealed.current = null;
+          applyDots();
+        }
         mapTapRef.current?.();
       };
       maps.event.addListener(m, "dragend", onDragEnd);
@@ -399,27 +440,34 @@ export function RouteMap({
     if (!ready || !map.current || !kakao || path.length < 2) return;
     const { maps } = kakao;
     const line = path.map((p) => new maps.LatLng(p.lat, p.lng));
-    const outer = new maps.Polyline({
-      path: line,
-      strokeWeight: LINE_OUTER_PX,
-      strokeColor: "#ffffff",
-      strokeOpacity: 1,
-      strokeStyle: "solid",
-      zIndex: 0,
-    });
-    const inner = new maps.Polyline({
-      path: line,
-      strokeWeight: LINE_INNER_PX,
-      strokeColor: brandColor(),
-      strokeOpacity: 1,
-      strokeStyle: "solid",
-      zIndex: 1,
-    });
-    outer.setMap(map.current);
-    inner.setMap(map.current);
+    const layer = (
+      weight: number,
+      color: string,
+      z: number,
+      extra: Record<string, unknown> = {},
+    ) =>
+      new maps.Polyline({
+        path: line,
+        strokeWeight: weight,
+        strokeColor: color,
+        strokeOpacity: 1,
+        strokeStyle: "solid",
+        zIndex: z,
+        ...extra,
+      });
+    const layers = [
+      layer(LINE_CASING_PX, "#ffffff", 0),
+      layer(LINE_EDGE_PX, cssColor("--road-edge", "#e8590c"), 1),
+      // 가는 방향 끝에 화살표
+      layer(LINE_ROAD_PX, cssColor("--road", "#f59f00"), 2, { endArrow: true }),
+      layer(LINE_CENTER_PX, "#ffffff", 3, {
+        strokeStyle: "shortdash",
+        strokeOpacity: 0.9,
+      }),
+    ];
+    layers.forEach((l) => l.setMap(map.current));
     return () => {
-      outer.setMap(null);
-      inner.setMap(null);
+      layers.forEach((l) => l.setMap(null));
     };
     // pathSig가 path를 대표한다
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -457,7 +505,7 @@ export function RouteMap({
   const pinSig = pins
     .map(
       (p) =>
-        `${p.id}:${p.lat}:${p.lng}:${p.text}:${p.kind}:${p.known}:${p.emphasized}:${p.priority}:${p.ariaLabel}`,
+        `${p.id}:${p.lat}:${p.lng}:${p.text}:${p.sub ?? ""}:${p.kind}:${p.known}:${p.emphasized}:${p.priority}:${p.ariaLabel}`,
     )
     .join("|");
   useEffect(() => {
@@ -471,6 +519,12 @@ export function RouteMap({
       const focused = p.id === focusRef.current;
       const el = pinElement(p, focused, () => {
         pinTapAt.current = Date.now();
+        // 원으로 보이는 핀: 첫 누르기는 글자로 펼치기만, 펼친 뒤 누르면 고른다
+        if (p.badge != null && p.priority >= 0 && revealed.current !== p.id) {
+          revealed.current = p.id;
+          applyDots();
+          return;
+        }
         selectRef.current(p.id);
       });
       const anchor = document.createElement("div");

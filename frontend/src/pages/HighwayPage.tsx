@@ -19,6 +19,7 @@ import { api } from "../api/client";
 import type { Direction, HighwayNode } from "../api/types";
 import { ErrorState } from "../components/ErrorState";
 import { HighwayPickerSheet } from "../components/HighwayPickerSheet";
+import { ModeTabLabel, ModeTabs } from "../components/ModeTabs";
 import {
   NearbyListSheet,
   type SheetToggleBy,
@@ -95,7 +96,7 @@ function HomeLink({ from }: { from?: "home" }) {
     <Link
       to="/"
       state={{ from: "highway" }}
-      className="nearby-ctrl nearby-ctrl--highway press"
+      className="mode-tab press"
       onClick={(e) => {
         if (from !== "home") return;
         e.preventDefault();
@@ -104,7 +105,7 @@ function HomeLink({ from }: { from?: "home" }) {
         else navigate("/", { replace: true });
       }}
     >
-      주변 충전소
+      <ModeTabLabel mode="nearby" />
     </Link>
   );
 }
@@ -223,7 +224,7 @@ function usePicker(current?: { code: string; dir: Direction }) {
   return { open, setOpen, sheet, go, highways, from };
 }
 
-/** /highways: 위치(20km) → 마지막 노선 → 노선 고르기 시트 순서로 노선을 정한다 */
+/** /highways: 위치(20km 안의 휴게소)로 노선을 정하고, 못 정하면 노선 고르기 시트를 연다 */
 function StartView() {
   const picker = usePicker();
   const [phase, setPhase] = useState<"deciding" | "sheet">("deciding");
@@ -255,7 +256,8 @@ function StartView() {
       };
       if (codes.length === 0) return toSheet();
       const r = await findHighwayStart({
-        last: loadLastHighway(),
+        // 지난번에 본 노선으로 바로 들어가지 않는다 — 위치로 못 정하면 이용자가 직접 고른다
+        last: null,
         codes,
         signal: c.signal,
       });
@@ -289,20 +291,23 @@ function StartView() {
     <main className="page">
       <div className="nearby-intro">
         <h1 className="sr-only">고속도로 휴게소</h1>
-        <div className="nearby-controls" role="group" aria-label="고속도로 고르기">
-          <Button
-            type="button"
-            className="nearby-filter"
-            size="medium"
-            variant="weak"
-            color="primary"
-            aria-haspopup="dialog"
-            onClick={() => picker.setOpen(true)}
-          >
-            고속도로 고르기
-          </Button>
-          <HomeLink from={from} />
-        </div>
+        <ModeTabs current="highway" other={<HomeLink from={from} />} />
+        {/* 고르기 버튼은 한 곳에만: 찾는 중에는 여기, 다 찾고 나면 아래 안내 카드에 */}
+        {phase === "deciding" && (
+          <div className="nearby-controls" role="group" aria-label="고속도로 고르기">
+            <Button
+              type="button"
+              className="nearby-filter"
+              size="medium"
+              variant="weak"
+              color="primary"
+              aria-haspopup="dialog"
+              onClick={() => picker.setOpen(true)}
+            >
+              고속도로 고르기
+            </Button>
+          </div>
+        )}
       </div>
       <div className="nearby-body">
         {phase === "deciding" ? (
@@ -776,6 +781,7 @@ function RouteView({ code }: { code: string }) {
   const controls = (
     <div className="nearby-intro">
       <h1 className="sr-only">{hw?.name ?? "고속도로 휴게소"}</h1>
+      <ModeTabs current="highway" other={<HomeLink from={nav.from} />} />
       <div className="nearby-controls" role="group" aria-label="노선과 방향">
         <Button
           type="button"
@@ -802,7 +808,6 @@ function RouteView({ code }: { code: string }) {
             <SwapIcon />
           </span>
         </Button>
-        <HomeLink from={nav.from} />
       </div>
     </div>
   );
@@ -969,6 +974,11 @@ function RouteView({ code }: { code: string }) {
       lat: +n.latitude,
       lng: +n.longitude,
       text: p.text,
+      badge:
+        n.congestion && n.congestion.level !== "unknown" && n.congestion.available != null
+          ? String(n.congestion.available)
+          : "?",
+      title: shortName(n.name),
       kind: p.kind,
       ariaLabel: raAriaLabel(shortName(n.name), n.congestion) + role,
       // 다음 휴게소 > 그 뒤 가는 순서 > 지나온 곳. 가는 방향을 모르면 가까운 휴게소에서 가까운 순
