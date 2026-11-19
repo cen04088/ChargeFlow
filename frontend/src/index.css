@@ -11,7 +11,8 @@
   --muted: #4e5968;
   --line: #e9edf0;
   --gutter: clamp(18px, 5.6vw, 24px);
-  --bottom-space: calc(34px + env(safe-area-inset-bottom));
+  /* 아래 여백: 홈 막대가 있는 기기는 그 높이(보통 34px), 없는 기기는 16px. 둘을 더하지 않는다 */
+  --bottom-space: max(16px, env(safe-area-inset-bottom, 0px));
 
   /* 스프링 곡선 (Apple 방식: 감쇠비·응답 시간).
      기본은 감쇠비 1.0·응답 0.35초 — 넘치지 않고 멈춘다.
@@ -787,9 +788,9 @@ html body {
 }
 
 /* ── 내 주변 충전소 홈 ─────────────────────────────────── */
-/* 상단은 버튼 줄 하나. 위 여백은 플랫폼 상단 바 아래 기준(safe area가 있으면 그만큼 더) */
+/* 상단은 버튼 줄 하나. 플랫폼 상단 바가 이미 상태 표시줄 아래에 있으므로 safe area를 더하지 않는다 */
 .nearby-intro {
-  padding: calc(12px + env(safe-area-inset-top, 0px)) 0 12px;
+  padding: 8px 0 10px;
 }
 
 .nearby-controls {

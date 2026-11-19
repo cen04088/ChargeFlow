@@ -291,19 +291,22 @@ function StartView() {
       <div className="nearby-intro">
         <h1 className="sr-only">고속도로 휴게소</h1>
         <ModeTabs current="highway" other={<HomeLink from={from} />} />
-        <div className="nearby-controls" role="group" aria-label="고속도로 고르기">
-          <Button
-            type="button"
-            className="nearby-filter"
-            size="medium"
-            variant="weak"
-            color="primary"
-            aria-haspopup="dialog"
-            onClick={() => picker.setOpen(true)}
-          >
-            고속도로 고르기
-          </Button>
-        </div>
+        {/* 고르기 버튼은 한 곳에만: 찾는 중에는 여기, 다 찾고 나면 아래 안내 카드에 */}
+        {phase === "deciding" && (
+          <div className="nearby-controls" role="group" aria-label="고속도로 고르기">
+            <Button
+              type="button"
+              className="nearby-filter"
+              size="medium"
+              variant="weak"
+              color="primary"
+              aria-haspopup="dialog"
+              onClick={() => picker.setOpen(true)}
+            >
+              고속도로 고르기
+            </Button>
+          </div>
+        )}
       </div>
       <div className="nearby-body">
         {phase === "deciding" ? (
