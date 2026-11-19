@@ -19,6 +19,7 @@ import { api } from "../api/client";
 import type { Direction, HighwayNode } from "../api/types";
 import { ErrorState } from "../components/ErrorState";
 import { HighwayPickerSheet } from "../components/HighwayPickerSheet";
+import { ModeTabLabel, ModeTabs } from "../components/ModeTabs";
 import {
   NearbyListSheet,
   type SheetToggleBy,
@@ -95,7 +96,7 @@ function HomeLink({ from }: { from?: "home" }) {
     <Link
       to="/"
       state={{ from: "highway" }}
-      className="nearby-ctrl nearby-ctrl--highway press"
+      className="mode-tab press"
       onClick={(e) => {
         if (from !== "home") return;
         e.preventDefault();
@@ -104,7 +105,7 @@ function HomeLink({ from }: { from?: "home" }) {
         else navigate("/", { replace: true });
       }}
     >
-      주변 충전소
+      <ModeTabLabel mode="nearby" />
     </Link>
   );
 }
@@ -289,6 +290,7 @@ function StartView() {
     <main className="page">
       <div className="nearby-intro">
         <h1 className="sr-only">고속도로 휴게소</h1>
+        <ModeTabs current="highway" other={<HomeLink from={from} />} />
         <div className="nearby-controls" role="group" aria-label="고속도로 고르기">
           <Button
             type="button"
@@ -301,7 +303,6 @@ function StartView() {
           >
             고속도로 고르기
           </Button>
-          <HomeLink from={from} />
         </div>
       </div>
       <div className="nearby-body">
@@ -776,6 +777,7 @@ function RouteView({ code }: { code: string }) {
   const controls = (
     <div className="nearby-intro">
       <h1 className="sr-only">{hw?.name ?? "고속도로 휴게소"}</h1>
+      <ModeTabs current="highway" other={<HomeLink from={nav.from} />} />
       <div className="nearby-controls" role="group" aria-label="노선과 방향">
         <Button
           type="button"
@@ -802,7 +804,6 @@ function RouteView({ code }: { code: string }) {
             <SwapIcon />
           </span>
         </Button>
-        <HomeLink from={nav.from} />
       </div>
     </div>
   );

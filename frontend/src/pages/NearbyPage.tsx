@@ -17,8 +17,10 @@ import {
   NearbyListSheet,
   type SheetToggleBy,
 } from "../components/NearbyListSheet";
+import { ModeTabLabel, ModeTabs } from "../components/ModeTabs";
 import { NearbyMap } from "../components/NearbyMap";
 import { NearbySheet } from "../components/NearbySheet";
+import { PlaceSearch } from "../components/PlaceSearch";
 import { SheetHeading } from "../components/SheetHeading";
 import {
   REGIONS,
@@ -30,6 +32,7 @@ import {
   type PinMode,
   type Region,
 } from "../lib/nearby";
+import type { Place } from "../lib/placeSearch";
 import { connectorName, useConnector } from "../lib/store";
 import { useElementHeight } from "../lib/useElementHeight";
 import { getLocation, logClick, logScreen } from "../lib/toss";
@@ -59,9 +62,9 @@ const FLOAT_GAP = 8;
 const MAP_BUTTON_MIN_H = 44;
 
 const REGION_TITLE: Record<LocFailure | "pick", string> = {
-  denied: "위치 권한 없이도 지역을 선택해 검색할 수 있어요.",
-  failed: "현재 위치를 확인하지 못했어요. 검색할 지역을 골라 주세요.",
-  pick: "선택한 지역의 중심을 기준으로 찾아요.",
+  denied: "위치 권한 없이도 주소를 검색하거나 지역을 골라 찾을 수 있어요.",
+  failed: "현재 위치를 확인하지 못했어요. 주소를 검색하거나 지역을 골라 주세요.",
+  pick: "주소나 장소 이름을 검색하거나, 아래에서 지역을 골라 주세요.",
 };
 
 export default function NearbyPage() {
@@ -273,7 +276,21 @@ export default function NearbyPage() {
     setLocating(false);
     setMe(null);
     setRegionName(r.name);
+    // 먼 곳으로 옮긴다 — 이전 위치의 충전소로 지도 범위를 맞추지 않게 결과를 비운다
+    setResult(null);
     searchFrom({ lat: r.lat, lng: r.lng }, "region", true);
+  };
+
+  /** 검색한 주소·장소를 기준점으로 삼는다(지역 고르기와 같은 흐름) */
+  const pickPlace = (p: Place) => {
+    logClick("nearby_place_pick");
+    ++locSeq.current;
+    locatingRef.current = false;
+    setLocating(false);
+    setMe(null);
+    setRegionName(p.name);
+    setResult(null);
+    searchFrom({ lat: p.lat, lng: p.lng }, "region", true);
   };
 
   const searchHere = () => {
@@ -622,54 +639,65 @@ export default function NearbyPage() {
   return (
     <main className={mapLayout ? "page page--map" : "page"}>
       <div className="nearby-intro">
-        {/* 제목은 화면낭독기에만 — 보이는 상단은 버튼 줄 하나다 */}
+        {/* 제목은 화면낭독기에만 — 보이는 상단은 한 줄이다: 화면 탭 + 검색·충전 규격 아이콘 */}
         <h1 className="sr-only">주변 급속충전소</h1>
-        <div
-          className="nearby-controls"
-          aria-label="충전소 검색 설정"
-          role="group"
-        >
-          <Button
+        <div className="nearby-top">
+          <ModeTabs
+            current="nearby"
+            other={
+              <Link
+                to="/highways"
+                state={{ from: "home" }}
+                className="mode-tab press"
+                aria-label="고속도로 휴게소"
+                onClick={(e) => {
+                  logClick("nearby_open_highway");
+                  // 고속도로 화면에서 "주변 충전소"로 왔으면 뒤로 간다(홈 ↔ 고속도로 기록이 쌓이지 않게)
+                  if (cameFromHighway) {
+                    e.preventDefault();
+                    // 앞 기록이 정말 있을 때만 뒤로(복원된 웹뷰에서 앱을 닫지 않게). 없으면 바꿔 연다
+                    if (canGoBack(location.key)) navigate(-1);
+                    else navigate("/highways", { replace: true });
+                  }
+                }}
+              >
+                <ModeTabLabel mode="highway" />
+              </Link>
+            }
+          />
+          <button
             type="button"
-            className="nearby-filter"
-            size="medium"
-            variant="weak"
-            color={view.kind === "regions" ? "primary" : "dark"}
+            className={
+              view.kind === "regions" ? "icon-btn icon-btn--on press" : "icon-btn press"
+            }
+            aria-label="주소로 찾기"
             aria-expanded={view.kind === "regions"}
             disabled={regionRequired}
             onClick={() => setRegionsRequested((open) => !open)}
           >
-            지역 선택
-          </Button>
-          <Button
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" strokeWidth="2.2" />
+              <path d="m15.5 15.5 5 5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+            </svg>
+          </button>
+          <button
             type="button"
-            className="nearby-filter"
-            size="medium"
-            variant="weak"
-            color={connector ? "primary" : "dark"}
+            className={connector ? "icon-btn icon-btn--on press" : "icon-btn press"}
+            aria-label={
+              connector ? `충전 규격: ${connectorName(connector)}` : "충전 규격 고르기"
+            }
             aria-haspopup="dialog"
             onClick={openPicker}
           >
-            {connector ? connectorName(connector) : "충전 규격"}
-          </Button>
-          <Link
-            to="/highways"
-            state={{ from: "home" }}
-            className="nearby-ctrl nearby-ctrl--highway press"
-            aria-label="고속도로 휴게소"
-            onClick={(e) => {
-              logClick("nearby_open_highway");
-              // 고속도로 화면에서 "주변 충전소"로 왔으면 뒤로 간다(홈 ↔ 고속도로 기록이 쌓이지 않게)
-              if (cameFromHighway) {
-                e.preventDefault();
-                // 앞 기록이 정말 있을 때만 뒤로(복원된 웹뷰에서 앱을 닫지 않게). 없으면 바꿔 연다
-                if (canGoBack(location.key)) navigate(-1);
-                else navigate("/highways", { replace: true });
-              }
-            }}
-          >
-            고속도로
-          </Link>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M13.5 2.5 5 13.5h6l-1 8 8.5-11h-6l1-8Z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -841,10 +869,12 @@ export default function NearbyPage() {
             >
               <div className="nearby-regions__head">
                 <h2 className="nearby-regions__title" id="nearby-regions-title">
-                  어느 지역에서 찾을까요?
+                  어디에서 찾을까요?
                 </h2>
                 <p>{REGION_TITLE[view.reason]}</p>
               </div>
+              <PlaceSearch autoFocus={view.reason === "pick"} onPick={pickPlace} />
+              <h3 className="nearby-regions__sub">지역으로 고르기</h3>
               <ul className="nearby-regions__grid">
                 {REGIONS.map((r) => (
                   <li key={r.name}>

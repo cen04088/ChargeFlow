@@ -828,10 +828,172 @@ html body {
   outline-offset: 2px;
 }
 
-.nearby-ctrl--highway {
-  margin-inline-start: auto;
+/* 화면 탭(주변 충전소 | 고속도로). 홈과 고속도로 화면 맨 위 같은 자리에 둔다 */
+.mode-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 0 var(--gutter) 10px;
+  padding: 4px;
+  border-radius: 16px;
+  background: var(--canvas);
+}
+
+.mode-tab {
+  display: inline-flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 46px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* 홈 상단 한 줄: 화면 탭 + 아이콘 버튼 둘 */
+.nearby-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 var(--gutter);
+}
+
+.nearby-top .mode-tabs {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+}
+
+.nearby-top .mode-tab {
+  font-size: 16px;
+  padding-inline: 4px;
+}
+
+.icon-btn {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  color: var(--ink);
+  background: var(--canvas);
+}
+
+.icon-btn--on {
   color: var(--brand-strong);
+  background: #e3edff;
+}
+
+.icon-btn:disabled {
+  opacity: 0.45;
+}
+
+.icon-btn:focus-visible {
+  outline: 2px solid var(--brand-strong);
+  outline-offset: 2px;
+}
+
+/* 좁은 화면에서는 탭의 아이콘을 빼고 글자만 둔다(한 줄 유지) */
+@media (max-width: 400px) {
+  .nearby-top .mode-tab svg {
+    display: none;
+  }
+}
+
+@media (max-width: 340px) {
+  .nearby-top {
+    gap: 6px;
+  }
+
+  .nearby-top .mode-tab {
+    font-size: 15px;
+    letter-spacing: -0.02em;
+  }
+
+  .nearby-top .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* 주소·장소 검색 */
+.place-search {
+  margin-top: 16px;
+}
+
+.place-search__note {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.place-search__list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.place-search__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--canvas);
+  font: inherit;
+  text-align: left;
   background: transparent;
+}
+
+.place-search__name {
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.place-search__addr {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.nearby-regions__sub {
+  margin: 28px 0 0;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.nearby-regions__sub + .nearby-regions__grid {
+  margin-top: 12px;
+}
+
+.mode-tab svg {
+  flex-shrink: 0;
+}
+
+.mode-tab--on {
+  color: #fff;
+  background: var(--brand-primary);
+  box-shadow: 0 2px 6px rgba(36, 99, 215, 0.3);
+}
+
+.mode-tab:focus-visible {
+  outline: 2px solid var(--brand-strong);
+  outline-offset: 2px;
 }
 
 .nearby-map-wrap {
