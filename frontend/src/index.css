@@ -1,15 +1,17 @@
 :root {
   /* ChargeFlow 브랜드 — apps-in-toss.config.ts의 primaryColor와 같은 값 */
-  --brand-primary: #00a37a;
-  /* 흰 바탕 위 글자·흰 글자 배경용 진한 톤 (명도 대비 4.5:1 이상) */
-  --brand-strong: #007a5c;
-  --brand-deep: #005c45;
-  --brand-tint: #e6f6f1;
-  --brand-tint-strong: #c7ebdf;
-  --sky-tint: #e8f3ff;
+  --brand-primary: #2463d7;
+  --brand-strong: var(--brand-primary);
+  --brand-deep: #18479f;
+  --brand-tint: #edf4ff;
+  --brand-tint-strong: #dce9ff;
   --sky-strong: #1b64da;
-  --canvas: #f2f4f6;
+  --canvas: #f3f5f7;
   --ink: #191f28;
+  --muted: #4e5968;
+  --line: #e9edf0;
+  --gutter: clamp(18px, 5.6vw, 24px);
+  --bottom-space: calc(34px + env(safe-area-inset-bottom));
 
   /* 스프링 곡선 (Apple 방식: 감쇠비·응답 시간).
      기본은 감쇠비 1.0·응답 0.35초 — 넘치지 않고 멈춘다.
@@ -24,6 +26,20 @@
   --spring-bounce-time: 380ms;
 
   --radius-card: 20px;
+
+  /* 충전소 상태색 — 브랜드색과 따로 둔다. 흰 글자 대비: 5.34 / 4.72 / 7.11 : 1.
+     -strong은 강조(누른 핀)용으로 한 단계 진하게: 7.62 / 6.73 / 11.0 : 1 */
+  --state-available: #0b7a55;
+  --state-available-strong: #08603f;
+  --state-full: #b35c00;
+  --state-full-strong: #8f4900;
+  --state-unavailable: #4e5968;
+  --state-unavailable-strong: #333d4b;
+
+  /* 고속도로 도로색 — 노선 띠와 작은 지도 창의 선에만. 상태색 주황(--state-full #b35c00)보다
+     훨씬 밝은 노랑 주황이라 헷갈리지 않는다. 상태는 고리 색 + 글자로 알린다 */
+  --road: #f59f00;
+  --road-edge: #e8590c;
 }
 
 * {
@@ -39,26 +55,32 @@ body {
      이모지는 .tf로 감싼다 */
   font-family: -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo",
     "Noto Sans KR", sans-serif;
-  min-width: 320px;
-  min-height: 100vh;
+  min-height: 100dvh;
   background: #fff;
+  color: var(--ink);
   word-break: keep-all;
   overflow-wrap: break-word;
 }
 
 #root {
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .page {
-  max-width: 480px;
+  max-width: 520px;
   margin: 0 auto;
-  min-height: 100vh;
+  min-height: 100dvh;
+  padding-bottom: var(--bottom-space);
   background: #fff;
 }
 
+:where(button, a, [role="button"]):focus-visible {
+  outline: 2px solid var(--brand-strong);
+  outline-offset: 2px;
+}
+
 .section-pad {
-  padding: 8px 24px;
+  padding: 8px var(--gutter);
 }
 
 /* 자체 좌우 여백이 있는 TDS 컴포넌트용 */
@@ -72,8 +94,17 @@ body {
   padding-bottom: 0;
 }
 
-.section-desc {
-  padding-top: 0;
+/* 보이지 않지만 화면낭독기는 읽는다 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .tf {
@@ -93,209 +124,204 @@ body {
   transition: transform 100ms ease-out;
 }
 
-/* ── 글자: 크기마다 자간이 다르다 ───────────────────────── */
-.display {
+/* ── 화면과 섹션 제목 ───────────────────────────────────── */
+.page-heading {
+  padding: 32px var(--gutter) 20px;
+}
+
+.page-heading__line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-heading h1 {
+  min-width: 0;
   margin: 0;
-  font-size: 26px;
-  line-height: 1.25;
+  font-size: clamp(28px, 7.5vw, 34px);
+  line-height: 1.2;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.045em;
 }
 
-.display--small {
-  font-size: 22px;
-  line-height: 1.3;
-  letter-spacing: -0.015em;
-}
-
-.lede {
-  margin: 0;
+.page-heading__context {
+  margin: 0 0 8px;
+  color: var(--muted);
   font-size: 15px;
-  line-height: 1.5;
-  letter-spacing: 0;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.page-heading__description,
+.section-heading p {
+  margin: 10px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+.section-heading {
+  padding: 24px var(--gutter) 8px;
+}
+
+.section-heading h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.35;
+  font-weight: 700;
+  letter-spacing: -0.025em;
 }
 
 .eyebrow {
   margin: 0;
-  font-size: 13px;
+  color: var(--brand-strong);
+  font-size: 15px;
   line-height: 1.4;
   font-weight: 600;
   letter-spacing: 0.01em;
 }
 
-/* ── 홈 첫 카드 ────────────────────────────────────────── */
-.hero {
-  position: relative;
-  margin: 8px 24px 0;
-  padding: 24px 20px 20px;
-  border-radius: 24px;
-  color: #fff;
-  background:
-    radial-gradient(120% 90% at 100% 0%, rgba(255, 255, 255, 0.16), transparent 60%),
-    linear-gradient(160deg, var(--brand-strong), var(--brand-deep));
-  box-shadow: 0 12px 28px -16px rgba(0, 92, 69, 0.6);
-  overflow: hidden;
-}
-
-.hero__mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  margin-bottom: 16px;
-  border-radius: 14px;
-  font-size: 26px;
-  line-height: 1;
-  background: rgba(255, 255, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.24);
-}
-
-.hero .lede {
-  margin-top: 8px;
-  color: rgba(255, 255, 255, 0.86);
-}
-
-.hero__cta {
-  margin-top: 20px;
-}
-
-/* ── 홈 바로가기 타일 ──────────────────────────────────── */
-.quick-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  padding: 8px 24px 4px;
-}
-
-.tile {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  min-height: 120px;
-  padding: 16px;
-  border: 0;
-  border-radius: var(--radius-card);
-  text-align: left;
-  font: inherit;
-  color: var(--ink);
-  background: var(--canvas);
-}
-
-.tile__icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  margin-bottom: 8px;
+.best-card__actions button,
+.nearby-regions__locate button,
+.nearby-message__action button,
+.section-pad--tight button {
   border-radius: 12px;
-  font-size: 20px;
-  line-height: 1;
 }
 
-.tile--brand .tile__icon {
-  background: var(--brand-tint-strong);
+/* ── 고속도로 탐색 ─────────────────────────────────────── */
+.flow-section {
+  margin-top: 16px;
+  border-top: 8px solid var(--canvas);
 }
 
-.tile--sky .tile__icon {
-  background: #d0e5ff;
-}
-
-.tile__title {
+.flow-notice {
+  margin: 8px var(--gutter) 16px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--canvas);
+  color: var(--muted);
   font-size: 15px;
-  font-weight: 700;
-  line-height: 1.35;
-  letter-spacing: -0.005em;
+  line-height: 1.55;
 }
 
-.tile__desc {
-  font-size: 13px;
-  line-height: 1.4;
-  color: #4e5968;
-}
-
-.tile__value {
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.4;
-}
-
-.tile--brand .tile__value {
-  color: var(--brand-strong);
+.route-shortcut {
+  margin: 8px var(--gutter) 16px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--canvas);
 }
 
 /* ── 휴게소 첫 카드: 가장 빨리 다녀올 곳 ─────────────────── */
 .best-card {
   padding: 20px;
   border-radius: 24px;
-  color: #fff;
-  background:
-    radial-gradient(120% 90% at 100% 0%, rgba(255, 255, 255, 0.14), transparent 60%),
-    linear-gradient(160deg, var(--brand-strong), var(--brand-deep));
-  box-shadow: 0 12px 28px -16px rgba(0, 92, 69, 0.6);
-}
-
-.best-card--empty {
-  color: var(--ink);
-  background: var(--brand-tint);
-  box-shadow: none;
+  background: var(--canvas);
 }
 
 .best-card__name {
-  margin: 6px 0 0;
-  font-size: 22px;
+  margin: 8px 0 0;
+  font-size: 23px;
   line-height: 1.3;
   font-weight: 700;
   letter-spacing: -0.015em;
 }
 
-.best-card__meta {
+.best-card__route {
   margin: 6px 0 0;
+  color: var(--muted);
   font-size: 15px;
   line-height: 1.5;
-  color: rgba(255, 255, 255, 0.9);
 }
 
-.best-card__exit {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 12px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.4;
-  background: rgba(255, 255, 255, 0.16);
+.rest-status {
+  padding: 0 0 16px;
+  margin: 0 var(--gutter) 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.rest-status p,
+.rest-status__time {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.rest-status__line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.rest-status__label {
+  color: var(--muted);
+}
+
+.rest-status__value {
+  font-weight: 700;
+}
+
+.rest-status__time {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.best-card__metrics,
+.trip-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0 0;
+}
+
+.best-card__metrics > div {
+  border-top: 1px solid #e0e5eb;
+  padding-top: 14px;
+}
+
+.trip-metrics {
+  margin: 4px var(--gutter) 4px;
+  padding: 20px;
+  border-radius: 22px;
+  background: var(--canvas);
+}
+
+.best-card__metrics dt,
+.trip-metrics dt {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.best-card__metrics dd,
+.trip-metrics dd {
+  margin: 4px 0 0;
+  font-size: clamp(20px, 5.8vw, 24px);
+  font-weight: 700;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+
+.best-card__metrics > :first-child dd {
+  color: var(--brand-strong);
+}
+
+.best-card__metrics dd span {
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .best-card__actions {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
   gap: 8px;
   margin-top: 20px;
-}
-
-/* ── 지도 카드 ─────────────────────────────────────────── */
-.map-card {
-  position: relative;
-  margin: 12px 24px 4px;
-  border-radius: var(--radius-card);
-  overflow: hidden;
-  background: var(--canvas);
-  height: 220px;
-  transition: height var(--spring-time) var(--spring);
-}
-
-.map-card--expanded {
-  height: 400px;
-}
-
-.map {
-  position: absolute;
-  inset: 0;
 }
 
 /* 지도 위에 뜨는 유리 재질 버튼 — 아래 지도가 비친다 */
@@ -307,94 +333,12 @@ body {
   box-shadow: 0 4px 16px -6px rgba(0, 23, 51, 0.24);
 }
 
-.map-toggle:focus-visible {
-  outline: 2px solid var(--brand-strong);
-  outline-offset: 2px;
-}
-
-.map-toggle {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  z-index: 2;
-  min-height: 44px;
-  padding: 0 16px;
-  border-radius: 999px;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.map-legend {
-  position: absolute;
-  left: 12px;
-  top: 12px;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.4;
-  color: var(--ink);
-  pointer-events: none;
-}
-
-.map-legend__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--brand-strong);
-}
-
-/* 지도 위 라벨. 충전소 라벨은 투명 테두리로 탭 영역을 44px 이상 확보한다 */
-.map-label {
-  display: inline-block;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 16px;
-  white-space: nowrap;
-  border-radius: 999px;
-  background-clip: padding-box;
-  transition: transform var(--spring-bounce-time) var(--spring-bounce),
-    background-color 200ms ease;
-}
-
-.map-label--ra {
-  padding: 7px 12px;
-  color: #fff;
-  background-color: rgba(25, 31, 40, 0.88);
-  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.4);
-}
-
-.map-label--ic {
-  padding: 5px 10px;
-  color: var(--ink);
-  background-color: rgba(255, 255, 255, 0.92);
-  box-shadow: inset 0 0 0 1px #d1d6db;
-}
-
-.map-label--station {
-  padding: 6px 12px;
-  border: 10px solid transparent;
-  color: #fff;
-  background-color: var(--brand-strong);
-  cursor: pointer;
-}
-
-.map-label--focus {
-  background-color: var(--brand-deep);
-  transform: scale(1.15);
-}
-
 /* ── 주변 충전소 지도 ─────────────────────────────────── */
 .nearby-map-card {
   position: relative;
-  height: 45dvh;
-  min-height: 260px;
+  z-index: 0;
+  isolation: isolate;
+  height: clamp(230px, 37dvh, 350px);
   background: var(--canvas);
   overflow: hidden;
 }
@@ -404,11 +348,27 @@ body {
   inset: 0;
 }
 
-/* 핀: 빈 곳 있으면 브랜드색, 아니면 회색. 터치 영역 44px 이상, 글씨 15px 이상 */
+/* 핀의 기준점: 카카오 오버레이 content(0×0)가 충전소 좌표에 놓인다(xAnchor·yAnchor 0).
+   글자 핀과 점의 자리는 아래 CSS가 이 점을 기준으로 정한다 — 크기가 바뀌어도 어긋나지 않는다 */
+.nearby-pin-anchor {
+  position: relative;
+  width: 0;
+  height: 0;
+}
+
+/* 핀: 상태를 색 + 글자로(빈 곳 초록 "N대", 충전 중 주황, 이용 불가 회색).
+   가운데 아래 끝이 좌표 위 --pin-lift에 온다(NearbyMap의 PIN_LIFT_PX와 같은 값).
+   터치 영역 44px 이상, 글씨 15px 이상 */
 .nearby-pin {
+  --pin-color: var(--state-available);
+  --pin-lift: 4px;
+  position: absolute;
+  left: 0;
+  bottom: var(--pin-lift);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   min-width: 44px;
   min-height: 44px;
   padding: 0 14px;
@@ -419,32 +379,87 @@ body {
   white-space: nowrap;
   word-break: keep-all;
   color: #fff;
-  background-color: var(--brand-strong);
+  background-color: var(--pin-color);
   box-shadow: 0 0 0 3px #fff, 0 4px 12px -2px rgba(0, 23, 51, 0.4);
   cursor: pointer;
+  transform: translateX(-50%);
+  transform-origin: 50% 100%;
   transition: transform var(--spring-bounce-time) var(--spring-bounce),
     background-color 200ms ease;
 }
 
 .nearby-pin:focus-visible {
-  outline: 2px solid var(--brand-deep);
+  outline: 2px solid var(--ink);
   outline-offset: 4px;
 }
 
-.nearby-pin--off {
+.nearby-pin--full,
+.nearby-pin--unavailable {
   padding: 0 12px;
   font-size: 15px;
   font-weight: 600;
-  background-color: #4e5968;
 }
 
+.nearby-pin--full {
+  --pin-color: var(--state-full);
+}
+
+.nearby-pin--unavailable {
+  --pin-color: var(--state-unavailable);
+}
+
+.nearby-pin__bolt {
+  flex: none;
+  width: 12px;
+  height: 16px;
+}
+
+/* 강조: 같은 색 계열에서 진하게, 아래 가운데를 기준으로 1.15배(NearbyMap의 FOCUS_SCALE) */
 .nearby-pin--focus {
-  background-color: var(--brand-deep);
-  transform: scale(1.15);
+  --pin-color: var(--state-available-strong);
+  transform: translateX(-50%) scale(1.15);
 }
 
-.nearby-pin--off.nearby-pin--focus {
-  background-color: #191f28;
+.nearby-pin--full.nearby-pin--focus {
+  --pin-color: var(--state-full-strong);
+}
+
+.nearby-pin--unavailable.nearby-pin--focus {
+  --pin-color: var(--state-unavailable-strong);
+}
+
+/* 점(축소했거나 다른 핀과 겹칠 때): 보이는 점은 지름 14px(흰 테두리 2px 포함), 고리 없이 옅은 그림자.
+   투명한 44×44 영역이 그대로 터치를 받고, 그 가운데(= 점의 가운데)가 좌표에 온다 */
+.nearby-pin--dot {
+  top: 0;
+  bottom: auto;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  padding: 0;
+  background-color: transparent;
+  box-shadow: none;
+  transform: translate(-50%, -50%);
+  transform-origin: 50% 50%;
+}
+
+.nearby-pin--dot > * {
+  display: none;
+}
+
+.nearby-pin--dot::before {
+  content: "";
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background-color: var(--pin-color);
+  box-shadow: 0 1px 3px rgba(0, 23, 51, 0.35);
+}
+
+.nearby-pin--dot.nearby-pin--focus {
+  transform: translate(-50%, -50%) scale(1.15);
 }
 
 /* 내 위치 파란 점 */
@@ -462,7 +477,11 @@ body {
     transition: none;
   }
   .nearby-pin--focus {
-    transform: none;
+    transform: translateX(-50%);
+  }
+  .nearby-pin--dot,
+  .nearby-pin--dot.nearby-pin--focus {
+    transform: translate(-50%, -50%);
   }
 }
 
@@ -489,11 +508,15 @@ body {
 }
 
 .filter-row {
-  padding: 12px 24px 4px;
+  padding: 12px var(--gutter) 4px;
 }
 
 .filter-caption {
-  padding: 4px 24px 8px;
+  padding: 4px var(--gutter) 8px;
+}
+
+.touch-chips button {
+  min-height: 44px;
 }
 
 /* ── 나타날 때: 아래에서 살짝 올라오며 ──────────────────── */
@@ -604,25 +627,96 @@ body {
 }
 
 .footnote {
-  padding: 24px 24px calc(34px + env(safe-area-inset-bottom));
+  padding: 24px var(--gutter) 8px;
 }
 
-@media (min-width: 481px) {
-  body {
-    background-color: #f5f5f5 !important;
-  }
+html body {
+  background-color: var(--canvas);
 }
 
 /* 충전소 상세 시트: 항목 이름 | 값 */
 .detail-list {
-  padding: 0 24px 8px;
+  padding: 0 var(--gutter) 8px;
 }
 
 .detail-row {
   display: grid;
-  grid-template-columns: 96px 1fr;
+  grid-template-columns: minmax(88px, 1fr) minmax(0, 2fr);
   gap: 12px;
-  padding: 8px 0;
+  padding: 12px 0;
+}
+
+.detail-row + .detail-row {
+  border-top: 1px solid var(--line);
+}
+
+.sheet-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sheet-heading > span {
+  min-width: 0;
+}
+
+.sheet-heading button {
+  flex: 0 0 44px;
+  min-height: 44px;
+}
+
+.sheet-availability {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: var(--canvas);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.sheet-availability p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.sheet-availability__count {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet-availability__count strong {
+  color: var(--ink);
+  font-size: 26px;
+  line-height: 1.15;
+}
+
+/* 상세 시트의 빈 충전기 상자: 핀·목록과 같은 상태색. 바탕은 같은 색 계열의 옅은 색,
+   숫자는 한 단계 진한 상태색(바탕 대비 6.8 / 6.1 / 9.6 : 1, 설명 글씨 --muted는 6.2 이상) */
+.sheet-availability--available {
+  background: #e7f5ee;
+}
+
+.sheet-availability--full {
+  background: #fff2e3;
+}
+
+.sheet-availability--unavailable {
+  background: #eef0f3;
+}
+
+.sheet-availability--available .sheet-availability__count strong {
+  color: var(--state-available-strong);
+}
+
+.sheet-availability--full .sheet-availability__count strong {
+  color: var(--state-full-strong);
+}
+
+.sheet-availability--unavailable .sheet-availability__count strong {
+  color: var(--state-unavailable-strong);
 }
 
 /* 충전소 목록 셋째 줄: 평소와 다른 점(운영 시간·커넥터) */
@@ -635,7 +729,7 @@ body {
 /* 휴게소 화면 오른쪽 위 아이콘 버튼 (탭 영역 44px) */
 .top-actions {
   display: flex;
-  gap: 4px;
+  flex: none;
 }
 
 .top-actions button {
@@ -645,7 +739,7 @@ body {
 
 /* 하단 시트 안 내용: 홈 인디케이터에 닿지 않게 */
 .sheet-body {
-  padding: 8px 24px calc(24px + env(safe-area-inset-bottom));
+  padding: 8px var(--gutter) var(--bottom-space);
 }
 
 /* ── 접근성: 움직임·투명도·대비 설정을 따른다 ────────────── */
@@ -657,9 +751,7 @@ body {
     animation: fade 200ms ease both;
   }
   .press,
-  .press:active,
-  .map-card,
-  .map-label {
+  .press:active {
     transition: none;
     transform: none;
   }
@@ -692,42 +784,73 @@ body {
     background: #fff;
     border: 1px solid #4e5968;
   }
-  .tile {
-    border: 1px solid #4e5968;
-  }
 }
 
 /* ── 내 주변 충전소 홈 ─────────────────────────────────── */
-.nearby-page {
+/* 상단은 버튼 줄 하나. 위 여백은 플랫폼 상단 바 아래 기준(safe area가 있으면 그만큼 더) */
+.nearby-intro {
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 0 12px;
+}
+
+.nearby-controls {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 var(--gutter);
+}
+
+.nearby-ctrl {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px clamp(10px, 3.2vw, 14px);
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+  text-decoration: none;
+  background: var(--canvas);
+}
+
+.nearby-controls .nearby-filter {
+  min-height: 44px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.nearby-controls .nearby-filter:focus-visible {
+  outline: 2px solid var(--brand-strong);
+  outline-offset: 2px;
+}
+
+.nearby-ctrl--highway {
+  margin-inline-start: auto;
+  color: var(--brand-strong);
+  background: transparent;
 }
 
 .nearby-map-wrap {
   position: relative;
-}
-
-/* 지도 위 요약 칩 (누르는 것이 아니라 읽는 것) */
-.nearby-chip {
-  position: absolute;
-  left: 12px;
-  top: 12px;
-  z-index: 2;
-  /* 오른쪽 위 규격 버튼과 반씩 나눠 쓴다 */
-  max-width: calc(50% - 18px);
-  padding: 8px 14px;
-  border-radius: 999px;
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.4;
-  color: var(--ink);
-  white-space: nowrap;
+  margin: 0 var(--gutter) 20px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  pointer-events: none;
+  border-radius: 20px;
 }
 
-/* 지도 위 버튼: 탭 영역 44px 이상, 글씨 15px */
+.nearby-map-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+}
+
 .nearby-map-btn {
   position: absolute;
   z-index: 2;
@@ -743,32 +866,17 @@ body {
   color: var(--ink);
 }
 
-.nearby-map-btn:focus-visible {
-  outline: 2px solid var(--brand-strong);
-  outline-offset: 2px;
-}
-
-.nearby-map-btn--connector {
-  right: 12px;
-  top: 12px;
-  max-width: calc(50% - 18px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .nearby-map-btn--me {
   right: 12px;
-  bottom: 12px;
-  color: var(--sky-strong);
+  bottom: 16px;
+  color: var(--brand-deep);
+  background: #fff;
 }
 
-/* "이 위치에서 찾기"는 위쪽 가운데, 칩·규격 버튼 줄(12px + 44px) 아래.
-   아래 "내 위치"와 겹치지 않는다. 감싼 띠는 지도 조작을 막지 않는다 */
+/* 낮은 화면(쌓인 배치)의 지도 카드: "이 위치에서 찾기"는 위쪽 가운데 */
 .nearby-here {
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 64px;
+  inset: 12px 0 auto;
   z-index: 2;
   display: flex;
   justify-content: center;
@@ -784,55 +892,351 @@ body {
   box-shadow: 0 4px 16px -6px rgba(0, 23, 51, 0.4);
 }
 
-.nearby-body {
-  padding-top: 8px;
-}
-
-/* 지도를 못 불러왔을 때 목록 위 버튼 줄 — 좁으면 다음 줄로 */
-.nearby-controls {
+/* ── 홈 지도 화면: 머리말 아래를 지도가 채우고, 목록은 지도 위 시트 ──
+   페이지는 스크롤하지 않는다. 하단 여백(--bottom-space)은 시트가 안쪽에 둔다 */
+.page--map {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 8px 24px;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  padding-bottom: 0;
+  overflow: hidden;
 }
 
-.nearby-ctrl {
-  min-height: 44px;
-  padding: 0 16px;
-  border: 0;
+.page--map .nearby-intro {
+  flex: none;
+}
+
+/* 화면이 낮으면(nearbyState의 MIN_MAP_LAYOUT_HEIGHT) 이 배치를 쓰지 않으므로 최소 높이를 두지 않는다 */
+.nearby-map-wrap--full {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  border-radius: 0;
+}
+
+.nearby-map-wrap--full .nearby-map-card {
+  position: absolute;
+  inset: 0;
+  height: auto;
+}
+
+/* 지도 위 왼쪽 위 요약 칩, 오른쪽 위 핀 글자 토글 — 늘 한 줄.
+   칩은 남는 폭만 쓰고(넘치면 말줄임), 360px 미만에서는 숨긴다(접힌 시트가 가장 가까운 빈 곳을 알린다) */
+.nearby-map-top {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.nearby-chip {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 9px 14px;
   border-radius: 999px;
-  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+@media (max-width: 359px) {
+  .nearby-chip {
+    display: none;
+  }
+}
+
+.nearby-mode {
+  flex: none;
+  width: 172px;
+  margin-inline-start: auto;
+  padding: 2px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 4px 16px -6px rgba(0, 23, 51, 0.24);
+  pointer-events: auto;
+}
+
+/* TDS SegmentedControl의 기본 좌우 여백(24px)을 없애고 칸 높이를 44px로 */
+.nearby-mode .nearby-mode__control {
+  padding: 0;
+}
+
+.nearby-mode .nearby-mode__control [aria-selected] {
+  min-height: 44px;
+}
+
+/* 지도 위 떠 있는 버튼 칸: 위쪽 줄 아래부터 접힌 시트 위까지(top·bottom·gap은 잰 높이로 정한다).
+   버튼은 오른쪽에 아래부터 쌓고("내 위치" 아래, "이 위치에서 찾기" 위), 넘치면 페이지가 숨긴다 */
+.nearby-map-float {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-end;
+  pointer-events: none;
+}
+
+.nearby-map-float .nearby-map-btn {
+  position: static;
+  flex: none;
+  max-width: 100%;
+  pointer-events: auto;
+}
+
+/* 목록 시트(비모달). 높이는 펼친 높이로 고정하고 transform으로 접는다 */
+.nearby-sheet {
+  --sheet-handle-h: 44px;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px 20px 0 0;
+  background: #fff;
+  box-shadow: 0 -6px 24px -8px rgba(0, 23, 51, 0.28);
+  transition: transform var(--spring-time) var(--spring);
+  will-change: transform;
+}
+
+.nearby-sheet--dragging {
+  transition: none;
+}
+
+.nearby-sheet__head {
+  flex: none;
+}
+
+.nearby-sheet__handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: var(--sheet-handle-h);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 20px 20px 0 0;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.nearby-sheet--dragging .nearby-sheet__handle {
+  cursor: grabbing;
+}
+
+/* 초점 테두리는 키보드 초점에만, 앱의 브랜드 초점 모양으로.
+   TDS 전역 스타일의 `button:focus { outline: -webkit-focus-ring-color auto 5px }`가
+   마우스·터치로 누르거나 끈 뒤에도(:focus) 브라우저 기본색 테두리를 그려서 지도 화면 버튼에서는 끈다 */
+.nearby-map-wrap :where(button, [role="button"]):focus:not(:focus-visible) {
+  outline: none;
+}
+
+.nearby-sheet__handle:focus-visible {
+  outline: 2px solid var(--brand-strong);
+  outline-offset: -4px;
+}
+
+.nearby-sheet__bar {
+  width: 40px;
+  height: 5px;
+  border-radius: 999px;
+  background: #c5ccd3;
+}
+
+.nearby-sheet__peek {
+  position: relative;
+  padding-bottom: var(--bottom-space);
+}
+
+/* 새로 찾는 중 한 줄: 손잡이 줄(왼쪽, 가운데 막대 옆)에 겹쳐 두어 접힌 높이를 바꾸지 않는다.
+   누르기는 아래 손잡이로 그대로 간다 */
+.nearby-peek__status {
+  position: absolute;
+  top: calc(-1 * var(--sheet-handle-h));
+  left: 0;
+  display: flex;
+  align-items: center;
+  height: var(--sheet-handle-h);
+  margin: 0;
+  padding: 0 var(--gutter);
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.35;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.nearby-sheet__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: var(--bottom-space);
+  visibility: visible;
+}
+
+/* 접힌 뒤에는 읽히지도 포커스되지도 않게. 접히는 움직임이 끝난 뒤에 숨긴다 */
+.nearby-sheet__body--hidden {
+  visibility: hidden;
+  transition: visibility 0s linear var(--spring-time);
+}
+
+.nearby-sheet__body .nearby-results-heading {
+  padding-top: 4px;
+}
+
+.nearby-peek__label,
+.nearby-peek__title {
+  margin: 0;
+  padding: 0 var(--gutter);
+}
+
+.nearby-peek__label {
+  color: var(--muted);
   font-size: 15px;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 1.45;
+}
+
+.nearby-peek__title {
+  padding-top: 4px;
+  padding-bottom: 4px;
   color: var(--ink);
-  background: var(--canvas);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.45;
 }
 
-.nearby-ctrl--me {
-  color: var(--sky-strong);
+.nearby-peek__subtitle {
+  margin: 0;
+  padding: 0 var(--gutter) 4px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.45;
 }
 
-.nearby-ctrl:focus-visible {
+.nearby-peek__row .nearby-row {
+  width: 100%;
+  min-height: 72px;
+  text-align: left;
+}
+
+.nearby-peek__row .nearby-row:focus-visible {
   outline: 2px solid var(--brand-strong);
-  outline-offset: 2px;
+  outline-offset: -3px;
 }
 
-/* 위치를 받는 중인 "내 위치" 버튼들 */
+.nearby-peek__action {
+  padding: 8px var(--gutter) 0;
+}
+
+.nearby-peek__action button {
+  border-radius: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nearby-sheet,
+  .nearby-sheet__body--hidden {
+    transition: none;
+  }
+}
+
 .nearby-map-btn[aria-disabled="true"],
 .nearby-ctrl[aria-disabled="true"],
-.nearby-notice__action[aria-disabled="true"] {
-  opacity: 0.5;
+.nearby-ctrl:disabled {
+  opacity: 0.65;
   cursor: default;
 }
 
-.nearby-list {
-  transition: opacity 200ms ease;
+.nearby-body {
+  border-top: 8px solid var(--canvas);
 }
 
-/* 새 기준점으로 찾는 동안 이전 결과를 흐리게 */
-.nearby-list--busy {
-  opacity: 0.5;
+.nearby-results-heading,
+.nearby-map-fallback {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.nearby-results-heading {
+  margin: 0 var(--gutter);
+  padding: 20px 0 12px;
+}
+
+.nearby-results-heading h2,
+.nearby-regions__title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.025em;
+}
+
+.nearby-results-summary {
+  color: var(--brand-strong);
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.nearby-map-fallback,
+.nearby-message {
+  margin: 0 var(--gutter) 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--canvas);
+}
+
+.nearby-notice {
+  margin: 0 var(--gutter) 8px;
+}
+
+.nearby-map-fallback > div {
+  flex: 1 1 140px;
+}
+
+.nearby-ctrl--me {
+  color: var(--brand-strong);
+  background: #fff;
+}
+
+.nearby-map-fallback p,
+.nearby-progress {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.nearby-progress {
+  padding: 8px var(--gutter);
 }
 
 .nearby-rows {
@@ -841,64 +1245,42 @@ body {
   list-style: none;
 }
 
-.nearby-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+.nearby-rows .nearby-row {
   width: 100%;
-  min-height: 64px;
-  padding: 14px 24px;
-  border: 0;
+  min-height: 72px;
   text-align: left;
-  font: inherit;
-  color: var(--ink);
-  background: none;
-  cursor: pointer;
 }
 
-.nearby-rows li + li .nearby-row {
-  box-shadow: inset 0 1px 0 #eef0f2;
+.nearby-rows li + li {
+  border-top: 1px solid var(--line);
 }
 
-.nearby-row:active {
-  background: var(--canvas);
-}
-
-.nearby-row:focus-visible {
+.nearby-rows .nearby-row:focus-visible {
   outline: 2px solid var(--brand-strong);
-  outline-offset: -2px;
-}
-
-.nearby-row__text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.nearby-row__name {
-  font-size: 17px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.nearby-row__caption {
-  font-size: 15px;
-  line-height: 1.45;
-  color: #4e5968;
+  outline-offset: -3px;
 }
 
 .nearby-row__count {
-  flex-shrink: 0;
-  font-size: 20px;
+  flex: none;
+  font-size: 15px;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.35;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
 }
 
-.nearby-message {
-  padding: 12px 24px 8px;
+.nearby-row__count--available {
+  color: var(--state-available);
+  font-size: 20px;
+}
+
+.nearby-row__count--full {
+  color: var(--state-full);
+}
+
+.nearby-row__count--unavailable {
+  color: var(--state-unavailable);
 }
 
 .nearby-message__title {
@@ -906,117 +1288,587 @@ body {
   font-size: 17px;
   font-weight: 700;
   line-height: 1.45;
-  color: var(--ink);
 }
 
-.nearby-message__desc {
+.nearby-message__desc,
+.nearby-regions__head p,
+.nearby-notice__text {
   margin: 4px 0 0;
+  color: var(--muted);
   font-size: 15px;
-  line-height: 1.5;
-  color: #4e5968;
+  line-height: 1.55;
 }
 
-/* 정보 수신 불가 화면의 "다시 시도" */
 .nearby-message__action {
   margin-top: 16px;
 }
 
-/* 지난번 위치로 보여 줄 때 목록 위 작은 안내 */
-.nearby-notice {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px 12px;
-  margin: 8px 24px 4px;
-  padding: 8px 8px 8px 16px;
-  border-radius: 16px;
+.nearby-time {
+  margin: 0;
+  padding: 16px var(--gutter) 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.nearby-regions {
+  padding: 24px var(--gutter) 0;
+}
+
+.nearby-regions__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(62px, 1fr));
+  gap: 8px;
+  list-style: none;
+  margin: 20px 0;
+  padding: 0;
+}
+
+.nearby-region {
+  width: 100%;
+  min-height: 50px;
+  padding: 8px;
+  border: 0;
+  border-radius: 14px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
   background: var(--canvas);
 }
 
-.nearby-notice__text {
-  margin: 0;
+.nearby-regions__locate {
+  padding-top: 4px;
+}
+
+@media (hover: hover) {
+  .nearby-ctrl:not(:disabled):hover,
+  .nearby-region:hover {
+    background: #e9eef2;
+  }
+}
+
+/* ── 고속도로·휴게소 지도(RouteMap) ───────────────────────
+   핀은 홈의 .nearby-pin을 그대로 쓴다. 아래는 노선 화면에만 있는 것 */
+
+/* 상태를 모르는 충전소(빈 대수 정보 없음): 상태색도 브랜드색도 아닌 흰 바탕 + 진한 글자 + 회색 테두리.
+   글자가 뜻을 전한다("6분"). --ink on #fff 16:1, 테두리 #6b7684 on #fff 4.6:1 */
+.nearby-pin--neutral {
+  color: var(--ink);
+  background-color: #fff;
+  box-shadow: inset 0 0 0 2px #6b7684, 0 0 0 3px #fff,
+    0 4px 12px -2px rgba(0, 23, 51, 0.4);
+}
+
+.nearby-pin--neutral.nearby-pin--dot {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.nearby-pin--neutral.nearby-pin--dot::before {
+  background-color: #fff;
+  border-color: #6b7684;
+}
+
+/* 강조 핀(다음 휴게소, 이 휴게소, 추천 충전소): 늘 글자, 브랜드 테두리 한 겹 더 */
+.route-pin--emph:not(.nearby-pin--dot) {
+  box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--brand-primary),
+    0 6px 16px -2px rgba(0, 23, 51, 0.45);
+}
+
+.nearby-pin--neutral.route-pin--emph:not(.nearby-pin--dot) {
+  box-shadow: inset 0 0 0 2px #6b7684, 0 0 0 3px #fff,
+    0 0 0 6px var(--brand-primary), 0 6px 16px -2px rgba(0, 23, 51, 0.45);
+}
+
+/* IC 이름표: 누를 수 없다. 좌표 바로 아래 가운데 */
+.route-label {
+  position: absolute;
+  left: 0;
+  top: 6px;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border-radius: 999px;
   font-size: 15px;
-  line-height: 1.5;
-  color: #4e5968;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  word-break: keep-all;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: inset 0 0 0 1px #c5ccd3, 0 2px 6px -2px rgba(0, 23, 51, 0.3);
+  pointer-events: none;
 }
 
-.nearby-notice__action {
-  min-height: 44px;
-  padding: 0 8px;
-  border: 0;
-  font: inherit;
+/* 방향 버튼: 글자 + 바꾸기 아이콘 */
+.highway-dir__inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swap-icon {
+  flex: none;
+}
+
+.highway-list__order {
+  color: var(--muted);
   font-size: 15px;
-  font-weight: 700;
-  color: var(--brand-strong);
-  background: none;
-  cursor: pointer;
+  line-height: 1.4;
 }
 
-.nearby-time {
-  margin: 0;
-  padding: 12px 24px 8px;
-  font-size: 15px;
-  line-height: 1.5;
-  color: #6b7684;
+.highway-search {
+  padding-top: 4px;
 }
 
-.nearby-regions__head {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 16px 24px 8px;
+.highway-start {
+  margin: 24px var(--gutter) 0;
+  padding: 24px 20px 20px;
+  border-radius: 24px;
+  background: var(--canvas);
 }
 
-.nearby-regions__title {
+.highway-start h2 {
   margin: 0;
   font-size: 22px;
   font-weight: 700;
   line-height: 1.35;
-  letter-spacing: -0.015em;
-  color: var(--ink);
+  letter-spacing: -0.025em;
 }
 
-/* 맨 아래 한 줄: 고속도로 화면으로 (고정하지 않는다) */
-.nearby-bottom {
-  margin-top: auto;
-  padding: 16px 24px calc(34px + env(safe-area-inset-bottom));
+.highway-start p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.55;
 }
 
-.nearby-highway {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  min-height: 56px;
-  padding: 12px 16px 12px 20px;
-  border: 0;
-  border-radius: 16px;
-  text-align: left;
-  font: inherit;
-  color: var(--ink);
-  background: var(--canvas);
+.highway-start .nearby-message__action button {
+  border-radius: 12px;
 }
 
-.nearby-highway__label {
-  font-size: 16px;
+/* 노선 고르기 시트 */
+.picker-body {
+  padding-bottom: var(--bottom-space);
+}
+
+.picker-locate {
+  padding: 4px var(--gutter) 8px;
+}
+
+.picker-locate button {
+  border-radius: 12px;
+}
+
+.picker-title {
+  margin: 0;
+  padding: 16px var(--gutter) 4px;
+  color: var(--muted);
+  font-size: 15px;
   font-weight: 600;
   line-height: 1.4;
 }
 
-.nearby-highway__action {
-  display: inline-flex;
+/* ── 휴게소 화면 ─────────────────────────────────────── */
+/* 상단 줄: 왼쪽 휴게소 이름·노선, 오른쪽 즐겨찾기·공유 */
+.rest-head {
+  display: flex;
   align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--brand-strong);
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 var(--gutter);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .nearby-list {
-    transition: none;
+.rest-head__text {
+  min-width: 0;
+}
+
+.rest-head__name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+}
+
+.rest-head__route {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+/* 접힌 시트 첫 줄(판정): 상태색의 옅은 바탕 + 진한 글자. 색만이 아니라 문장이 상태를 말한다 */
+.verdict {
+  margin: 0 var(--gutter) 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #eef0f3;
+}
+
+.verdict--available {
+  background: #e7f5ee;
+}
+
+.verdict--full {
+  background: #fff2e3;
+}
+
+.verdict__text {
+  margin: 0;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.verdict--available .verdict__text {
+  color: var(--state-available-strong);
+}
+
+.verdict--full .verdict__text {
+  color: var(--state-full-strong);
+}
+
+.verdict__detail {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.rest-peek__label {
+  padding-top: 4px;
+}
+
+.rest-peek__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 8px;
+}
+
+.rest-peek__actions button {
+  border-radius: 12px;
+}
+
+/* 펼친 시트 안에서는 구역 위 굵은 띠를 두지 않는다 */
+.nearby-sheet__body .rest-stations {
+  margin-top: 0;
+  border-top: 0;
+}
+
+/* 휴게소 줄 오른쪽 상태: 위 상태 단어(15px), 아래 빈 대수(20px 굵게). 늘 두 줄 — 폭이 좁아 긴 이름이 잘리지 않는다 */
+.ra-status {
+  display: inline-flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  color: var(--state-unavailable);
+  line-height: 1.25;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.ra-status--available {
+  color: var(--state-available);
+}
+
+.ra-status--full {
+  color: var(--state-full);
+}
+
+.ra-status__word {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.ra-status__count {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+/* ── 노선 띠(내비 고속도로 모드) ─────────────────────────
+   왼쪽 거리 칸(44px) → 도로 띠(가운데 x = --strip-x) → 내용. 띠는 줄마다 이어 그리고
+   첫 줄·마지막 줄의 가운데에서 끝난다(줄 사이 틈이 없어 한 줄기로 보인다) */
+.strip-page {
+  padding-top: 0;
+}
+
+/* 머리줄: 왼쪽 제목·방향·내 위치 버튼, 오른쪽 작은 지도 창 — 가운데 맞춤으로 낮게 */
+.strip-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px var(--gutter) 8px;
+}
+
+.strip-head__text {
+  min-width: 0;
+}
+
+.strip-head h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.025em;
+}
+
+.strip-head p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+/* 작은 지도 창(누르면 지도 보기) */
+.route-mini {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.route-mini__map {
+  display: block;
+  border-radius: 12px;
+  background: #f1efe9;
+  box-shadow: 0 1px 5px rgba(0, 23, 51, 0.25);
+}
+
+.route-mini__caption {
+  color: var(--brand-strong);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.strip-passed {
+  padding: 0 var(--gutter) 8px;
+}
+
+.strip-passed button {
+  border-radius: 12px;
+}
+
+.strip {
+  --strip-x: 74px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.strip-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* 도로 띠: 가운데 10px + 양쪽 진한 가장자리 2px = 14px(box-sizing: border-box). 가운데가 --strip-x(정류장 가운데) */
+.strip-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--strip-x) - 7px);
+  width: 14px;
+  border-left: 2px solid var(--road-edge);
+  border-right: 2px solid var(--road-edge);
+  background: var(--road);
+  pointer-events: none;
+}
+
+.strip-row:first-child::before {
+  top: 50%;
+}
+
+.strip-row:last-child::before {
+  bottom: 50%;
+}
+
+.strip-km {
+  position: absolute;
+  left: 8px;
+  width: 44px;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.strip-node {
+  position: absolute;
+  top: 50%;
+  left: var(--strip-x);
+  z-index: 1;
+  box-sizing: border-box;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* 휴게소: 상태색 고리 */
+.strip-node--available,
+.strip-node--full,
+.strip-node--unavailable {
+  width: 24px;
+  height: 24px;
+  border: 5px solid var(--state-available);
+  background: #fff;
+}
+
+.strip-node--full {
+  border-color: var(--state-full);
+}
+
+.strip-node--unavailable {
+  border-color: var(--state-unavailable);
+}
+
+.strip-node--ic {
+  width: 12px;
+  height: 12px;
+  border: 3px solid #868e96;
+  background: #fff;
+}
+
+.strip-node--me {
+  width: 24px;
+  height: 24px;
+  border: 4px solid #fff;
+  background: var(--sky-strong);
+  box-shadow: 0 0 0 3px var(--sky-strong);
+}
+
+.strip-row--ic {
+  min-height: 34px;
+  padding: 4px var(--gutter) 4px calc(var(--strip-x) + 22px);
+}
+
+.strip-ic {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.strip-row--me {
+  min-height: 48px;
+  padding: 8px var(--gutter) 8px calc(var(--strip-x) + 22px);
+}
+
+.strip-me {
+  color: var(--sky-strong);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.strip-row--mark {
+  background: var(--brand-tint);
+}
+
+.strip-ra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 72px;
+  margin: 0;
+  padding: 10px 12px 10px calc(var(--strip-x) + 22px);
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.strip-ra:focus-visible {
+  outline: 2px solid var(--brand-strong);
+  outline-offset: -3px;
+}
+
+.strip-ra__text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.strip-ra__mark {
+  color: var(--brand-strong);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.strip-ra__name {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.strip-ra__sub {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.strip-ra__chevron {
+  flex: none;
+  color: #b0b8c1;
+}
+
+.strip-row--passed .strip-ra__name {
+  color: var(--muted);
+}
+
+@media (hover: hover) {
+  .strip-ra:hover {
+    background: rgba(0, 23, 51, 0.03);
   }
+}
+
+/* 지도 보기의 "목록으로 보기" — 지도 위 왼쪽 위 */
+.nearby-map-top .route-map-back {
+  position: static;
+  pointer-events: auto;
+  color: var(--brand-deep);
+}
+
+/* 띠 머리줄의 내 위치 버튼: 위치가 없으면 브랜드색, 있으면 옅게(다시 재기) */
+.strip-locate {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 0 0 -8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--brand-strong);
+  cursor: pointer;
+}
+
+.strip-locate--quiet {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.strip-locate[aria-disabled="true"] {
+  opacity: 0.65;
+  cursor: default;
 }

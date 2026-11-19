@@ -4,6 +4,7 @@ import { adaptive } from "@toss/tds-colors";
 import type { BypassStation, Connector } from "../api/types";
 import {
   PLACE_LABEL,
+  detourSummary as summary,
   formatKm,
   isAlwaysOpen,
   isClosedToPublic,
@@ -11,15 +12,7 @@ import {
 } from "../lib/format";
 import { connectorName } from "../lib/store";
 import { logClick, openDirections } from "../lib/toss";
-
-/** 목록 둘째 줄: 고를 때 필요한 두 가지 — 더 걸리는 시간과 충전 속도 */
-export function summary(s: BypassStation) {
-  const approx = s.is_estimated ? "약 " : "";
-  const speed = s.power_kw
-    ? `${s.power_kw}kW ${s.charger_count}대`
-    : `급속 ${s.charger_count}대`;
-  return `우회하면 ${approx}${s.detour_extra_minutes}분 더 · ${speed}`;
-}
+import { SheetHeading } from "./SheetHeading";
 
 /** 목록 셋째 줄: 평소와 다른 점이 있을 때만 */
 function caution(s: BypassStation, connector: Connector) {
@@ -121,7 +114,9 @@ export function StationSheet({ station: s, icName, onClose }: SheetProps) {
     <BottomSheet
       open={s != null}
       onDimmerClick={onClose}
-      header={s && <BottomSheet.Header>{s.name}</BottomSheet.Header>}
+      onClose={onClose}
+      aria-label={s?.name}
+      header={s && <SheetHeading title={s.name} onClose={onClose} />}
       headerDescription={
         s && (
           <BottomSheet.HeaderDescription>

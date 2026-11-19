@@ -1,5 +1,5 @@
 import type { NearbyStation, NearbyStationsResponse } from "../api/types";
-import { listRows, type ListFallback } from "../lib/nearby";
+import { listRows, sheetRows, type ListFallback } from "../lib/nearby";
 
 export interface Point {
   lat: number;
@@ -19,7 +19,11 @@ export interface ViewInput {
   locFailure: LocFailure | null;
   /** 지도를 못 띄운 화면에서 "다른 지역에서 찾기"를 눌렀다 */
   regionsRequested: boolean;
+  /** 쌓인 목록에서 "N곳 더 보기"를 눌렀다 */
   expanded: boolean;
+  /** 지도 시트가 아니라 쌓인 목록(처음 3곳 + 더 보기)으로 보인다 —
+   *  지도를 못 띄웠거나 화면이 낮을 때. 아니면 지도 시트에 고른 묶음 전부를 넘긴다 */
+  stacked: boolean;
 }
 
 export type NearbyView =
@@ -51,7 +55,10 @@ export function nearbyView(v: ViewInput): NearbyView {
       // 예전 응답처럼 feed_stale이 없으면 false로 본다
       return { kind: v.result.feed_stale === true ? "stale" : "none", notice };
     }
-    return { kind: "list", ...listRows(v.result.stations, v.expanded), notice };
+    const rows = v.stacked
+      ? listRows(v.result.stations, v.expanded)
+      : { ...sheetRows(v.result.stations), hidden: 0 };
+    return { kind: "list", ...rows, notice };
   }
   if (v.errorStatus != null) return { kind: "error" };
   if (!v.hasOrigin && v.locFailure) {
@@ -140,9 +147,152 @@ export function fallbackCopy(
       };
 }
 
+/** 끌기를 놓았을 때 이 이동량(px) 미만이면 끌기가 아니라 누르기로 본다 */
+export const SHEET_TAP_PX = 8;
+/** 이 속도(px/ms) 이상으로 튕기면 이동량과 상관없이 그 방향으로 */
+const SHEET_FLICK_VY = 0.5;
+/** 느린 끌기는 접힘↔펼침 차이의 이 비율을 넘어야 반대 상태로 */
+const SHEET_SNAP_RATIO = 0.3;
+
+/**
+ * 목록 시트 손잡이를 놓았을 때 펼칠지(true) 접을지(false).
+ * dy: 시작점 대비 이동(위로 끌면 음수), vy: 놓는 순간 속도(px/ms, 위가 음수),
+ * range: 접힘↔펼침 높이 차. 8px 미만이면 현재 상태를 그대로 돌려준다(누르기는 호출부가 토글).
+ */
+export function sheetSnap(input: {
+  open: boolean;
+  dy: number;
+  vy: number;
+  range: number;
+}): boolean {
+  const { open, dy, vy, range } = input;
+  if (Math.abs(dy) < SHEET_TAP_PX) return open;
+  if (Math.abs(vy) >= SHEET_FLICK_VY) return vy < 0;
+  const threshold = range * SHEET_SNAP_RATIO;
+  return open ? !(dy > threshold) : -dy > threshold;
+}
+
+/** 접힌 시트에 보일 한 줄: 가장 가까운 빈 곳, 또는 지금 상태의 안내 제목 */
+export type PeekInfo =
+  | {
+      kind: "station";
+      label: string;
+      station: NearbyStation;
+      more: number;
+      /** 이전 결과를 둔 채 새로 찾는 중이면 접힌 줄 위에 보일 한 줄 */
+      status?: string;
+    }
+  | {
+      kind: "message";
+      title: string;
+      status?: string;
+      /** 지난번 위치로 보여 주는 중이면 제목 아래 한 줄 */
+      subtitle?: string;
+      action?: "retry";
+      /** 펼치면 보일 줄 수 — 있으면 시트를 펼치는 버튼(moreLabel)을 둔다 */
+      more?: number;
+      moreLabel?: string;
+    };
+
+const LAST_LOCATION_SUBTITLE = "지난번 위치 기준이에요";
+const SEARCHING_STATUS = "새로 찾고 있어요";
+
+/**
+ * searching은 조용하지 않은 검색이 진행 중인지다. 이전 결과가 있으면 그 결과의 줄을 그대로 두고
+ * 그 위에 status("새로 찾고 있어요") 한 줄을 붙인다. 결과가 없을 때(view가 loading)는
+ * 제목이 이미 찾는 중 문구다.
+ */
+export function peekInfo(input: {
+  view: NearbyView;
+  radiusKm: number;
+  searching: boolean;
+  hasOrigin: boolean;
+}): PeekInfo {
+  const { view, radiusKm, searching, hasOrigin } = input;
+  // 지역 선택·오류 화면에는 시트가 없다. 혹시 불려도 찾는 중 문구로 둔다
+  if (view.kind === "loading" || view.kind === "regions" || view.kind === "error") {
+    return {
+      kind: "message",
+      title: hasOrigin ? "급속충전소를 찾고 있어요" : "현재 위치를 확인하고 있어요",
+    };
+  }
+  const notice = view.notice ? { subtitle: LAST_LOCATION_SUBTITLE } : {};
+  const status = searching ? { status: SEARCHING_STATUS } : {};
+  if (view.kind === "stale") {
+    return {
+      kind: "message",
+      title: "지금 충전소 정보를 받지 못하고 있어요",
+      ...notice,
+      action: "retry",
+      ...status,
+    };
+  }
+  if (view.kind === "none") {
+    return {
+      kind: "message",
+      title: "30km 안에 급속충전소가 없어요",
+      ...notice,
+      ...status,
+    };
+  }
+  if (view.fallback) {
+    const n = view.rows.length;
+    return {
+      kind: "message",
+      title: fallbackCopy(view.fallback, radiusKm).title,
+      ...notice,
+      more: n,
+      moreLabel: view.fallback === "full" ? `충전 중인 ${n}곳 보기` : `${n}곳 보기`,
+      ...status,
+    };
+  }
+  return {
+    kind: "station",
+    label: view.notice ? "지난번 위치에서 가장 가까운 빈 곳" : "가장 가까운 빈 곳",
+    station: view.rows[0],
+    more: view.rows.length - 1,
+    ...status,
+  };
+}
+
+/** 웹뷰 높이가 이보다 낮으면(가로 화면 등) 지도 시트 대신 쌓인 배치로 — 잘리지 않고 스크롤된다 */
+export const MIN_MAP_LAYOUT_HEIGHT = 560;
+
+export function canUseMapLayout(viewportHeight: number): boolean {
+  return viewportHeight >= MIN_MAP_LAYOUT_HEIGHT;
+}
+
+/**
+ * 지도 위 떠 있는 버튼("이 위치에서 찾기" 위, "내 위치" 아래로 쌓음) 중 무엇을 보일지.
+ * space는 위쪽 줄과 접힌 시트 사이의 높이. 모자라면 "내 위치"부터 숨긴다
+ * (지역 선택 → 내 위치로 찾기로도 갈 수 있다).
+ */
+export function floatButtons(input: {
+  space: number;
+  here: boolean;
+  buttonH: number;
+  gap: number;
+}): { showHere: boolean; showMe: boolean } {
+  const { space, here, buttonH, gap } = input;
+  const showHere = here && space >= buttonH;
+  const showMe = space >= (showHere ? 2 * buttonH + gap : buttonH);
+  return { showHere, showMe };
+}
+
 /** 충전소가 하나도 없을 때 둘째 줄 — 지도가 없으면 지도를 옮기라고 하지 않는다 */
 export function noneDesc(mapFailed: boolean): string {
   return mapFailed
     ? "다른 지역에서 찾아보세요"
     : "지도를 옮겨 다른 곳에서 찾아보세요";
+}
+
+/**
+ * 홈 ↔ 고속도로 이동을 뒤로가기로 처리해도 되는지. 라우터가 처음 연 기록(key "default")이거나
+ * 기록이 하나뿐이면(복원된 웹뷰 등) 뒤로가면 미니앱이 닫힐 수 있으므로 false.
+ */
+export function canGoBack(
+  locationKey: string,
+  historyLength: number = typeof window === "undefined" ? 1 : window.history.length,
+): boolean {
+  return locationKey !== "default" && historyLength > 1;
 }

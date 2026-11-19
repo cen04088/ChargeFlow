@@ -7,7 +7,6 @@ import {
 } from "react-router-dom";
 
 import HighwayPage from "./pages/HighwayPage";
-import HomePage from "./pages/HomePage";
 import NearbyPage from "./pages/NearbyPage";
 import RestAreaPage from "./pages/RestAreaPage";
 import TripPage from "./pages/TripPage";
@@ -26,7 +25,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Root />} />
-        <Route path="/highways" element={<HomePage />} />
+        <Route path="/highways" element={<HighwayPage />} />
         <Route path="/highway/:code" element={<HighwayPage />} />
         <Route path="/rest-area/:id" element={<RestAreaPage />} />
         <Route path="/trip" element={<TripPage />} />

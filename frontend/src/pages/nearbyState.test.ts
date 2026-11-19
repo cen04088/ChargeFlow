@@ -3,12 +3,18 @@ import { afterEach, expect, test, vi } from "vitest";
 import type { NearbyStation, NearbyStationsResponse } from "../api/types";
 import {
   LOCATE_TIMEOUT_MS,
+  MIN_MAP_LAYOUT_HEIGHT,
+  canGoBack,
+  canUseMapLayout,
   fallbackCopy,
+  floatButtons,
   fetchedText,
   locateWithTimeout,
   nearbyView,
   nextCenter,
   noneDesc,
+  peekInfo,
+  sheetSnap,
   type ViewInput,
 } from "./nearbyState";
 
@@ -133,6 +139,7 @@ const base: ViewInput = {
   locFailure: null,
   regionsRequested: false,
   expanded: false,
+  stacked: false,
 };
 
 test("위치·검색을 기다리는 동안은 찾는 중", () => {
@@ -213,7 +220,7 @@ test("검색 실패는 이전 결과가 없을 때만 오류 화면", () => {
   ).toBe("list");
 });
 
-test("충전소가 없으면 none, 빈 곳이 없으면 꽉 찬 곳 목록", () => {
+test("충전소가 없으면 none, 빈 곳이 없으면 충전 중인 곳 목록", () => {
   const r = { ...base, hasOrigin: true, source: "me" as const };
   expect(nearbyView({ ...r, result: res([]) }).kind).toBe("none");
   const v = nearbyView({ ...r, result: res([st(1, "full"), st(2, "unavailable")]) });
@@ -223,7 +230,7 @@ test("충전소가 없으면 none, 빈 곳이 없으면 꽉 찬 곳 목록", () 
   expect(off.kind === "list" && off.fallback).toBe("unavailable");
 });
 
-test("대체 목록 문구는 꽉 참·이용 불가에 맞춘다", () => {
+test("대체 목록 문구는 충전 중·이용 불가에 맞춘다", () => {
   expect(fallbackCopy("full", 30)).toEqual({
     title: "30km 안에 지금 빈 급속충전소가 없어요",
     desc: "충전 중인 곳을 가까운 순서로 보여 드려요",
@@ -257,15 +264,251 @@ test("stale은 지역 선택·오류·찾는 중을 덮지 않는다", () => {
   expect(nearbyView({ ...base, hasOrigin: true, source: "me" }).kind).toBe("loading");
 });
 
-test("빈 곳만 3곳, 나머지는 더 보기", () => {
+test("쌓인 목록(지도 실패·낮은 화면): 빈 곳만 3곳, 나머지는 더 보기", () => {
   const stations = [1, 2, 3, 4, 5].map((i) => st(i, "available"));
   stations.push(st(6, "full"));
-  const r = { ...base, hasOrigin: true, source: "me" as const, result: res(stations) };
+  const r = {
+    ...base,
+    hasOrigin: true,
+    source: "me" as const,
+    result: res(stations),
+    stacked: true,
+  };
   const v = nearbyView(r);
   expect(v.kind === "list" && v.rows.length).toBe(3);
   expect(v.kind === "list" && v.hidden).toBe(2);
   const all = nearbyView({ ...r, expanded: true });
   expect(all.kind === "list" && all.rows.length).toBe(5);
+});
+
+test("지도 시트: 고른 묶음의 줄을 자르지 않고 전부 준다", () => {
+  const stations = [1, 2, 3, 4, 5].map((i) => st(i, "available"));
+  stations.push(st(6, "full"));
+  const v = nearbyView({
+    ...base,
+    hasOrigin: true,
+    source: "me",
+    result: res(stations),
+  });
+  expect(v.kind === "list" && v.rows.map((s) => s.id)).toEqual([1, 2, 3, 4, 5]);
+  expect(v.kind === "list" && v.hidden).toBe(0);
+});
+
+test("sheetSnap: fast flick wins, slow drag needs 30% of the range", () => {
+  expect(sheetSnap({ open: false, dy: -20, vy: -0.8, range: 400 })).toBe(true);
+  expect(sheetSnap({ open: true, dy: 20, vy: 0.8, range: 400 })).toBe(false);
+  expect(sheetSnap({ open: false, dy: -100, vy: -0.1, range: 400 })).toBe(false);
+  expect(sheetSnap({ open: false, dy: -130, vy: -0.1, range: 400 })).toBe(true);
+  expect(sheetSnap({ open: true, dy: 130, vy: 0.1, range: 400 })).toBe(false);
+  expect(sheetSnap({ open: true, dy: 100, vy: 0.1, range: 400 })).toBe(true);
+});
+
+test("sheetSnap: under 8px is a tap — the current state comes back", () => {
+  expect(sheetSnap({ open: false, dy: -5, vy: -2, range: 400 })).toBe(false);
+  expect(sheetSnap({ open: true, dy: 7, vy: 2, range: 400 })).toBe(true);
+});
+
+test("peekInfo covers every state", () => {
+  const p = { radiusKm: 5, searching: false, hasOrigin: true };
+  const listOf = (stations: NearbyStation[], notice = false) =>
+    nearbyView({
+      ...base,
+      hasOrigin: true,
+      source: notice ? "last" : "me",
+      locFailure: notice ? "failed" : null,
+      result: res(stations),
+    });
+
+  // 찾는 중: 위치 전/후
+  expect(peekInfo({ ...p, view: { kind: "loading" }, hasOrigin: false })).toEqual({
+    kind: "message",
+    title: "현재 위치를 확인하고 있어요",
+  });
+  expect(peekInfo({ ...p, view: { kind: "loading" } })).toEqual({
+    kind: "message",
+    title: "급속충전소를 찾고 있어요",
+  });
+  // 정보 수신 불가: 다시 시도
+  expect(peekInfo({ ...p, view: { kind: "stale", notice: false } })).toEqual({
+    kind: "message",
+    title: "지금 충전소 정보를 받지 못하고 있어요",
+    action: "retry",
+  });
+  // 충전소 없음
+  expect(peekInfo({ ...p, view: { kind: "none", notice: false } })).toEqual({
+    kind: "message",
+    title: "30km 안에 급속충전소가 없어요",
+  });
+  // 빈 곳 없음(충전 중·이용 불가) — 제목에 반경, 펼칠 목록으로 들어가는 버튼
+  expect(peekInfo({ ...p, view: listOf([st(1, "full"), st(2, "unavailable")]) })).toEqual({
+    kind: "message",
+    title: "5km 안에 지금 빈 급속충전소가 없어요",
+    more: 1,
+    moreLabel: "충전 중인 1곳 보기",
+  });
+  expect(peekInfo({ ...p, radiusKm: 20, view: listOf([st(2, "unavailable")]) })).toEqual({
+    kind: "message",
+    title: "20km 안에 지금 쓸 수 있는 급속충전소가 없어요",
+    more: 1,
+    moreLabel: "1곳 보기",
+  });
+  // 1곳 → 더 보기 없음
+  const one = [st(1, "available")];
+  expect(peekInfo({ ...p, view: listOf(one) })).toEqual({
+    kind: "station",
+    label: "가장 가까운 빈 곳",
+    station: one[0],
+    more: 0,
+  });
+  // 5곳 → 4곳 더 보기
+  const five = [1, 2, 3, 4, 5].map((i) => st(i, "available"));
+  expect(peekInfo({ ...p, view: listOf(five) })).toMatchObject({
+    kind: "station",
+    station: { id: 1 },
+    more: 4,
+  });
+  // 지난번 위치
+  expect(peekInfo({ ...p, view: listOf(one, true) })).toMatchObject({
+    kind: "station",
+    label: "지난번 위치에서 가장 가까운 빈 곳",
+  });
+  // 찾는 중이어도 이전 결과가 있으면 그 결과의 접힌 줄을 그대로 둔다(본문이 진행을 알린다)
+  expect(peekInfo({ ...p, searching: true, view: listOf(five) })).toMatchObject({
+    kind: "station",
+    station: { id: 1 },
+    more: 4,
+  });
+});
+
+test("peekInfo: 빈 곳이 없으면 펼칠 줄 수만큼 들어가는 버튼", () => {
+  const p = { radiusKm: 5, searching: false, hasOrigin: true };
+  const listOf = (stations: NearbyStation[]) =>
+    nearbyView({ ...base, hasOrigin: true, source: "me", result: res(stations) });
+  const full = [st(1, "full"), st(2, "full"), st(3, "full"), st(4, "unavailable")];
+  expect(peekInfo({ ...p, view: listOf(full) })).toMatchObject({
+    kind: "message",
+    more: 3,
+    moreLabel: "충전 중인 3곳 보기",
+  });
+  const off = [st(1, "unavailable"), st(2, "unavailable")];
+  expect(peekInfo({ ...p, view: listOf(off) })).toMatchObject({
+    kind: "message",
+    more: 2,
+    moreLabel: "2곳 보기",
+  });
+  // 충전소 없음에는 펼칠 것이 없어 버튼이 없다. 정보 수신 불가는 다시 시도만
+  const none = peekInfo({ ...p, view: { kind: "none", notice: false } });
+  expect(none).not.toHaveProperty("more");
+  expect(none).not.toHaveProperty("moreLabel");
+  const stale = peekInfo({ ...p, view: { kind: "stale", notice: false } });
+  expect(stale).toMatchObject({ action: "retry" });
+  expect(stale).not.toHaveProperty("more");
+});
+
+test("peekInfo: 지난번 위치 안내는 안내 문구와 함께여도 남는다", () => {
+  const p = { radiusKm: 5, searching: false, hasOrigin: true };
+  const fallback = nearbyView({
+    ...base,
+    hasOrigin: true,
+    source: "last",
+    locFailure: "failed",
+    result: res([st(1, "full")]),
+  });
+  expect(peekInfo({ ...p, view: fallback })).toMatchObject({
+    kind: "message",
+    title: "5km 안에 지금 빈 급속충전소가 없어요",
+    subtitle: "지난번 위치 기준이에요",
+  });
+  expect(peekInfo({ ...p, view: { kind: "none", notice: true } })).toEqual({
+    kind: "message",
+    title: "30km 안에 급속충전소가 없어요",
+    subtitle: "지난번 위치 기준이에요",
+  });
+  expect(peekInfo({ ...p, view: { kind: "stale", notice: true } })).toEqual({
+    kind: "message",
+    title: "지금 충전소 정보를 받지 못하고 있어요",
+    subtitle: "지난번 위치 기준이에요",
+    action: "retry",
+  });
+  // 안내가 없으면 subtitle도 없다
+  expect(peekInfo({ ...p, view: { kind: "none", notice: false } })).not.toHaveProperty(
+    "subtitle",
+  );
+});
+
+test("peekInfo: 이전 결과를 둔 채 새로 찾는 동안은 접힌 줄 위에 상태 한 줄", () => {
+  const p = { radiusKm: 5, hasOrigin: true };
+  const list = nearbyView({
+    ...base,
+    hasOrigin: true,
+    source: "me",
+    result: res([st(1, "available"), st(2, "available")]),
+  });
+  expect(peekInfo({ ...p, searching: true, view: list })).toMatchObject({
+    kind: "station",
+    station: { id: 1 },
+    status: "새로 찾고 있어요",
+  });
+  expect(
+    peekInfo({ ...p, searching: true, view: { kind: "stale", notice: false } }),
+  ).toMatchObject({ kind: "message", action: "retry", status: "새로 찾고 있어요" });
+  expect(
+    peekInfo({ ...p, searching: true, view: { kind: "none", notice: false } }),
+  ).toMatchObject({ status: "새로 찾고 있어요" });
+  // 조용한 갱신(searching false)에는 없다
+  expect(peekInfo({ ...p, searching: false, view: list })).not.toHaveProperty("status");
+  // 결과가 없을 때는 제목이 이미 찾는 중이라 따로 두지 않는다
+  expect(
+    peekInfo({ ...p, searching: true, view: { kind: "loading" } }),
+  ).not.toHaveProperty("status");
+});
+
+test("peekInfo: 다시 시도 중에도 정보 수신 불가 줄과 버튼을 그대로 둔다", () => {
+  expect(
+    peekInfo({
+      radiusKm: 5,
+      searching: true,
+      hasOrigin: true,
+      view: { kind: "stale", notice: false },
+    }),
+  ).toEqual({
+    kind: "message",
+    title: "지금 충전소 정보를 받지 못하고 있어요",
+    action: "retry",
+    status: "새로 찾고 있어요",
+  });
+});
+
+test("작은 화면(웹뷰 높이 560px 미만)은 지도 시트 대신 쌓인 배치", () => {
+  expect(MIN_MAP_LAYOUT_HEIGHT).toBe(560);
+  expect(canUseMapLayout(559)).toBe(false);
+  expect(canUseMapLayout(560)).toBe(true);
+  expect(canUseMapLayout(844)).toBe(true);
+});
+
+test("지도 위 떠 있는 버튼: 자리가 모자라면 '내 위치'부터 숨긴다", () => {
+  const h = 44;
+  const gap = 8;
+  // 둘 다 들어간다
+  expect(floatButtons({ space: 2 * h + gap, here: true, buttonH: h, gap })).toEqual({
+    showHere: true,
+    showMe: true,
+  });
+  // 하나만 들어가면 "이 위치에서 찾기"를 남긴다
+  expect(floatButtons({ space: 2 * h + gap - 1, here: true, buttonH: h, gap })).toEqual({
+    showHere: true,
+    showMe: false,
+  });
+  // 찾기 버튼이 없으면 내 위치 하나만 들어가면 된다
+  expect(floatButtons({ space: h, here: false, buttonH: h, gap })).toEqual({
+    showHere: false,
+    showMe: true,
+  });
+  // 하나도 안 들어가면 둘 다 숨긴다
+  expect(floatButtons({ space: h - 1, here: true, buttonH: h, gap })).toEqual({
+    showHere: false,
+    showMe: false,
+  });
 });
 
 test("다른 지역에서 찾기를 누르면 지역 선택", () => {
@@ -304,4 +547,10 @@ test("같은 좌표를 다시 지도 중심으로 주면 살짝 다르게 준다
 test("충전소가 없을 때 둘째 줄은 지도가 있을 때만 지도를 옮기라고 한다", () => {
   expect(noneDesc(false)).toBe("지도를 옮겨 다른 곳에서 찾아보세요");
   expect(noneDesc(true)).toBe("다른 지역에서 찾아보세요");
+});
+
+test("canGoBack: 라우터 첫 기록이거나 기록이 하나뿐이면 뒤로 가지 않는다", () => {
+  expect(canGoBack("abc123", 3)).toBe(true);
+  expect(canGoBack("default", 3)).toBe(false);
+  expect(canGoBack("abc123", 1)).toBe(false);
 });

@@ -25,13 +25,114 @@ function inKorea(lat: number, lng: number): boolean {
   );
 }
 
+/** 이 출력(kW) 이상이면 초급속 — 핀에 번개, 목록에 "초급속" */
+export const ULTRA_FAST_KW = 150;
+/** 카카오 지도 레벨이 이 값 이상(더 축소)이면 핀을 글자 없는 점으로 줄인다 */
+export const DOT_LEVEL = 7;
+
+/** 핀 글자: 빈 대수·상태("count") 또는 최대 출력("power") */
+export type PinMode = "count" | "power";
+
 export function pinText(s: NearbyStation): string {
   if (s.state === "available") return `${s.available}대`;
-  return s.state === "full" ? "꽉 참" : "이용 불가";
+  return s.state === "full" ? "충전 중" : "이용 불가";
 }
 
 export function countText(s: NearbyStation): string {
   return pinText(s);
+}
+
+export function isUltraFast(s: NearbyStation): boolean {
+  return s.power_kw >= ULTRA_FAST_KW;
+}
+
+export function pinLabel(s: NearbyStation, mode: PinMode): string {
+  return mode === "power" ? `${s.power_kw}kW` : pinText(s);
+}
+
+export function isDotLevel(level: number): boolean {
+  return level >= DOT_LEVEL;
+}
+
+/** 화면 좌표의 사각형(px) */
+export interface Rect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/** 핀 사이에 둘 최소 간격(px) — 이보다 가까우면 겹친 것으로 본다 */
+export const PIN_GAP_PX = 4;
+
+function overlaps(a: Rect, b: Rect): boolean {
+  return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+}
+
+/** 겹칠 때 어느 핀을 글자로 남길지: 작을수록 먼저. 빈 곳(목록 순서 = 가까운 순) → 충전 중 → 이용 불가 */
+export function pinPriority(state: NearbyStation["state"], index: number): number {
+  const group = state === "available" ? 0 : state === "full" ? 1 : 2;
+  return group * 100_000 + index;
+}
+
+/**
+ * 겹치는 핀 정리: 우선순위 순으로 훑으며, 이미 남긴 핀(간격 PIN_GAP_PX 포함)이나
+ * 가려진 자리(reserved: 지도 위 칩·토글 줄 등)와 겹치면 점으로 줄인다.
+ * 강조한 핀은 언제나 글자로 남는다. 글자로 남길 핀의 id를 돌려준다.
+ */
+export function declutterPins(
+  items: { id: number; rect: Rect; priority: number; focused: boolean }[],
+  reserved: Rect[],
+): Set<number> {
+  const order = [...items].sort((a, b) =>
+    a.focused !== b.focused ? (a.focused ? -1 : 1) : a.priority - b.priority,
+  );
+  const kept: Rect[] = [];
+  const ids = new Set<number>();
+  for (const it of order) {
+    const r = it.rect;
+    const padded: Rect = {
+      left: r.left - PIN_GAP_PX,
+      top: r.top - PIN_GAP_PX,
+      right: r.right + PIN_GAP_PX,
+      bottom: r.bottom + PIN_GAP_PX,
+    };
+    const blocked =
+      kept.some((k) => overlaps(padded, k)) || reserved.some((z) => overlaps(r, z));
+    if (it.focused || !blocked) {
+      kept.push(r);
+      ids.add(it.id);
+    }
+  }
+  return ids;
+}
+
+/** 접힌 시트 높이가 이만큼(px) 이상 바뀌어야 범위를 다시 맞춘다 */
+export const INSET_REFIT_MIN_PX = 16;
+
+/** 맞춘 뒤 이 시간(ms) 안에 온 시트 높이 변화만 다시 맞춤의 대상이다 */
+export const INSET_REFIT_WINDOW_MS = 1000;
+
+/**
+ * 지도 아래를 가리는 시트 높이가 바뀌었을 때 범위를 한 번 더 맞출지.
+ * 첫 맞춤 때는 시트에 아직 "찾고 있어요" 한 줄이라 높이가 작다 — 그 직후 실제 높이가 오는
+ * 경우만 고친다. 맞춤마다 기회는 한 번(refitSpent)이고, 맞춘 직후(INSET_REFIT_WINDOW_MS)만,
+ * 이용자가 지도를 건드리지 않았고, 높이가 실제로(INSET_REFIT_MIN_PX 이상) 바뀐 경우만.
+ * 한참 뒤의 변화(60초 갱신 등)로 보고 있는 지도가 움직이지 않게 한다.
+ */
+export function shouldRefitForInset(input: {
+  userMoved: boolean;
+  hasFitted: boolean;
+  refitSpent: boolean;
+  msSinceFit: number;
+  prevInset: number;
+  nextInset: number;
+}): boolean {
+  const { userMoved, hasFitted, refitSpent, msSinceFit, prevInset, nextInset } =
+    input;
+  if (userMoved || !hasFitted || refitSpent) return false;
+  if (msSinceFit >= INSET_REFIT_WINDOW_MS) return false;
+  return Math.abs(nextInset - prevInset) >= INSET_REFIT_MIN_PX;
 }
 
 export function checkedText(iso: string | null, now: number): string {
@@ -43,19 +144,22 @@ export function checkedText(iso: string | null, now: number): string {
 }
 
 export function rowCaption(s: NearbyStation, now: number): string {
-  const base = `약 ${formatKm(s.distance_km)} · ${s.power_kw}kW`;
+  const base = `약 ${formatKm(s.distance_km)} · ${s.power_kw}kW${
+    isUltraFast(s) ? " 초급속" : ""
+  }`;
   if (!s.checked_at) return base;
   const min = (now - new Date(s.checked_at).getTime()) / 60000;
   return min > STALE_MIN ? `${base} · ${checkedText(s.checked_at, now)}` : base;
 }
 
-/** 빈 곳이 없을 때 대신 보여 주는 목록 종류: 충전 중(꽉 참) → 이용 불가 순 */
+/** 빈 곳이 없을 때 대신 보여 주는 목록 종류: 충전 중 → 이용 불가 순 */
 export type ListFallback = false | "full" | "unavailable";
 
-export function listRows(
-  stations: NearbyStation[],
-  expanded: boolean,
-): { rows: NearbyStation[]; hidden: number; fallback: ListFallback } {
+/** 목록에 올릴 묶음: 빈 곳 → 없으면 충전 중 → 없으면 이용 불가. 자르지 않는다 */
+export function sheetRows(stations: NearbyStation[]): {
+  rows: NearbyStation[];
+  fallback: ListFallback;
+} {
   let fallback: ListFallback = false;
   let pool = stations.filter((s) => s.state === "available");
   if (pool.length === 0) {
@@ -67,6 +171,15 @@ export function listRows(
     fallback = "unavailable";
   }
   if (pool.length === 0) fallback = false;
+  return { rows: pool, fallback };
+}
+
+/** 지도 실패 화면의 쌓인 목록: sheetRows와 같은 묶음을 처음엔 3곳까지만 */
+export function listRows(
+  stations: NearbyStation[],
+  expanded: boolean,
+): { rows: NearbyStation[]; hidden: number; fallback: ListFallback } {
+  const { rows: pool, fallback } = sheetRows(stations);
   const rows = expanded ? pool : pool.slice(0, LIST_INITIAL);
   return { rows, hidden: pool.length - rows.length, fallback };
 }

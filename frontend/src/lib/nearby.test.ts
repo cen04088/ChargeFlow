@@ -2,15 +2,27 @@ import { afterEach, expect, test, vi } from "vitest";
 
 import type { NearbyStation } from "../api/types";
 import {
+  DOT_LEVEL,
+  INSET_REFIT_MIN_PX,
+  INSET_REFIT_WINDOW_MS,
   REGIONS,
+  ULTRA_FAST_KW,
   checkedText,
   countText,
+  declutterPins,
+  pinPriority,
+  type Rect,
+  isDotLevel,
+  isUltraFast,
   listRows,
   loadLastLocation,
+  pinLabel,
   pinText,
   roundCoord,
   rowCaption,
   saveLastLocation,
+  sheetRows,
+  shouldRefitForInset,
   summaryText,
 } from "./nearby";
 
@@ -88,12 +100,133 @@ test("loadLastLocation rejects values outside Korea or non-finite", () => {
 });
 test("pinText and countText", () => {
   expect(pinText(st({ state: "available", available: 3 }))).toBe("3대");
-  expect(pinText(st({ state: "full", available: 0 }))).toBe("꽉 참");
+  expect(pinText(st({ state: "full", available: 0 }))).toBe("충전 중");
+  expect(countText(st({ state: "full", available: 0 }))).toBe("충전 중");
   expect(countText(st({ state: "unavailable", available: 0 }))).toBe("이용 불가");
+});
+test("isUltraFast / pinLabel", () => {
+  expect(ULTRA_FAST_KW).toBe(150);
+  expect(isUltraFast(st({ power_kw: 150 }))).toBe(true);
+  expect(isUltraFast(st({ power_kw: 149 }))).toBe(false);
+  expect(pinLabel(st({ state: "available", available: 3 }), "count")).toBe("3대");
+  expect(pinLabel(st({ state: "full", available: 0 }), "count")).toBe("충전 중");
+  expect(pinLabel(st({ state: "unavailable", available: 0 }), "count")).toBe("이용 불가");
+  expect(pinLabel(st({ power_kw: 200, state: "full", available: 0 }), "power")).toBe("200kW");
+});
+test("shouldRefitForInset: one chance per fit, only right after it", () => {
+  const fit = { userMoved: false, hasFitted: true, refitSpent: false };
+  expect(INSET_REFIT_WINDOW_MS).toBe(1000);
+  // 맞출 때 이미 맞는 높이였고, 한참 뒤(60초 갱신 등)에 바뀌면 → 다시 맞추지 않는다
+  expect(
+    shouldRefitForInset({ ...fit, msSinceFit: 60_000, prevInset: 236, nextInset: 111 }),
+  ).toBe(false);
+  // 맞출 때 너무 낮았고(찾는 중 한 줄), 곧 실제 높이가 오면 → 한 번 다시 맞춘다
+  expect(
+    shouldRefitForInset({ ...fit, msSinceFit: 200, prevInset: 111, nextInset: 236 }),
+  ).toBe(true);
+  // 그 기회를 쓴 뒤의 두 번째 변화 → 다시 맞추지 않는다
+  expect(
+    shouldRefitForInset({
+      ...fit,
+      refitSpent: true,
+      msSinceFit: 400,
+      prevInset: 236,
+      nextInset: 300,
+    }),
+  ).toBe(false);
+  expect(
+    shouldRefitForInset({ ...fit, msSinceFit: 1000, prevInset: 111, nextInset: 236 }),
+  ).toBe(false);
+});
+test("shouldRefitForInset: only before the user moves, after a fit, on a real change", () => {
+  const ok = {
+    userMoved: false,
+    hasFitted: true,
+    refitSpent: false,
+    msSinceFit: 100,
+    prevInset: 111,
+    nextInset: 236,
+  };
+  expect(INSET_REFIT_MIN_PX).toBe(16);
+  expect(shouldRefitForInset(ok)).toBe(true);
+  expect(shouldRefitForInset({ ...ok, userMoved: true })).toBe(false);
+  expect(shouldRefitForInset({ ...ok, hasFitted: false })).toBe(false);
+  expect(shouldRefitForInset({ ...ok, nextInset: 111 + 15 })).toBe(false);
+  expect(shouldRefitForInset({ ...ok, nextInset: 111 + 16 })).toBe(true);
+  expect(shouldRefitForInset({ ...ok, prevInset: 236, nextInset: 200 })).toBe(true);
+});
+const box = (left: number, top: number, w = 60, h = 44): Rect => ({
+  left,
+  top,
+  right: left + w,
+  bottom: top + h,
+});
+const pin = (id: number, rect: Rect, priority: number, focused = false) => ({
+  id,
+  rect,
+  priority,
+  focused,
+});
+
+test("declutterPins: no overlap keeps every pill", () => {
+  const kept = declutterPins(
+    [pin(1, box(0, 100), 0), pin(2, box(100, 100), 1), pin(3, box(200, 100), 2)],
+    [],
+  );
+  expect([...kept].sort()).toEqual([1, 2, 3]);
+});
+test("declutterPins: of two overlapping pills the higher priority stays", () => {
+  const kept = declutterPins([pin(1, box(30, 100), 5), pin(2, box(0, 100), 1)], []);
+  expect([...kept]).toEqual([2]);
+});
+test("declutterPins: pills closer than 4px count as overlapping", () => {
+  expect([...declutterPins([pin(1, box(0, 100), 0), pin(2, box(63, 100), 1)], [])]).toEqual([1]);
+  expect([...declutterPins([pin(1, box(0, 100), 0), pin(2, box(70, 100), 1)], [])].sort()).toEqual([1, 2]);
+});
+test("declutterPins: the focused pin always stays a pill", () => {
+  const kept = declutterPins(
+    [pin(1, box(0, 100), 0), pin(2, box(10, 100), 9, true)],
+    [box(-1000, -1000, 3000, 1110)],
+  );
+  expect(kept.has(2)).toBe(true);
+  expect(kept.has(1)).toBe(false);
+});
+test("declutterPins: a pill inside a reserved rect becomes a dot", () => {
+  const topBand = { left: -Infinity, top: -Infinity, right: Infinity, bottom: 60 };
+  const kept = declutterPins([pin(1, box(0, 30), 0), pin(2, box(0, 200), 1)], [topBand]);
+  expect([...kept]).toEqual([2]);
+});
+test("declutterPins: chain A–B–C where B overlaps both and is lowest → A and C stay", () => {
+  const kept = declutterPins(
+    [pin(1, box(0, 100), 0), pin(2, box(40, 100), 2), pin(3, box(80, 100), 1)],
+    [],
+  );
+  expect([...kept].sort()).toEqual([1, 3]);
+});
+test("pinPriority: available by order, then full, then unavailable", () => {
+  expect(pinPriority("available", 3)).toBeLessThan(pinPriority("full", 0));
+  expect(pinPriority("full", 3)).toBeLessThan(pinPriority("unavailable", 0));
+  expect(pinPriority("available", 0)).toBeLessThan(pinPriority("available", 1));
+});
+test("isDotLevel", () => {
+  expect(DOT_LEVEL).toBe(7);
+  expect(isDotLevel(6)).toBe(false);
+  expect(isDotLevel(7)).toBe(true);
+});
+test("rowCaption marks ultra-fast", () => {
+  expect(rowCaption(st({ distance_km: 1.2, power_kw: 200, checked_at: iso(NOW) }), NOW)).toBe("약 1.2km · 200kW 초급속");
+  expect(rowCaption(st({ distance_km: 1.2, power_kw: 100, checked_at: iso(NOW) }), NOW)).toBe("약 1.2km · 100kW");
+});
+test("sheetRows returns every row of the chosen group", () => {
+  const all = [1, 2, 3, 4, 5].map((id) => st({ id }));
+  expect(sheetRows(all).rows).toHaveLength(5);
+  expect(sheetRows([st({ id: 1, state: "full", available: 0 }), st({ id: 2, state: "unavailable", available: 0 })]))
+    .toMatchObject({ fallback: "full", rows: [{ id: 1 }] });
+  expect(sheetRows([])).toEqual({ rows: [], fallback: false });
 });
 test("rowCaption hides fresh check time", () => {
   expect(rowCaption(st({ distance_km: 1.2, power_kw: 100, checked_at: iso(NOW - 10 * 60000) }), NOW)).toBe("약 1.2km · 100kW");
-  expect(rowCaption(st({ distance_km: 0.4, power_kw: 200, checked_at: iso(NOW - 125 * 60000) }), NOW)).toBe("약 400m · 200kW · 2시간 전 확인");
+  expect(rowCaption(st({ distance_km: 0.4, power_kw: 200, checked_at: iso(NOW - 125 * 60000) }), NOW)).toBe("약 400m · 200kW 초급속 · 2시간 전 확인");
   expect(rowCaption(st({ checked_at: null }), NOW)).toBe("약 1.2km · 100kW");
 });
 test("checkedText", () => {
