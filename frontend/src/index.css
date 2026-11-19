@@ -1610,6 +1610,17 @@ html body {
     0 0 0 6px var(--brand-primary), 0 6px 16px -2px rgba(0, 23, 51, 0.45);
 }
 
+/* 상태를 모르는 두 줄 핀: 다른 두 줄 핀과 같은 카드, 윗줄 띠만 회색 */
+.nearby-pin--two.nearby-pin--neutral:not(.nearby-pin--dot) {
+  box-shadow: 0 0 0 1.5px rgba(0, 23, 51, 0.22),
+    0 4px 12px -2px rgba(0, 23, 51, 0.4);
+}
+
+.nearby-pin--two.nearby-pin--neutral.route-pin--emph:not(.nearby-pin--dot) {
+  box-shadow: 0 0 0 3px var(--brand-primary),
+    0 6px 16px -2px rgba(0, 23, 51, 0.45);
+}
+
 /* IC 이름표: 누를 수 없다. 좌표 바로 아래 가운데 */
 .route-label {
   position: absolute;
