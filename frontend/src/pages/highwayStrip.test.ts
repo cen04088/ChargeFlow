@@ -1,7 +1,13 @@
 import { expect, test } from "vitest";
 
 import type { HighwayNode } from "../api/types";
-import { buildStrip, fitProjection, kmLabel } from "./highwayStrip";
+import {
+  alongRouteKm,
+  buildStrip,
+  fitProjection,
+  kmLabel,
+  shouldAutoScroll,
+} from "./highwayStrip";
 
 function n(id: number, type: "IC" | "RA", name: string, km: number, lat = 37): HighwayNode {
   return {
@@ -110,7 +116,7 @@ test("가는 방향을 모르고 근처: 노선 전체를 기점부터, 가까�
   });
   expect(r.passedCount).toBe(0);
   expect(brief(r.items)).toEqual([
-    "ic:신갈IC:0km",
+    "ic:신갈IC:기점",
     "ra:기흥휴게소:10km",
     "ic:오산IC:20km",
     "ra:안성휴게소:32km",
@@ -149,7 +155,7 @@ test("목록에 남기지 않은 휴게소(충전기 없음)는 빠진다", () =
 
 test("휴게소 한 곳뿐 / 0곳", () => {
   const one = buildStrip({ nodes: [IC1, RA1, IC2], listed: [RA1], travel: null, nearId: null, query: "", showPassed: false });
-  expect(brief(one.items)).toEqual(["ic:신갈IC:0km", "ra:기흥휴게소:10km", "ic:오산IC:20km"]);
+  expect(brief(one.items)).toEqual(["ic:신갈IC:기점", "ra:기흥휴게소:10km", "ic:오산IC:20km"]);
   const zero = buildStrip({ nodes: [IC1, IC2], listed: [], travel: null, nearId: null, query: "", showPassed: false });
   expect(zero.items).toEqual([]);
   expect(zero.passedCount).toBe(0);
@@ -199,4 +205,119 @@ test("fitProjection: 점이 모두 같거나 곧은 세로선이어도 상자 �
   expect(bottom.y).toBeCloseTo(88);
   const empty = fitProjection([], 96, 96, 8);
   expect(empty({ lat: 1, lng: 1 })).toEqual({ x: 48, y: 48 });
+});
+
+test("앞으로 남은 휴게소 수(aheadCount): 가는 방향이면 지나지 않은 휴게소만, 아니면 전체", () => {
+  const t = buildStrip({ nodes: NODES, listed: LISTED, travel: { nextId: RA2.id, meKm: 31.6 }, nearId: null, query: "", showPassed: false });
+  expect(t.aheadCount).toBe(3);
+  const all = buildStrip({ nodes: NODES, listed: LISTED, travel: null, nearId: null, query: "", showPassed: false });
+  expect(all.aheadCount).toBe(4);
+});
+
+test("기점 거리가 0으로 반올림되면 '기점'", () => {
+  const r = buildStrip({ nodes: [n(9, "RA", "서울만남의광장휴게소", 0.3), IC2], listed: [n(9, "RA", "서울만남의광장휴게소", 0.3)], travel: null, nearId: null, query: "", showPassed: false });
+  expect(brief(r.items)[0]).toBe("ra:서울만남의광장휴게소:기점");
+});
+
+test("검색: 다음 휴게소가 걸러져도 남은 결과는 앞 거리, 맞는 지나온 휴게소는 '지남'", () => {
+  const r = buildStrip({
+    nodes: NODES,
+    listed: LISTED,
+    travel: { nextId: RA2.id, meKm: 31.6 },
+    nearId: null,
+    query: "휴게소",
+    showPassed: false,
+  });
+  expect(brief(r.items)).toEqual([
+    "ra:기흥휴게소:지남",
+    "ra:안성휴게소:곧:next",
+    "ra:망향휴게소:22km",
+    "ra:천안호두휴게소:44km",
+  ]);
+  const noNext = buildStrip({
+    nodes: NODES,
+    listed: LISTED,
+    travel: { nextId: RA2.id, meKm: 31.6 },
+    nearId: null,
+    query: "망향",
+    showPassed: false,
+  });
+  expect(brief(noNext.items)).toEqual(["ra:망향휴게소:22km"]);
+});
+
+test("내 위치가 첫 정류장보다 앞(meKm 음수): 지나온 곳 없이 모두 앞 거리", () => {
+  const r = buildStrip({
+    nodes: NODES,
+    listed: LISTED,
+    travel: { nextId: RA1.id, meKm: -3 },
+    nearId: null,
+    query: "",
+    showPassed: false,
+  });
+  expect(r.passedCount).toBe(0);
+  expect(brief(r.items).slice(0, 3)).toEqual(["me", "ic:신갈IC:3km", "ra:기흥휴게소:13km:next"]);
+});
+
+test("마지막 휴게소 뒤에 IC가 이어져도 그대로 끝까지", () => {
+  const IC5 = n(9, "IC", "목천IC", 95);
+  const r = buildStrip({ nodes: [...NODES, IC5], listed: LISTED, travel: { nextId: RA4.id, meKm: 70 }, nearId: null, query: "", showPassed: false });
+  expect(brief(r.items).slice(-3)).toEqual(["ra:천안호두휴게소:6km:next", "ic:천안IC:20km", "ic:목천IC:25km"]);
+});
+
+test("fitProjection: 위도 37°에서는 경도 폭을 cos(위도)만큼 줄인다", () => {
+  // 위도 1도 × 경도 1도 사각형: 37°에서 가로는 세로의 약 0.8배
+  const p = fitProjection(
+    [
+      { lat: 37.5, lng: 127 },
+      { lat: 36.5, lng: 128 },
+    ],
+    96,
+    96,
+    8,
+  );
+  const a = p({ lat: 37.5, lng: 127 });
+  const b = p({ lat: 36.5, lng: 128 });
+  expect(b.y - a.y).toBeCloseTo(80);
+  expect((b.x - a.x) / (b.y - a.y)).toBeCloseTo(Math.cos((37 * Math.PI) / 180), 3);
+});
+
+/** 남북으로 곧은 노선: 위도 37.0(0km) → 36.9(11.1km) → 36.8(22.2km), 경도 127 */
+const LINE = [
+  n(1, "IC", "A", 0, 37.0),
+  n(2, "RA", "B", 11.1, 36.9),
+  n(3, "IC", "C", 22.2, 36.8),
+];
+
+test("alongRouteKm: 구간 위면 앞뒤 정류장 사이를 비례로", () => {
+  expect(alongRouteKm(LINE, { lat: 36.95, lng: 127 })).toBeCloseTo(5.55, 1);
+  expect(alongRouteKm(LINE, { lat: 36.85, lng: 127 })).toBeCloseTo(16.65, 1);
+});
+
+test("alongRouteKm: 첫 정류장 전이면 음수, 마지막 뒤면 끝보다 크게", () => {
+  expect(alongRouteKm(LINE, { lat: 37.05, lng: 127 })).toBeCloseTo(-5.55, 1);
+  expect(alongRouteKm(LINE, { lat: 36.75, lng: 127 })).toBeCloseTo(27.75, 1);
+});
+
+test("alongRouteKm: 옆으로 비켜 있어도 가장 가까운 구간에 내린 발", () => {
+  expect(alongRouteKm(LINE, { lat: 36.95, lng: 127.05 })).toBeCloseTo(5.55, 1);
+  expect(alongRouteKm([], { lat: 37, lng: 127 })).toBeNull();
+  expect(alongRouteKm([LINE[0]], { lat: 37, lng: 127 })).toBe(0);
+});
+
+test("alongRouteKm: 꺾인 노선에서는 꺾인 뒤 구간에 내린다", () => {
+  // 남쪽으로 내려가다(0→11.1km) 동쪽으로 꺾인다(11.1→20km)
+  const bend = [
+    n(1, "IC", "A", 0, 37.0),
+    { ...n(2, "RA", "B", 11.1, 36.9) },
+    { ...n(3, "IC", "C", 20, 36.9), longitude: "127.1" },
+  ];
+  // 꺾인 뒤 구간의 가운데 바로 아래: 앞 구간(남북)보다 뒤 구간(동서)이 가깝다
+  expect(alongRouteKm(bend, { lat: 36.895, lng: 127.05 })).toBeCloseTo(15.55, 0);
+});
+
+test("shouldAutoScroll: 대상이 있고, 손대기 전이고, 검색 중이 아닐 때만", () => {
+  expect(shouldAutoScroll({ targetId: 3, spent: false, searching: false })).toBe(true);
+  expect(shouldAutoScroll({ targetId: null, spent: false, searching: false })).toBe(false);
+  expect(shouldAutoScroll({ targetId: 3, spent: true, searching: false })).toBe(false);
+  expect(shouldAutoScroll({ targetId: 3, spent: false, searching: true })).toBe(false);
 });

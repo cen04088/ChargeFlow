@@ -1591,15 +1591,16 @@ html body {
    왼쪽 거리 칸(44px) → 도로 띠(가운데 x = --strip-x) → 내용. 띠는 줄마다 이어 그리고
    첫 줄·마지막 줄의 가운데에서 끝난다(줄 사이 틈이 없어 한 줄기로 보인다) */
 .strip-page {
-  padding-top: 4px;
+  padding-top: 0;
 }
 
+/* 머리줄: 왼쪽 제목·방향·내 위치 버튼, 오른쪽 작은 지도 창 — 가운데 맞춤으로 낮게 */
 .strip-head {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px var(--gutter) 12px;
+  padding: 4px var(--gutter) 8px;
 }
 
 .strip-head__text {
@@ -1637,7 +1638,7 @@ html body {
 
 .route-mini__map {
   display: block;
-  border-radius: 14px;
+  border-radius: 12px;
   background: #f1efe9;
   box-shadow: 0 1px 5px rgba(0, 23, 51, 0.25);
 }
@@ -1670,14 +1671,14 @@ html body {
   align-items: center;
 }
 
-/* 도로 띠: 폭 10px + 양쪽 진한 가장자리 2px */
+/* 도로 띠: 가운데 10px + 양쪽 진한 가장자리 2px = 14px(box-sizing: border-box). 가운데가 --strip-x(정류장 가운데) */
 .strip-row::before {
   content: "";
   position: absolute;
   top: 0;
   bottom: 0;
   left: calc(var(--strip-x) - 7px);
-  width: 10px;
+  width: 14px;
   border-left: 2px solid var(--road-edge);
   border-right: 2px solid var(--road-edge);
   background: var(--road);
@@ -1843,4 +1844,31 @@ html body {
   position: static;
   pointer-events: auto;
   color: var(--brand-deep);
+}
+
+/* 띠 머리줄의 내 위치 버튼: 위치가 없으면 브랜드색, 있으면 옅게(다시 재기) */
+.strip-locate {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 0 0 -8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--brand-strong);
+  cursor: pointer;
+}
+
+.strip-locate--quiet {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.strip-locate[aria-disabled="true"] {
+  opacity: 0.65;
+  cursor: default;
 }

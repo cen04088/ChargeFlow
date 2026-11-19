@@ -25,6 +25,7 @@ export function kmLabel(km: number): string {
 }
 
 const PASSED_LABEL = "지남";
+const START_LABEL = "기점";
 
 export function buildStrip(input: {
   /** 이 방향의 IC·휴게소 전체(가는 순서) */
@@ -37,9 +38,9 @@ export function buildStrip(input: {
   nearId: number | null;
   query: string;
   showPassed: boolean;
-}): { items: StripItem[]; passedCount: number } {
+}): { items: StripItem[]; passedCount: number; aheadCount: number } {
   const { nodes, listed, travel, nearId, query, showPassed } = input;
-  if (listed.length === 0) return { items: [], passedCount: 0 };
+  if (listed.length === 0) return { items: [], passedCount: 0, aheadCount: 0 };
   const keep = new Set(listed.map((n) => n.id));
   const rows = nodes.filter((n) => n.node_type === "IC" || keep.has(n.id));
 
@@ -50,7 +51,10 @@ export function buildStrip(input: {
     i < nextAt &&
     (n.node_type === "RA" || n.distance_from_start_km < ahead.meKm);
   const km = (n: HighwayNode, passed: boolean) => {
-    if (!ahead) return `${Math.round(n.distance_from_start_km)}km`;
+    if (!ahead) {
+      const d = Math.round(n.distance_from_start_km);
+      return d === 0 ? START_LABEL : `${d}km`;
+    }
     if (passed) return PASSED_LABEL;
     return kmLabel(Math.max(0, n.distance_from_start_km - ahead.meKm));
   };
@@ -63,6 +67,8 @@ export function buildStrip(input: {
   };
   const all = rows.map(toItem);
   const passedCount = all.filter((it) => it.kind === "ra" && it.passed).length;
+  /** 앞으로 남은 휴게소 수(가는 방향이 아니면 전체) */
+  const aheadCount = all.filter((it) => it.kind === "ra" && !it.passed).length;
 
   const q = query.replace(/\s/g, "");
   if (q) {
@@ -71,9 +77,10 @@ export function buildStrip(input: {
         (it) => it.kind === "ra" && it.node.name.replace(/\s/g, "").includes(q),
       ),
       passedCount,
+      aheadCount,
     };
   }
-  if (!ahead) return { items: all, passedCount: 0 };
+  if (!ahead) return { items: all, passedCount: 0, aheadCount };
 
   const passedOf = (it: StripItem) => (it.kind === "ra" || it.kind === "ic") && it.passed;
   const passedItems = all.filter(passedOf);
@@ -83,7 +90,7 @@ export function buildStrip(input: {
     : passedCount > 0
       ? [{ kind: "passed-toggle", count: passedCount }]
       : [];
-  return { items: [...head, { kind: "me" }, ...aheadItems], passedCount };
+  return { items: [...head, { kind: "me" }, ...aheadItems], passedCount, aheadCount };
 }
 
 interface LatLng {
@@ -126,4 +133,50 @@ export function fitProjection(
     x: center.x + (p.lng * k - cx) * s,
     y: center.y + (-p.lat - cy) * s,
   });
+}
+
+/**
+ * 내 위치를 노선 위 거리(기점부터 km)로: 이웃한 정류장 사이 구간 중 가장 가까운 구간에 수선의 발을 내리고
+ * 그 구간의 기점 거리를 비례로 나눈다. 첫 구간 앞·마지막 구간 뒤는 그 방향으로 늘려 음수·끝 넘는 값을 준다.
+ * 곡선에서도 직선거리보다 정확해 바로 앞 IC를 지난 것으로 잘못 숨기지 않는다.
+ */
+export function alongRouteKm(nodes: HighwayNode[], me: LatLng): number | null {
+  if (nodes.length === 0) return null;
+  if (nodes.length === 1) return nodes[0].distance_from_start_km;
+  // 내 위치 둘레의 평면 근사(km)
+  const k = Math.cos((me.lat * Math.PI) / 180);
+  const toXY = (n: HighwayNode) => ({
+    x: (+n.longitude - me.lng) * 111.32 * k,
+    y: (+n.latitude - me.lat) * 111.32,
+  });
+  let best: { dist: number; km: number } | null = null;
+  for (let i = 0; i + 1 < nodes.length; i++) {
+    const a = toXY(nodes[i]);
+    const b = toXY(nodes[i + 1]);
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy;
+    let t = len2 > 0 ? (-a.x * dx - a.y * dy) / len2 : 0;
+    // 양 끝 구간만 바깥으로 늘린다
+    const lo = i === 0 ? -Infinity : 0;
+    const hi = i + 2 === nodes.length ? Infinity : 1;
+    t = Math.min(hi, Math.max(lo, t));
+    const px = a.x + t * dx;
+    const py = a.y + t * dy;
+    const dist = Math.hypot(px, py);
+    const d0 = nodes[i].distance_from_start_km;
+    const d1 = nodes[i + 1].distance_from_start_km;
+    const km = d0 + t * (d1 - d0);
+    if (!best || dist < best.dist) best = { dist, km };
+  }
+  return best ? best.km : null;
+}
+
+/** 가까운 휴게소로 자동 스크롤할지: 대상이 있고, 이 노선·방향에서 아직 손대지 않았고(spent 아님), 검색 중이 아닐 때만 */
+export function shouldAutoScroll(input: {
+  targetId: number | null;
+  spent: boolean;
+  searching: boolean;
+}): boolean {
+  return input.targetId != null && !input.spent && !input.searching;
 }

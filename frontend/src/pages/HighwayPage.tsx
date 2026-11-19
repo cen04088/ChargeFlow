@@ -5,7 +5,7 @@ import {
   Skeleton,
   useToast,
 } from "@toss/tds-mobile";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Link,
   Navigate,
@@ -29,6 +29,7 @@ import { RouteStrip } from "../components/RouteStrip";
 import { RaStatusText } from "../components/RestAreaRow";
 import { directionLabel, shortName, timeAgo } from "../lib/format";
 import {
+  AUTO_PICK_KM,
   listedRestAreas,
   loadLastHighway,
   raAriaLabel,
@@ -40,12 +41,13 @@ import { loadHighways, useHighways } from "../lib/store";
 import { getLocation, logClick, logScreen } from "../lib/toss";
 import { useAsync } from "../lib/useAsync";
 import { useElementHeight } from "../lib/useElementHeight";
-import { buildStrip } from "./highwayStrip";
+import { alongRouteKm, buildStrip, shouldAutoScroll } from "./highwayStrip";
 import {
   TRAVEL_FRESH_MS,
   aheadText,
   checkTravel,
   highwayPeek,
+  distanceKm,
   nearestRestArea,
   nextRestArea,
 } from "./highwayState";
@@ -408,6 +410,10 @@ function RouteView({ code }: { code: string }) {
   const [mode, setMode] = useState<"strip" | "map">("strip");
   /** 노선 띠에서 지나온 휴게소를 펼쳤다 */
   const [showPassed, setShowPassed] = useState(false);
+  /** 가까운 휴게소 자동 스크롤을 이미 썼거나 이용자가 손댄 노선·방향(code|dir) */
+  const autoScrollSpent = useRef<Set<string>>(new Set());
+  /** 지도 보기로 갈 때의 띠 스크롤 위치 — 돌아오면 되살린다 */
+  const stripScrollY = useRef<number | null>(null);
   const [listOpen, setListOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [peekH, setPeekH] = useState(0);
@@ -471,20 +477,28 @@ function RouteView({ code }: { code: string }) {
   }, []);
 
   // 노선·방향을 다른 위치 정보와 함께 다시 고르면(새 기록) 그 위치로 다시 시작한다
+  // 위치·가는 방향은 이 렌더에서 바로 바꾼다(렌더 중 상태 조정) — 효과로 바꾸면 한 번은 이전 위치로
+  // "가는 방향"을 판정해 새 기록의 travel을 잘못 버릴 수 있다
   const navKey = location.key;
+  const [seenNavKey, setSeenNavKey] = useState(navKey);
+  if (seenNavKey !== navKey) {
+    setSeenNavKey(navKey);
+    setDropped(false);
+    const n = navState(location.state);
+    if (n.me) {
+      setFix({ me: n.me, at: n.at ?? 0 });
+      setStale(Date.now() - (n.at ?? 0) > TRAVEL_FRESH_MS);
+    }
+  }
   const prevNavKey = useRef(navKey);
   const prevNextIdx = useRef<number | null>(null);
   useEffect(() => {
     if (prevNavKey.current === navKey) return;
     prevNavKey.current = navKey;
-    setDropped(false);
     prevNextIdx.current = null;
     const n = navState(location.state);
-    if (n.me) {
-      const old = Date.now() - (n.at ?? 0) > TRAVEL_FRESH_MS;
-      setFix({ me: n.me, at: n.at ?? 0 });
-      setStale(old);
-      if (old) void locateRef.current(false);
+    if (n.me && Date.now() - (n.at ?? 0) > TRAVEL_FRESH_MS) {
+      void locateRef.current(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navKey]);
@@ -515,7 +529,11 @@ function RouteView({ code }: { code: string }) {
     if (r.ok) {
       setFix({ me: { lat: r.lat, lng: r.lng }, at: Date.now() });
       setStale(false);
-      if (fromTap) setFitNonce((n) => n + 1);
+      if (fromTap) {
+        setFitNonce((n) => n + 1);
+        // 직접 "내 위치"를 눌렀으면 띠에서 가까운 휴게소로 한 번 더 데려간다
+        autoScrollSpent.current.delete(keyRef.current);
+      }
       return;
     }
     if (fromTap) {
@@ -566,16 +584,44 @@ function RouteView({ code }: { code: string }) {
     else if (v === "keep") prevNextIdx.current = geoIdx;
   }, [navTravel, dropped, fix, stale, ras, geoIdx]);
   const nearIdx = near ? ras.findIndex((n) => n.id === near.id) : -1;
-  /** 내 위치를 기점부터 거리로(다음 휴게소까지 직선거리를 뺀 값) */
+  /** 내 위치를 노선 위 거리(기점부터 km)로 — 노선 선에 내린 발. 못 구하면 직선거리로 어림 */
   const meKm =
-    nextIdx >= 0 && next
-      ? ras[nextIdx].distance_from_start_km - next.aheadKm
+    nextIdx >= 0 && next && me
+      ? (alongRouteKm(current?.nodes ?? [], me) ??
+        ras[nextIdx].distance_from_start_km - next.aheadKm)
       : null;
 
   const list = useMemo(() => {
     const q = query.replace(/\s/g, "");
     return ras.filter((n) => !q || n.name.replace(/\s/g, "").includes(q));
   }, [ras, query]);
+
+  const loadFailed = !!nodes.error && !current;
+  const loading = !current && !nodes.error;
+  const tall = frozenTall ?? canUseMapLayout(viewportH);
+
+  // 지도 배치를 쓸 수 없게 되면(불러오기 실패·회전·낮은 화면) 띠로 되돌린다 — 나중에 저절로 지도로 바뀌지 않게
+  useEffect(() => {
+    if (mode === "map" && (!tall || mapFailed || loadFailed)) setMode("strip");
+  }, [mode, tall, mapFailed, loadFailed]);
+
+  // 띠로 돌아오면 지도로 가기 전 스크롤 위치를 되살린다
+  useLayoutEffect(() => {
+    if (mode !== "strip" || stripScrollY.current == null) return;
+    window.scrollTo(0, stripScrollY.current);
+    stripScrollY.current = null;
+  }, [mode]);
+
+  // 띠에서 이용자가 손대면(스크롤·터치·휠·키) 그 노선·방향의 자동 스크롤은 쓴 것으로 친다
+  const keyRef = useRef(key);
+  keyRef.current = key;
+  useEffect(() => {
+    if (mode !== "strip") return;
+    const spend = () => autoScrollSpent.current.add(keyRef.current);
+    const events = ["scroll", "wheel", "touchstart", "pointerdown", "keydown"] as const;
+    events.forEach((e) => window.addEventListener(e, spend, { passive: true }));
+    return () => events.forEach((e) => window.removeEventListener(e, spend));
+  }, [mode]);
 
   if (highways.data && !hw) return <Navigate to="/highways" replace />;
 
@@ -646,9 +692,6 @@ function RouteView({ code }: { code: string }) {
     );
   };
 
-  const loadFailed = !!nodes.error && !current;
-  const loading = !current && !nodes.error;
-  const tall = frozenTall ?? canUseMapLayout(viewportH);
   const mapLayout = mode === "map" && tall && !mapFailed && !loadFailed;
 
   /** 작은 지도 창 → 지도 보기. 화면이 낮으면 지도 배치를 쓸 수 없다 */
@@ -658,6 +701,8 @@ function RouteView({ code }: { code: string }) {
       return;
     }
     logClick("highway_view_mode", { mode: "map" });
+    stripScrollY.current = window.scrollY;
+    autoScrollSpent.current.add(key);
     setMode("map");
   };
   const openStrip = () => {
@@ -779,7 +824,18 @@ function RouteView({ code }: { code: string }) {
       showPassed,
     });
     const searching = query.trim() !== "";
-    const count = searching ? strip.items.length : ras.length;
+    const stripTravel = next != null && meKm != null;
+    const title = loading
+      ? "휴게소"
+      : searching
+        ? `휴게소 ${strip.items.length}곳`
+        : stripTravel
+          ? `앞으로 휴게소 ${strip.aheadCount}곳`
+          : `휴게소 ${ras.length}곳`;
+    /** 작은 지도 창의 내 위치: 노선 근처(20km)일 때만 그리고 맞춤에도 넣는다 */
+    const miniMe =
+      me && path.some((p) => distanceKm(me, p) <= AUTO_PICK_KM) ? me : null;
+    const nearTarget = !travel && near ? near.id : null;
     return (
       <main className="page">
         {controls}
@@ -798,13 +854,21 @@ function RouteView({ code }: { code: string }) {
             <section aria-labelledby="highway-list-title">
               <div className="strip-head">
                 <div className="strip-head__text">
-                  <h2 id="highway-list-title">
-                    {loading ? "휴게소" : `휴게소 ${count}곳`}
-                  </h2>
+                  <h2 id="highway-list-title">{title}</h2>
                   <p>{dirLabel} · 가는 순서</p>
+                  {/* 위치가 없으면(시간 초과·권한 없음) 여기서 다시 받는다. 있으면 다시 재기 */}
+                  <button
+                    type="button"
+                    className={`strip-locate${me ? " strip-locate--quiet" : ""}`}
+                    aria-busy={locating}
+                    aria-disabled={locating}
+                    onClick={() => void locate(true)}
+                  >
+                    {me ? "내 위치 새로 고침" : "내 위치로 보기"}
+                  </button>
                 </div>
                 {!mapFailed && path.length >= 2 && (
-                  <RouteMiniMap path={path} me={me} onClick={openMap} />
+                  <RouteMiniMap path={path} me={miniMe} onClick={openMap} />
                 )}
               </div>
               {loading ? (
@@ -821,8 +885,18 @@ function RouteView({ code }: { code: string }) {
                   passedCount={strip.passedCount}
                   onOpen={(id) => openRestArea(id, "list")}
                   onShowPassed={() => setShowPassed(true)}
-                  scrollToId={!travel && !searching && near ? near.id : null}
-                  scrollKey={key}
+                  scrollToId={
+                    shouldAutoScroll({
+                      targetId: nearTarget,
+                      spent: autoScrollSpent.current.has(key),
+                      searching,
+                    })
+                      ? nearTarget
+                      : null
+                  }
+                  armKey={`${key}|${fitNonce}`}
+                  isSpent={() => autoScrollSpent.current.has(keyRef.current)}
+                  onAutoScrolled={() => autoScrollSpent.current.add(keyRef.current)}
                 />
               )}
             </section>

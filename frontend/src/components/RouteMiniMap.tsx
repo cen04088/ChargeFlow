@@ -5,8 +5,8 @@ interface Point {
   lng: number;
 }
 
-const SIZE = 96;
-const PAD = 10;
+const SIZE = 72;
+const PAD = 8;
 
 /**
  * 노선 띠 오른쪽 위의 작은 지도 창: 노선 모양(도로색 선)과 내 위치 점만 그린 그림이다(지도 SDK를 쓰지 않는다).
@@ -21,14 +21,13 @@ export function RouteMiniMap({
   me: Point | null;
   onClick: () => void;
 }) {
-  const project = fitProjection(path, SIZE, SIZE, PAD);
+  // 내 위치(노선 근처일 때만 넘어온다)도 창 안에 들어오게 함께 맞춘다
+  const project = fitProjection(me ? [...path, me] : path, SIZE, SIZE, PAD);
   const points = path
     .map((p) => project(p))
     .map(({ x, y }) => `${x.toFixed(1)},${y.toFixed(1)}`)
     .join(" ");
   const dot = me ? project(me) : null;
-  const dotInside =
-    dot != null && dot.x >= 0 && dot.x <= SIZE && dot.y >= 0 && dot.y <= SIZE;
   return (
     <button type="button" className="route-mini press" onClick={onClick}>
       <svg
@@ -43,7 +42,7 @@ export function RouteMiniMap({
           points={points}
           fill="none"
           stroke="#fff"
-          strokeWidth="7"
+          strokeWidth="6"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
@@ -51,11 +50,11 @@ export function RouteMiniMap({
           points={points}
           fill="none"
           stroke="var(--road)"
-          strokeWidth="4"
+          strokeWidth="3.5"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        {dotInside && dot && (
+        {dot && (
           <circle
             cx={dot.x}
             cy={dot.y}

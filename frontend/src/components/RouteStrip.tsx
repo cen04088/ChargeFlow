@@ -51,28 +51,34 @@ export function RouteStrip({
   onOpen,
   onShowPassed,
   scrollToId,
-  scrollKey,
+  armKey,
+  isSpent,
+  onAutoScrolled,
 }: {
   items: StripItem[];
   passedCount: number;
   onOpen: (id: number) => void;
   onShowPassed: () => void;
-  /** 처음 한 번 화면 가운데로 스크롤할 휴게소(가까운 휴게소) */
+  /** 화면 가운데로 데려갈 휴게소(가까운 휴게소). 이용자가 손대기 전에만 부모가 넘긴다 */
   scrollToId: number | null;
-  /** 이 값마다 스크롤은 한 번 */
-  scrollKey: string;
+  /** 바뀌면(노선·방향, "내 위치"를 다시 누름) 다시 판단한다 */
+  armKey: string;
+  /** 지금 이 순간 이미 손댔는지(스크롤 직전에 다시 확인 — 1분 갱신 등으로 늦게 움직이지 않게) */
+  isSpent: () => boolean;
+  onAutoScrolled: () => void;
 }) {
   const listRef = useRef<HTMLOListElement>(null);
-  const scrolledFor = useRef<string | null>(null);
 
-  // 가까운 휴게소로 한 번 스크롤(노선·방향마다 한 번. 1분 갱신으로 다시 움직이지 않는다)
+  // 가까운 휴게소로 한 번 스크롤 — 이용자가 손대기 전에만(손대면 그 노선·방향에서는 끝)
   useEffect(() => {
-    if (scrollToId == null || scrolledFor.current === scrollKey) return;
+    if (scrollToId == null || isSpent()) return;
     const el = document.getElementById(rowId(scrollToId));
     if (!el) return;
-    scrolledFor.current = scrollKey;
+    onAutoScrolled();
     el.scrollIntoView({ block: "center" });
-  }, [scrollToId, scrollKey, items]);
+    // isSpent·onAutoScrolled는 ref를 읽는 함수라 의존성에서 뺀다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollToId, armKey]);
 
   // 지나온 곳을 펼치면 위에 줄이 생긴다 — "지금 여기"가 화면에서 같은 자리에 머물게 스크롤을 보정한다
   const anchorTop = useRef<number | null>(null);
