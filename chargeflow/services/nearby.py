@@ -8,7 +8,8 @@ from django.utils import timezone
 from chargeflow.models import ChargerState, PublicStation
 
 # 마지막 상태 갱신이 이보다 오래된 충전기는 '정보 없음'으로 본다.
-PUBLIC_STALE = timedelta(hours=12)
+# 놀고 있는 충전기는 몇 시간씩 다시 보고하지 않는 경우가 많다. 2026-11-19 전국 실측: 12시간은 급속 충전기의 54%, 24시간은 75%를 남긴다.
+PUBLIC_STALE = timedelta(hours=24)
 RADII_KM = (5, 10, 20, 30)
 MIN_AVAILABLE_STATIONS = 3
 MAX_AVAILABLE = 20
