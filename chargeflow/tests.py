@@ -3,6 +3,7 @@ from io import StringIO
 from unittest import mock
 
 from django.core.management.base import CommandError
+from django.db import IntegrityError
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -10,7 +11,7 @@ from rest_framework.test import APIClient
 from chargeflow.management.commands import poll_charger_status as poller
 from chargeflow.models import (
     ChargerState, ChargerStatusLog, CongestionNotifySubscription, Highway, HighwayNode,
-    HighwayNodeCharger, PollerStatus, StationCongestion, UserRoute,
+    HighwayNodeCharger, PollerStatus, PublicStation, StationCongestion, UserRoute,
 )
 from chargeflow.services.congestion import compute_level, recompute_all
 
@@ -346,3 +347,14 @@ class ImprovementTests(Fixture):
         # 만석이 된 순간 1회만 — 2시간 안에 다시 풀린 건 알리지 않는다
         self.assertEqual(send.call_count, 1)
         self.assertEqual(send.call_args.args[2], '만석')
+
+
+class PublicStationModelTests(TestCase):
+    def test_stat_id_is_unique(self):
+        PublicStation.objects.create(stat_id='ME000001', name='A', latitude=37.25, longitude=127.07, power_kw=100, charger_count=2)
+        with self.assertRaises(IntegrityError):
+            PublicStation.objects.create(stat_id='ME000001', name='B', latitude=37.0, longitude=127.0, power_kw=50, charger_count=1)
+
+    def test_charger_state_output_kw_defaults_to_null(self):
+        row = ChargerState.objects.create(stat_id='ME000001', charger_id='01', stat='2')
+        self.assertIsNone(row.output_kw)
