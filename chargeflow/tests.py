@@ -458,6 +458,32 @@ class PublicCatalogTests(TestCase):
         sync_items([_item(stat='0')], NOW)
         self.assertEqual(ChargerState.objects.get(charger_id='01').stat, '9')
 
+    def test_sync_keeps_newer_status_but_updates_output(self):
+        ChargerState.objects.create(stat_id='ME000001', charger_id='01', stat='3',
+                                    stat_updated_at=NOW + timedelta(minutes=5),
+                                    charging_since=NOW, output_kw=50, zcode='41')
+        sync_items([_item(stat='2', output='200', statUpdDt=fmt(NOW))], NOW)
+        row = ChargerState.objects.get(charger_id='01')
+        self.assertEqual((row.stat, row.stat_updated_at, row.charging_since), ('3', NOW + timedelta(minutes=5), NOW))
+        self.assertEqual(row.output_kw, 200)
+
+    def test_sync_overwrites_older_status(self):
+        ChargerState.objects.create(stat_id='ME000001', charger_id='01', stat='3',
+                                    stat_updated_at=NOW - timedelta(minutes=5),
+                                    charging_since=NOW - timedelta(minutes=30), output_kw=50)
+        sync_items([_item(stat='2', output='200', statUpdDt=fmt(NOW))], NOW)
+        row = ChargerState.objects.get(charger_id='01')
+        self.assertEqual((row.stat, row.stat_updated_at, row.charging_since, row.output_kw), ('2', NOW, None, 200))
+
+    def test_sync_skips_items_missing_ids(self):
+        bad1 = _item(chgerId='02')
+        del bad1['statId']
+        bad2 = _item(chgerId='  ')
+        seen = sync_items([_item(chgerId='01'), bad1, bad2, _item(statId='ME000002')], NOW)
+        self.assertEqual(seen, {'ME000001', 'ME000002'})
+        self.assertEqual(set(ChargerState.objects.values_list('stat_id', 'charger_id')),
+                         {('ME000001', '01'), ('ME000002', '01')})
+
     def test_deactivate_missing(self):
         sync_items([_item(), _item(statId='ME000002')], NOW)
         self.assertEqual(deactivate_missing({'ME000001'}), 1)
@@ -557,6 +583,42 @@ class SyncPublicStationsTests(TestCase):
             call_command('sync_public_stations', api_key='k', stdout=out)
         self.assertEqual(PublicStation.objects.filter(is_active=True, stat_id__startswith='G').count(), 200)
         self.assertIn('안전장치', out.getvalue())
+
+    def _region_stations(self, zcode, count, prefix):
+        PublicStation.objects.bulk_create([
+            PublicStation(stat_id=f'{prefix}{i:05d}', name='n', latitude=37.0, longitude=127.0,
+                          power_kw=100, charger_count=1) for i in range(count)])
+        ChargerState.objects.bulk_create([
+            ChargerState(stat_id=f'{prefix}{i:05d}', charger_id='01', stat='2', zcode=zcode, output_kw=100)
+            for i in range(count)])
+
+    def test_region_vanishing_without_error_blocks_deactivation(self, fetch):
+        self._region_stations('41', 60, 'GG')
+        self._region_stations('11', 140, 'SE')
+        self._old()
+
+        def scan(key, z, **kw):
+            if z == '41':
+                return []  # 오류 없이 0건
+            return [_item(zcode=z, statId=f'SE{i:05d}') for i in range(140)]
+        fetch.side_effect = scan
+        out = StringIO()
+        with self.assertRaises(CommandError) as cm:
+            call_command('sync_public_stations', api_key='k', stdout=out)
+        self.assertIn('41', str(cm.exception))
+        self.assertNotIn('11', str(cm.exception))
+        self.assertIn('41', out.getvalue())
+        self.assertEqual(PublicStation.objects.filter(is_active=False).count(), 0)
+
+    def test_normal_scan_with_large_regions_deactivates_missing(self, fetch):
+        self._region_stations('41', 60, 'GG')
+        self._region_stations('11', 60, 'SE')
+        fetch.side_effect = lambda key, z, **kw: [
+            _item(zcode=z, statId=f'{"GG" if z == "41" else "SE"}{i:05d}') for i in range(60)
+            if not (z == '41' and i == 7)]
+        call_command('sync_public_stations', api_key='k', stdout=StringIO())
+        self.assertEqual(list(PublicStation.objects.filter(is_active=False).values_list('stat_id', flat=True)),
+                         ['GG00007'])
 
     def test_partial_zcodes_never_deactivate(self, fetch):
         self._old()

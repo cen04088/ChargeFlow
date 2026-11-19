@@ -54,7 +54,9 @@ chargeflow/
 
 ### 주변 급속충전소 데이터
 - 전국 급속(50kW 이상) 충전소는 fixture로 싣는 `ChargingStation`과 별도의 `PublicStation`에 저장 (2026-11-19 실측: 충전소 19,293곳·충전기 39,478기)
-- `sync_public_stations`: `ev_api.PUBLIC_ZCODES`(고속도로용 17개 시도 + 제주 50)를 지역별로 스캔하고 실패한 지역은 한 번 더 시도. 더 이상 보이지 않는 충전소는 스캔이 끝까지 성공했고 결과가 비정상적으로 적지 않을 때만 비활성화. 옵션 `--zcodes`(일부 지역), `--report-only`(API 호출 없이 현황만), `--api-key`
+- `sync_public_stations`: `ev_api.PUBLIC_ZCODES`(고속도로용 17개 시도 + 제주 50)를 지역별로 스캔하고 각 지역을 최대 3번까지 시도(`REGION_ATTEMPTS`). 더 이상 보이지 않는 충전소는 모든 지역 스캔이 성공했을 때만 비활성화
+- 스캔 결과가 너무 적어 보이면(전체 또는 어느 한 지역이 기존 활성 충전소의 절반 미만) 아무것도 비활성화하지 않고 오류로 끝남
+- 옵션 `--zcodes`(일부 지역), `--report-only`(API 호출 없이 현황만), `--api-key`
 - `poll_charger_status`는 전국 급속 충전기의 상태도 갱신하지만 새로 만들지는 않음
 - API: `POST /api/v1/stations/nearby/` — 좌표는 URL이 아니라 JSON 본문으로 보내며 저장·기록하지 않음
 

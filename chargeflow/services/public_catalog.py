@@ -50,17 +50,23 @@ def _chunks(iterable, size):
         yield chunk
 
 
+def _ids(item):
+    return str(item.get('statId') or '').strip(), str(item.get('chgerId') or '').strip()
+
+
 def sync_items(items, now):
-    items = list(items)
+    # 충전소·충전기 ID가 없는 항목은 건너뛴다 (한 항목 때문에 지역 전체가 실패하지 않게)
+    items = [it for it in items if all(_ids(it))]
     stations = defaultdict(dict)  # statId -> {chgerId: item} (50kW 이상만)
     for it in items:
         if is_public_fast(it):
-            stations[it['statId']][it['chgerId']] = it
+            sid, cid = _ids(it)
+            stations[sid][cid] = it
 
     # 같은 충전소의 50kW 미만 충전기: 새로 만들지 않고 이미 있는 줄에 출력만 채운다
     slow = {}
     for it in items:
-        sid, cid = it.get('statId'), it.get('chgerId')
+        sid, cid = _ids(it)
         if sid in stations and cid not in stations[sid]:
             slow[(sid, cid)] = output_kw(it)
 
@@ -102,13 +108,37 @@ def sync_items(items, now):
                 batch, update_conflicts=True, unique_fields=['stat_id'],
                 update_fields=['name', 'address', 'latitude', 'longitude', 'operator', 'open_hours',
                                'connectors', 'power_kw', 'charger_count', 'is_active', 'updated_at'])
-        for batch in _chunks(charger_rows, BATCH_SIZE):
+        # 스캔 도중 폴러가 더 새로운 상태를 저장했다면 그 상태는 되돌리지 않는다
+        newer = _existing_newer(charger_rows)
+        fresh = [r for r in charger_rows if (r.stat_id, r.charger_id) not in newer]
+        kept = [r for r in charger_rows if (r.stat_id, r.charger_id) in newer]
+        for batch in _chunks(fresh, BATCH_SIZE):
             ChargerState.objects.bulk_create(
                 batch, update_conflicts=True, unique_fields=['stat_id', 'charger_id'],
                 update_fields=['stat', 'stat_updated_at', 'charging_since', 'chger_type',
                                'zcode', 'output_kw', 'synced_at'])
+        for batch in _chunks(kept, BATCH_SIZE):
+            ChargerState.objects.bulk_create(
+                batch, update_conflicts=True, unique_fields=['stat_id', 'charger_id'],
+                update_fields=['chger_type', 'zcode', 'output_kw', 'synced_at'])
         _fill_slow_outputs(slow)
     return set(stations)
+
+
+def _existing_newer(charger_rows):
+    """이미 저장된 상태 시각이 스캔 항목보다 더 새로운 충전기 키 집합."""
+    incoming = {(r.stat_id, r.charger_id): r.stat_updated_at for r in charger_rows}
+    newer = set()
+    for sids in _chunks({sid for sid, _ in incoming}, 500):
+        for sid, cid, existing in ChargerState.objects.filter(stat_id__in=sids).values_list(
+                'stat_id', 'charger_id', 'stat_updated_at'):
+            key = (sid, cid)
+            if key not in incoming or existing is None:
+                continue
+            new = incoming[key]
+            if new is None or existing > new:
+                newer.add(key)
+    return newer
 
 
 def _fill_slow_outputs(slow):
