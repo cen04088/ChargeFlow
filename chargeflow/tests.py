@@ -612,3 +612,40 @@ class NearbyServiceTests(TestCase):
         self.assertTrue(in_korea(33.4, 126.5))
         for lat, lng in ((0, 0), (35.6, 139.7), (40.0, 127.0)):
             self.assertFalse(in_korea(lat, lng))
+
+
+@mock.patch('django.utils.timezone.now', return_value=NOW)  # 서비스가 읽는 현재 시각을 NOW로 고정
+class NearbyApiTests(TestCase):
+    URL = '/api/v1/stations/nearby/'
+
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_returns_nearby_stations(self, _now):
+        _station('A', 37.259, 127.07, [('2', 5, 100)])
+        res = self.client.post(self.URL, {'lat': 37.25, 'lng': 127.07}, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(set(res.data), {'radius_km', 'fetched_at', 'stations'})
+        self.assertEqual(res.data['stations'][0]['stat_id'], 'A')
+
+    def test_rejects_bad_coordinates(self, _now):
+        for body in ({}, {'lat': 37.25}, {'lat': 'abc', 'lng': 127.07}, {'lat': 0, 'lng': 0},
+                     {'lat': 35.6, 'lng': 139.7}, {'lat': True, 'lng': 127.07}, {'lat': None, 'lng': 127.07}):
+            res = self.client.post(self.URL, body, format='json')
+            self.assertEqual(res.status_code, 400, body)
+            self.assertEqual(res.data, {'detail': '위치를 확인하지 못했어요.'})
+        res = self.client.post(self.URL, data='[1, 2]', content_type='application/json')
+        self.assertEqual(res.status_code, 400)
+        res = self.client.post(self.URL, data='{"lat": 1e999, "lng": 127.07}', content_type='application/json')
+        self.assertEqual(res.status_code, 400)
+
+    def test_unknown_connector_is_ignored(self, _now):
+        _station('A', 37.259, 127.07, [('2', 5, 100)], connectors='chademo')
+        res = self.client.post(self.URL, {'lat': 37.25, 'lng': 127.07, 'connector': 'zzz'}, format='json')
+        self.assertEqual(len(res.data['stations']), 1)
+
+    def test_get_is_not_allowed(self, _now):
+        self.assertEqual(self.client.get(self.URL + '?lat=37.25&lng=127.07').status_code, 405)
+
+    def test_station_detail_route_still_works(self, _now):
+        self.assertEqual(self.client.get('/api/v1/stations/999999/').status_code, 404)

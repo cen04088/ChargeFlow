@@ -21,7 +21,7 @@ from .services.congestion import (
     weekly_pattern,
 )
 from .services.ev_api import KST
-from .services.nearby import haversine_km as _haversine_km
+from .services.nearby import haversine_km as _haversine_km, in_korea, search_nearby
 from .user_identity import UserScopedAPIView
 
 
@@ -220,6 +220,30 @@ class StationDetailView(APIView):
     def get(self, request, pk):
         station = get_object_or_404(ChargingStation, pk=pk)
         return Response(ChargingStationSerializer(station).data)
+
+
+# ──────────────────────────────────────────────
+# POST /api/v1/stations/nearby/
+# ──────────────────────────────────────────────
+def _is_coordinate(value):
+    """bool은 int의 하위 타입이라 따로 거른다. 숫자 문자열·NaN·무한대도 거부."""
+    return (isinstance(value, (int, float)) and not isinstance(value, bool)
+            and math.isfinite(value))
+
+
+class NearbyStationsView(APIView):
+    """내 위치 주변 급속충전소 (좌표가 URL·로그에 남지 않도록 POST, 저장하지 않음)"""
+
+    def post(self, request):
+        body = request.data if isinstance(request.data, dict) else {}
+        lat = body.get('lat')
+        lng = body.get('lng')
+        if not (_is_coordinate(lat) and _is_coordinate(lng) and in_korea(lat, lng)):
+            return Response({'detail': '위치를 확인하지 못했어요.'}, status=status.HTTP_400_BAD_REQUEST)
+        connector = body.get('connector')
+        if connector not in ('combo', 'chademo', 'ac3', 'nacs'):
+            connector = ''
+        return Response(search_nearby(float(lat), float(lng), connector))
 
 
 # ──────────────────────────────────────────────
