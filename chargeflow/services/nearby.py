@@ -3,9 +3,10 @@ import math
 from collections import defaultdict
 from datetime import timedelta
 
+from django.db.models import Max
 from django.utils import timezone
 
-from chargeflow.models import ChargerState, PublicStation
+from chargeflow.models import ChargerState, PollerStatus, PublicStation
 
 # 마지막 상태 갱신이 이보다 오래된 충전기는 '정보 없음'으로 본다.
 # 놀고 있는 충전기는 몇 시간씩 다시 보고하지 않는 경우가 많다. 2026-11-19 전국 실측: 12시간은 급속 충전기의 54%, 24시간은 75%를 남긴다.
@@ -148,8 +149,24 @@ def search_nearby(lat, lng, connector='', now=None):
     with_slot = [t for t in found if t[2]['state'] == 'available'][:MAX_AVAILABLE]
     others = [t for t in found if t[2]['state'] != 'available'][:MAX_OTHER]
     chosen = sorted(with_slot + others, key=lambda t: t[0])
+    stations = [_to_dict(*t) for t in chosen]
     return {
         'radius_km': radius,
         'fetched_at': now.isoformat(),
-        'stations': [_to_dict(*t) for t in chosen],
+        'stations': stations,
+        # 결과가 비었을 때만 확인한다: 정말 근처에 없는지, 상태 정보를 못 받고 있는지
+        'feed_stale': False if stations else feed_is_stale(now),
     }
+
+
+def feed_is_stale(now):
+    """충전 상태 정보가 들어오지 않고 있으면 True.
+    활성 충전소가 하나도 없거나, 폴러의 마지막 상태 수신과 스캔의 마지막 반영 중
+    더 최근 것이 없거나 PUBLIC_STALE보다 오래됐을 때."""
+    active = PublicStation.objects.filter(is_active=True)
+    scanned_at = active.aggregate(m=Max('updated_at'))['m']
+    if scanned_at is None:
+        return True
+    polled_at = PollerStatus.objects.filter(key='charger').values_list('last_status_at', flat=True).first()
+    latest = max(t for t in (scanned_at, polled_at) if t is not None)
+    return now - latest > PUBLIC_STALE

@@ -16,7 +16,7 @@ from chargeflow.models import (
 )
 from chargeflow.services import ev_api
 from chargeflow.services.congestion import compute_level, recompute_all
-from chargeflow.services.nearby import PUBLIC_STALE, in_korea, search_nearby, station_status
+from chargeflow.services.nearby import PUBLIC_STALE, feed_is_stale, in_korea, search_nearby, station_status
 from chargeflow.services.public_catalog import deactivate_missing, freshness_report, is_public_fast, sync_items
 
 
@@ -723,6 +723,41 @@ class NearbyServiceTests(TestCase):
         self.assertEqual(sum(s['state'] == 'available' for s in st), 20)
         self.assertEqual(st, sorted(st, key=lambda s: s['distance_km']))
 
+    def test_feed_stale_false_with_results_and_no_extra_queries(self):
+        _station('A', 37.259, 127.07, [('2', 5, 100)])
+        with mock.patch('chargeflow.services.nearby.feed_is_stale') as check:
+            r = search_nearby(37.25, 127.07, now=NOW)
+        check.assert_not_called()
+        self.assertIs(r['feed_stale'], False)
+        self.assertEqual(len(r['stations']), 1)
+
+    def _stale_case(self, station_age=None, poller_age=None):
+        if station_age is not None:
+            _station('FAR', 37.25 + 0.009 * 40, 127.07, [('2', 5, 100)])  # 30km 밖이라 결과는 비어 있다
+            PublicStation.objects.update(updated_at=NOW - station_age)
+        if poller_age is not None:
+            PollerStatus.objects.create(key='charger', last_status_at=NOW - poller_age)
+        r = search_nearby(37.25, 127.07, now=NOW)
+        self.assertEqual(r['stations'], [])
+        return r['feed_stale']
+
+    def test_feed_stale_when_catalog_empty(self):
+        self.assertIs(self._stale_case(), True)
+
+    def test_feed_stale_when_scan_old_and_no_poller(self):
+        self.assertIs(self._stale_case(station_age=timedelta(days=2)), True)
+
+    def test_feed_not_stale_when_poller_recent(self):
+        self.assertIs(self._stale_case(station_age=timedelta(days=2), poller_age=timedelta(minutes=10)), False)
+
+    def test_feed_not_stale_when_scan_recent(self):
+        self.assertIs(self._stale_case(station_age=timedelta(hours=1)), False)
+
+    def test_feed_stale_when_only_inactive_stations(self):
+        _station('OFF', 37.259, 127.07, [('2', 5, 100)])
+        PublicStation.objects.update(is_active=False, updated_at=NOW - timedelta(minutes=5))
+        self.assertIs(feed_is_stale(NOW), True)
+
     def test_in_korea(self):
         self.assertTrue(in_korea(37.5, 127.0))
         self.assertTrue(in_korea(33.4, 126.5))
@@ -741,7 +776,7 @@ class NearbyApiTests(TestCase):
         _station('A', 37.259, 127.07, [('2', 5, 100)])
         res = self.client.post(self.URL, {'lat': 37.25, 'lng': 127.07}, format='json')
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(set(res.data), {'radius_km', 'fetched_at', 'stations'})
+        self.assertEqual(set(res.data), {'radius_km', 'fetched_at', 'stations', 'feed_stale'})
         self.assertEqual(res.data['stations'][0]['stat_id'], 'A')
 
     def test_rejects_bad_coordinates(self, _now):
