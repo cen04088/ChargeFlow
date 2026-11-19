@@ -6,9 +6,8 @@
 """
 import math
 from collections import defaultdict
-from itertools import islice
-
 from datetime import timedelta
+from itertools import islice
 
 from django.db import connection, transaction
 

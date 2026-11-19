@@ -477,9 +477,21 @@ def fmt(dt):
     return dt.astimezone(ev_api.KST).strftime('%Y%m%d%H%M%S')
 
 
-@mock.patch.object(ev_api, 'ZCODES', ['41', '11'])
+class ZcodeConstantTests(TestCase):
+    def test_public_zcodes_include_jeju_and_zcodes_unchanged(self):
+        self.assertIn('50', ev_api.PUBLIC_ZCODES)
+        self.assertEqual(len(ev_api.ZCODES), 17)
+        self.assertNotIn('50', ev_api.ZCODES)
+
+
+@mock.patch.object(ev_api, 'PUBLIC_ZCODES', ['41', '11'])
 @mock.patch.object(ev_api, 'fetch_region_chargers')
 class SyncPublicStationsTests(TestCase):
+    def setUp(self):
+        patcher = mock.patch('chargeflow.management.commands.sync_public_stations.time.sleep')
+        self.sleep = patcher.start()
+        self.addCleanup(patcher.stop)
+
     def _old(self):
         PublicStation.objects.create(stat_id='OLD00001', name='옛 충전소', latitude=37.0, longitude=127.0,
                                      power_kw=50, charger_count=1)
@@ -499,10 +511,52 @@ class SyncPublicStationsTests(TestCase):
                 raise ev_api.EvApiError('504')
             return [_item(zcode=z)]
         fetch.side_effect = flaky
-        with self.assertRaises(CommandError):
+        with self.assertRaises(CommandError) as cm:
             call_command('sync_public_stations', api_key='k', stdout=StringIO())
+        self.assertIn('11', str(cm.exception))
         self.assertTrue(PublicStation.objects.get(stat_id='OLD00001').is_active)
         self.assertTrue(PublicStation.objects.filter(stat_id='ME000001').exists())
+
+    def test_always_failing_region_still_applies_others(self, fetch):
+        self._old()
+
+        def flaky(key, z, **kw):
+            if z == '41':
+                raise ev_api.EvApiError('504')
+            return [_item(zcode=z, statId='ME000011')]
+        fetch.side_effect = flaky
+        with self.assertRaises(CommandError) as cm:
+            call_command('sync_public_stations', api_key='k', stdout=StringIO())
+        self.assertIn('41', str(cm.exception))
+        self.assertTrue(PublicStation.objects.filter(stat_id='ME000011').exists())
+        self.assertTrue(PublicStation.objects.get(stat_id='OLD00001').is_active)
+        self.assertEqual(self.sleep.call_count, 2)  # 41 지역만 3회 시도 -> 대기 2번
+
+    def test_region_failing_once_is_retried(self, fetch):
+        self._old()
+        calls = {'41': 0}
+
+        def flaky(key, z, **kw):
+            if z == '41':
+                calls['41'] += 1
+                if calls['41'] == 1:
+                    raise ev_api.EvApiError('504')
+            return [_item(zcode=z, statId=f'ME0000{z}')]
+        fetch.side_effect = flaky
+        call_command('sync_public_stations', api_key='k', stdout=StringIO())
+        self.assertEqual(self.sleep.call_count, 1)
+        self.assertFalse(PublicStation.objects.get(stat_id='OLD00001').is_active)
+
+    def test_guard_blocks_deactivation_on_tiny_scan(self, fetch):
+        PublicStation.objects.bulk_create([
+            PublicStation(stat_id=f'G{i:05d}', name='n', latitude=37.0, longitude=127.0,
+                          power_kw=50, charger_count=1) for i in range(200)])
+        fetch.side_effect = lambda key, z, **kw: [_item(zcode=z)] if z == '41' else []
+        out = StringIO()
+        with self.assertRaises(CommandError):
+            call_command('sync_public_stations', api_key='k', stdout=out)
+        self.assertEqual(PublicStation.objects.filter(is_active=True, stat_id__startswith='G').count(), 200)
+        self.assertIn('안전장치', out.getvalue())
 
     def test_partial_zcodes_never_deactivate(self, fetch):
         self._old()
