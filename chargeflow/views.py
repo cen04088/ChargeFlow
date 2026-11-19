@@ -225,10 +225,16 @@ class StationDetailView(APIView):
 # ──────────────────────────────────────────────
 # POST /api/v1/stations/nearby/
 # ──────────────────────────────────────────────
-def _is_coordinate(value):
-    """bool은 int의 하위 타입이라 따로 거른다. 숫자 문자열·NaN·무한대도 거부."""
-    return (isinstance(value, (int, float)) and not isinstance(value, bool)
-            and math.isfinite(value))
+def _to_coordinate(value):
+    """좌표를 float로 한 번만 변환한다. 숫자가 아니거나 bool·NaN·무한대·너무 큰 정수면 None.
+    bool은 int의 하위 타입이라 따로 거르고, 숫자 문자열은 받지 않는다."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        number = float(value)
+    except (OverflowError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
 
 
 class NearbyStationsView(APIView):
@@ -236,14 +242,14 @@ class NearbyStationsView(APIView):
 
     def post(self, request):
         body = request.data if isinstance(request.data, dict) else {}
-        lat = body.get('lat')
-        lng = body.get('lng')
-        if not (_is_coordinate(lat) and _is_coordinate(lng) and in_korea(lat, lng)):
+        lat = _to_coordinate(body.get('lat'))
+        lng = _to_coordinate(body.get('lng'))
+        if lat is None or lng is None or not in_korea(lat, lng):
             return Response({'detail': '위치를 확인하지 못했어요.'}, status=status.HTTP_400_BAD_REQUEST)
         connector = body.get('connector')
         if connector not in ('combo', 'chademo', 'ac3', 'nacs'):
             connector = ''
-        return Response(search_nearby(float(lat), float(lng), connector))
+        return Response(search_nearby(lat, lng, connector))
 
 
 # ──────────────────────────────────────────────

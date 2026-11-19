@@ -639,6 +639,19 @@ class NearbyApiTests(TestCase):
         res = self.client.post(self.URL, data='{"lat": 1e999, "lng": 127.07}', content_type='application/json')
         self.assertEqual(res.status_code, 400)
 
+    def test_rejects_huge_integer_coordinates(self, _now):
+        huge = '1' + '0' * 400
+        for raw in ('{"lat": %s, "lng": 127.07}' % huge, '{"lat": 37.25, "lng": %s}' % huge):
+            res = self.client.post(self.URL, data=raw, content_type='application/json')
+            self.assertEqual(res.status_code, 400, raw[:30])
+            self.assertEqual(res.data, {'detail': '위치를 확인하지 못했어요.'})
+
+    def test_valid_connector_filters(self, _now):
+        _station('C', 37.259, 127.07, [('2', 5, 100)], connectors='combo')
+        _station('D', 37.260, 127.07, [('2', 5, 100)], connectors='chademo')
+        res = self.client.post(self.URL, {'lat': 37.25, 'lng': 127.07, 'connector': 'chademo'}, format='json')
+        self.assertEqual([s['stat_id'] for s in res.data['stations']], ['D'])
+
     def test_unknown_connector_is_ignored(self, _now):
         _station('A', 37.259, 127.07, [('2', 5, 100)], connectors='chademo')
         res = self.client.post(self.URL, {'lat': 37.25, 'lng': 127.07, 'connector': 'zzz'}, format='json')
