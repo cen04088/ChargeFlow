@@ -1,4 +1,4 @@
-import { expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 
 import type { NearbyStation } from "../api/types";
 import {
@@ -40,9 +40,51 @@ function st(over: Partial<NearbyStation> = {}): NearbyStation {
   };
 }
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+function memoryStorage(store: Record<string, string> = {}) {
+  vi.stubGlobal("localStorage", {
+    getItem: (k: string) => store[k] ?? null,
+    setItem: (k: string, v: string) => {
+      store[k] = v;
+    },
+  });
+  return store;
+}
+
 test("roundCoord", () => {
   expect(roundCoord(37.251234)).toBe(37.251);
   expect(roundCoord(127.0715)).toBe(127.072);
+});
+test("roundCoord handles exponent notation and non-finite input", () => {
+  expect(roundCoord(1e-7)).toBe(0);
+  expect(roundCoord(-1e-7)).toBe(0);
+  expect(roundCoord(1e21)).toBe(1e21);
+  expect(roundCoord(-37.2516)).toBe(-37.252);
+  expect(roundCoord(0.0005)).toBe(0.001);
+  expect(roundCoord(NaN)).toBeNaN();
+  expect(roundCoord(Infinity)).toBeNaN();
+  expect(roundCoord(-Infinity)).toBeNaN();
+});
+test("loadLastLocation rejects values outside Korea or non-finite", () => {
+  const key = "nearby:last-location";
+  const store = memoryStorage();
+  for (const v of [
+    { lat: 51.5, lng: -0.12 },
+    { lat: 37.5, lng: 140 },
+    { lat: 32.9, lng: 127 },
+    { lat: "37.5", lng: 127 },
+    { lat: null, lng: 127 },
+  ]) {
+    store[key] = JSON.stringify(v);
+    expect(loadLastLocation()).toBeNull();
+  }
+  store[key] = '{"lat":1e400,"lng":127}'; // JSON.parse → Infinity
+  expect(loadLastLocation()).toBeNull();
+  store[key] = JSON.stringify({ lat: 33.0, lng: 132.0 });
+  expect(loadLastLocation()).toEqual({ lat: 33.0, lng: 132.0 });
 });
 test("pinText and countText", () => {
   expect(pinText(st({ state: "available", available: 3 }))).toBe("3대");
@@ -91,11 +133,7 @@ test("last location survives storage errors", () => {
   expect(() => saveLastLocation(37.2512, 127.0712)).not.toThrow();
 });
 test("last location round trip", () => {
-  const store: Record<string, string> = {};
-  vi.stubGlobal("localStorage", {
-    getItem: (k: string) => store[k] ?? null,
-    setItem: (k: string, v: string) => { store[k] = v; },
-  });
+  memoryStorage();
   saveLastLocation(37.2512, 127.0712);
   expect(loadLastLocation()).toEqual({ lat: 37.251, lng: 127.071 });
 });

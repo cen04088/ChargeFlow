@@ -426,6 +426,11 @@ body {
     background-color 200ms ease;
 }
 
+.nearby-pin:focus-visible {
+  outline: 2px solid var(--brand-deep);
+  outline-offset: 4px;
+}
+
 .nearby-pin--off {
   padding: 0 12px;
   font-size: 15px;
@@ -811,6 +816,14 @@ body {
 .nearby-ctrl:focus-visible {
   outline: 2px solid var(--brand-strong);
   outline-offset: 2px;
+}
+
+/* 위치를 받는 중인 "내 위치" 버튼들 */
+.nearby-map-btn[aria-disabled="true"],
+.nearby-ctrl[aria-disabled="true"],
+.nearby-notice__action[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .nearby-list {

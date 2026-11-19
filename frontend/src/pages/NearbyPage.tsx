@@ -27,7 +27,9 @@ import {
 import { connectorName, useConnector } from "../lib/store";
 import { getLocation, logClick, logScreen } from "../lib/toss";
 import {
+  LOCATE_TIMEOUT_MS,
   fetchedText,
+  locateWithTimeout,
   nearbyView,
   nextCenter,
   noneDesc,
@@ -84,6 +86,8 @@ export default function NearbyPage() {
   const hasResult = useRef(false);
   const searchSeq = useRef(0);
   const locSeq = useRef(0);
+  /** 위치를 받는 중 — 같은 렌더 안의 연타도 막도록 ref로 든다 */
+  const locatingRef = useRef(false);
   const inflight = useRef(false);
 
   /** 가장 최근 요청의 응답만 화면에 반영한다 */
@@ -140,8 +144,19 @@ export default function NearbyPage() {
   const locate = useCallback(
     async (fromTap: boolean) => {
       const id = ++locSeq.current;
+      locatingRef.current = true;
       setLocating(true);
-      const r = await getLocation();
+      // 기기가 끝내 답하지 않아도 지역 선택으로 넘어갈 수 있게 시간 제한을 둔다.
+      // 제한 뒤에 온 응답은 성공일 때만, 그사이 다른 조작이 없었으면 반영한다
+      const r = await locateWithTimeout(getLocation, LOCATE_TIMEOUT_MS, (late) => {
+        if (!late.ok) return;
+        saveLastLocation(late.lat, late.lng);
+        const p = { lat: late.lat, lng: late.lng };
+        setMe(p);
+        if (id !== locSeq.current) return;
+        setLocFailure(null);
+        searchFrom(p, "me", true);
+      });
       if (r.ok) saveLastLocation(r.lat, r.lng);
       // 실패 기록은 응답이 늦었어도 시도마다 한 번 남긴다
       else logClick("nearby_location_denied", { reason: r.reason });
@@ -150,6 +165,7 @@ export default function NearbyPage() {
         if (r.ok) setMe({ lat: r.lat, lng: r.lng });
         return;
       }
+      locatingRef.current = false;
       setLocating(false);
       if (!r.ok) {
         setLocFailure(r.reason);
@@ -205,6 +221,7 @@ export default function NearbyPage() {
   const pickRegion = (r: Region) => {
     logClick("nearby_region_pick", { region: r.name });
     ++locSeq.current; // 기다리던 위치 응답이 지도를 옮기지 않게
+    locatingRef.current = false;
     setLocating(false);
     setMe(null);
     searchFrom({ lat: r.lat, lng: r.lng }, "region", true);
@@ -214,12 +231,17 @@ export default function NearbyPage() {
     if (!moved) return;
     logClick("nearby_search_here");
     ++locSeq.current;
+    locatingRef.current = false;
     setLocating(false);
     searchFrom(moved, "here", false);
   };
 
   const openPicker = () => setPickerOpen(true);
-  const locateMe = () => void locate(true);
+  /** 위치를 받는 중에는 다시 누르지 않게 한다(권한 창·요청이 겹치지 않게) */
+  const locateMe = () => {
+    if (locatingRef.current) return;
+    void locate(true);
+  };
 
   const openStation = (s: NearbyStation, from: "pin" | "list") => {
     logClick("nearby_station_open", { from, station_id: s.id });
@@ -229,7 +251,7 @@ export default function NearbyPage() {
   const retry = () => {
     const p = originRef.current;
     if (p) void search(p);
-    else void locate(true);
+    else locateMe();
   };
 
   const view = nearbyView({
@@ -242,6 +264,12 @@ export default function NearbyPage() {
     regionsRequested,
     expanded,
   });
+
+  // 지역 고르기 화면으로 바뀌면 열려 있던 충전소 시트를 닫는다
+  const viewKind = view.kind;
+  useEffect(() => {
+    if (viewKind === "regions") setSheet(null);
+  }, [viewKind]);
 
   // 열린 시트는 최신 목록의 같은 충전소를 보여 준다
   const liveSheet = sheet
@@ -332,6 +360,7 @@ export default function NearbyPage() {
             type="button"
             className="nearby-map-btn nearby-map-btn--me glass press"
             aria-busy={locating}
+            aria-disabled={locating}
             onClick={locateMe}
           >
             내 위치
@@ -357,6 +386,7 @@ export default function NearbyPage() {
                 variant="weak"
                 display="full"
                 loading={locating}
+                aria-disabled={locating}
                 onClick={locateMe}
               >
                 위치 켜고 다시 찾기
@@ -395,6 +425,7 @@ export default function NearbyPage() {
                   type="button"
                   className="nearby-ctrl nearby-ctrl--me press"
                   aria-busy={locating}
+                  aria-disabled={locating}
                   onClick={locateMe}
                 >
                   내 위치
@@ -411,6 +442,7 @@ export default function NearbyPage() {
                   type="button"
                   className="nearby-notice__action"
                   aria-busy={locating}
+                  aria-disabled={locating}
                   onClick={locateMe}
                 >
                   위치 켜고 다시 찾기

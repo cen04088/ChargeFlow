@@ -1,13 +1,63 @@
-import { expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 
 import type { NearbyStation, NearbyStationsResponse } from "../api/types";
 import {
+  LOCATE_TIMEOUT_MS,
   fetchedText,
+  locateWithTimeout,
   nearbyView,
   nextCenter,
   noneDesc,
   type ViewInput,
 } from "./nearbyState";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+type Loc = { ok: true; lat: number; lng: number } | { ok: false; reason: "denied" | "failed" };
+
+function deferred() {
+  let resolve!: (r: Loc) => void;
+  const promise = new Promise<Loc>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+}
+
+test("locateWithTimeout returns the real answer when it is in time", async () => {
+  vi.useFakeTimers();
+  const d = deferred();
+  const onLate = vi.fn();
+  const p = locateWithTimeout(() => d.promise, LOCATE_TIMEOUT_MS, onLate);
+  d.resolve({ ok: true, lat: 37.5, lng: 127 });
+  await expect(p).resolves.toEqual({ ok: true, lat: 37.5, lng: 127 });
+  await vi.advanceTimersByTimeAsync(LOCATE_TIMEOUT_MS * 2);
+  expect(onLate).not.toHaveBeenCalled();
+});
+
+test("locateWithTimeout fails after 12s and hands the late answer to onLate", async () => {
+  expect(LOCATE_TIMEOUT_MS).toBe(12000);
+  vi.useFakeTimers();
+  const d = deferred();
+  const onLate = vi.fn();
+  let settled: Loc | null = null;
+  void locateWithTimeout(() => d.promise, LOCATE_TIMEOUT_MS, onLate).then((r) => {
+    settled = r;
+  });
+  await vi.advanceTimersByTimeAsync(LOCATE_TIMEOUT_MS - 1);
+  expect(settled).toBeNull();
+  await vi.advanceTimersByTimeAsync(1);
+  expect(settled).toEqual({ ok: false, reason: "failed" });
+  d.resolve({ ok: true, lat: 37.5, lng: 127 });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(onLate).toHaveBeenCalledWith({ ok: true, lat: 37.5, lng: 127 });
+});
+
+test("locateWithTimeout treats a rejected request as failed", async () => {
+  const r = await locateWithTimeout(() => Promise.reject(new Error("x")), 1000, () => {});
+  expect(r).toEqual({ ok: false, reason: "failed" });
+});
 
 function st(id: number, state: NearbyStation["state"]): NearbyStation {
   return {

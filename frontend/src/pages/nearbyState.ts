@@ -55,6 +55,45 @@ export function nearbyView(v: ViewInput): NearbyView {
   return { kind: "loading" };
 }
 
+/** 위치 응답을 기다리는 최대 시간 — 넘으면 "찾지 못함"과 같이 다룬다 */
+export const LOCATE_TIMEOUT_MS = 12000;
+
+type LocResult =
+  | { ok: true; lat: number; lng: number }
+  | { ok: false; reason: LocFailure };
+
+/**
+ * 위치 요청을 시간 제한과 겨룬다. 제한 안에 오면 그 결과를, 넘으면
+ * { ok: false, reason: "failed" }를 돌려주고, 늦게 온 실제 응답은 onLate로 넘긴다.
+ */
+export function locateWithTimeout<T extends LocResult>(
+  get: () => Promise<T>,
+  ms: number,
+  onLate: (r: T) => void,
+): Promise<T | { ok: false; reason: "failed" }> {
+  return new Promise((resolve) => {
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      resolve({ ok: false, reason: "failed" });
+    }, ms);
+    get().then(
+      (r) => {
+        if (timedOut) onLate(r);
+        else {
+          clearTimeout(timer);
+          resolve(r);
+        }
+      },
+      () => {
+        if (timedOut) return;
+        clearTimeout(timer);
+        resolve({ ok: false, reason: "failed" });
+      },
+    );
+  });
+}
+
 /** "14시 05분 확인 · 공공데이터라 현장과 다를 수 있어요" (기기 시간대 기준) */
 export function fetchedText(iso: string): string {
   const d = new Date(iso);

@@ -6,9 +6,23 @@ export const LIST_INITIAL = 3;
 const STORAGE_KEY = "nearby:last-location";
 const STALE_MIN = 30;
 
-/** 소수 셋째 자리로 반올림 (십진 표기 기준이라 부동소수 오차에 흔들리지 않는다) */
+/** 서버 in_korea와 같은 범위 */
+const KOREA_LAT = [33.0, 38.7] as const;
+const KOREA_LNG = [124.5, 132.0] as const;
+
+/** 소수 셋째 자리로 반올림 (십진 표기 기준이라 부동소수 오차에 흔들리지 않는다).
+ *  유한하지 않은 값만 NaN */
 export function roundCoord(n: number): number {
-  return Number(`${Math.round(Number(`${n}e3`))}e-3`);
+  if (!Number.isFinite(n)) return NaN;
+  // 지수 표기는 |n| < 1e-6(반올림하면 0) 또는 |n| >= 1e21(이미 정수)일 때만 나온다
+  if (String(n).includes("e")) return Math.abs(n) < 1 ? 0 : n;
+  return Number(`${Math.round(Number(`${n}e3`))}e-3`) || 0;
+}
+
+function inKorea(lat: number, lng: number): boolean {
+  return (
+    lat >= KOREA_LAT[0] && lat <= KOREA_LAT[1] && lng >= KOREA_LNG[0] && lng <= KOREA_LNG[1]
+  );
 }
 
 export function pinText(s: NearbyStation): string {
@@ -82,7 +96,13 @@ export function loadLastLocation(): { lat: number; lng: number } | null {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const v = JSON.parse(raw);
-    if (typeof v?.lat === "number" && typeof v?.lng === "number") {
+    if (
+      typeof v?.lat === "number" &&
+      typeof v?.lng === "number" &&
+      Number.isFinite(v.lat) &&
+      Number.isFinite(v.lng) &&
+      inKorea(v.lat, v.lng)
+    ) {
       return { lat: v.lat, lng: v.lng };
     }
   } catch {

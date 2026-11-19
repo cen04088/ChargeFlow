@@ -35,7 +35,14 @@ function pinElement(s: NearbyStation, focused: boolean, onClick: () => void) {
   el.textContent = pinText(s);
   el.setAttribute("role", "button");
   el.setAttribute("aria-label", `${s.name} ${pinText(s)}`);
+  el.tabIndex = 0;
   el.addEventListener("click", onClick);
+  el.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onClick();
+    }
+  });
   return el;
 }
 
@@ -57,7 +64,12 @@ export function NearbyMap({
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
 
+  /** 이용자가 지도를 끌거나 확대·축소했다 — 그 뒤로는 화면을 맞추지 않는다 */
   const userMoved = useRef(false);
+  /** 이 center 값으로 아직 화면을 맞추지 않았다(맞춤은 center마다 한 번) */
+  const needsFit = useRef(true);
+  /** 코드가 바꾼 확대 수준(setBounds)은 이용자 조작으로 치지 않는다 */
+  const programmatic = useRef(false);
   const failedCalled = useRef(false);
 
   // 콜백·최신 값은 ref로 들고 있어 효과가 다시 돌지 않게 한다
@@ -83,7 +95,7 @@ export function NearbyMap({
   // 지도 만들기 (마운트 시 한 번)
   useEffect(() => {
     let cancelled = false;
-    let removeDrag: (() => void) | null = null;
+    let removeListeners: (() => void) | null = null;
     const pinMap = pins.current;
 
     loadKakaoMaps().then((kakao) => {
@@ -107,15 +119,23 @@ export function NearbyMap({
         const c = m.getCenter();
         movedRef.current({ lat: c.getLat(), lng: c.getLng() });
       };
+      // 확대·축소는 화면 맞춤만 멈춘다("이 위치에서 찾기"는 끌었을 때만)
+      const onZoom = () => {
+        if (!programmatic.current) userMoved.current = true;
+      };
       maps.event.addListener(m, "dragend", onDragEnd);
-      removeDrag = () => maps.event.removeListener(m, "dragend", onDragEnd);
+      maps.event.addListener(m, "zoom_changed", onZoom);
+      removeListeners = () => {
+        maps.event.removeListener(m, "dragend", onDragEnd);
+        maps.event.removeListener(m, "zoom_changed", onZoom);
+      };
       map.current = m;
       setReady(true);
     });
 
     return () => {
       cancelled = true;
-      removeDrag?.();
+      removeListeners?.();
       pinMap.forEach((o) => o.setMap(null));
       pinMap.clear();
       meOverlay.current?.setMap(null);
@@ -124,17 +144,19 @@ export function NearbyMap({
     };
   }, []);
 
-  // center 값이 바뀌면 그 위치로 옮기고 '이용자가 옮김' 표시를 푼다
+  // center 값이 바뀌면 그 위치로 옮기고 '이용자가 옮김' 표시를 풀어 한 번 다시 맞추게 한다
   useEffect(() => {
     const kakao = window.kakao;
     if (!ready || !map.current || !kakao) return;
     userMoved.current = false;
+    needsFit.current = true;
     map.current.setCenter(
       new kakao.maps.LatLng(centerRef.current.lat, centerRef.current.lng),
     );
   }, [ready, center.lat, center.lng]);
 
-  // 핀 그리기. 이용자가 지도를 끈 뒤에는 화면을 옮기지 않는다
+  // 핀 그리기. 화면 맞춤은 center마다 첫 결과에서 한 번만 하고,
+  // 이용자가 지도를 끌거나 확대·축소한 뒤에는 하지 않는다(새로 받을 때 시트로 옮긴 화면이 튀지 않게)
   useEffect(() => {
     const kakao = window.kakao;
     if (!ready || !map.current || !kakao) return;
@@ -157,7 +179,8 @@ export function NearbyMap({
       pins.current.set(s.id, o);
     });
 
-    if (userMoved.current || shown.length === 0) return;
+    if (!needsFit.current || userMoved.current || shown.length === 0) return;
+    needsFit.current = false;
     const c = centerRef.current;
     const bounds = new maps.LatLngBounds();
     bounds.extend(new maps.LatLng(c.lat, c.lng));
@@ -169,7 +192,15 @@ export function NearbyMap({
       .sort((a, b) => a.d - b.d)
       .slice(0, FIT_COUNT)
       .forEach(({ s }) => bounds.extend(new maps.LatLng(+s.latitude, +s.longitude)));
-    map.current.setBounds(bounds, ...PAD);
+    // zoom_changed가 호출 중에 바로 오든 조금 뒤에 오든 이 맞춤은 이용자 조작으로 치지 않는다
+    programmatic.current = true;
+    try {
+      map.current.setBounds(bounds, ...PAD);
+    } finally {
+      setTimeout(() => {
+        programmatic.current = false;
+      }, 0);
+    }
     // signature가 stations의 구성을 대표한다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, signature]);
@@ -218,7 +249,12 @@ export function NearbyMap({
   if (failed) return null;
   return (
     <div className="nearby-map-card">
-      <div ref={box} className="nearby-map" aria-label="주변 급속충전소 지도" />
+      <div
+        ref={box}
+        className="nearby-map"
+        role="region"
+        aria-label="주변 급속충전소 지도"
+      />
     </div>
   );
 }
