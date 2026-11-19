@@ -4,6 +4,7 @@ import type { NearbyStation, NearbyStationsResponse } from "../api/types";
 import {
   LOCATE_TIMEOUT_MS,
   MIN_MAP_LAYOUT_HEIGHT,
+  canGoBack,
   canUseMapLayout,
   fallbackCopy,
   floatButtons,
@@ -546,4 +547,10 @@ test("같은 좌표를 다시 지도 중심으로 주면 살짝 다르게 준다
 test("충전소가 없을 때 둘째 줄은 지도가 있을 때만 지도를 옮기라고 한다", () => {
   expect(noneDesc(false)).toBe("지도를 옮겨 다른 곳에서 찾아보세요");
   expect(noneDesc(true)).toBe("다른 지역에서 찾아보세요");
+});
+
+test("canGoBack: 라우터 첫 기록이거나 기록이 하나뿐이면 뒤로 가지 않는다", () => {
+  expect(canGoBack("abc123", 3)).toBe(true);
+  expect(canGoBack("default", 3)).toBe(false);
+  expect(canGoBack("abc123", 1)).toBe(false);
 });

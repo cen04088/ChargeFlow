@@ -178,14 +178,28 @@ test("last highway: 잘못된 값은 null", () => {
 });
 
 test("raStatus: 상태 단어 + 빈 대수, 색은 핀과 같은 상태", () => {
-  expect(raStatus(cg({ level: "busy", label: "혼잡", available: 1 }))).toEqual({ text: "혼잡 · 1대", kind: "full" });
-  expect(raStatus(cg({ level: "normal", label: "보통", available: 1 }))).toEqual({ text: "보통 · 1대", kind: "available" });
-  expect(raStatus(cg({ level: "smooth", label: "여유", available: 3 }))).toEqual({ text: "여유 · 3대", kind: "available" });
-  expect(raStatus(cg({ level: "smooth", label: "여유", available: null }))).toEqual({ text: "여유", kind: "available" });
-  expect(raStatus(cg({ level: "jammed", label: "만석", available: 0 }))).toEqual({ text: "만석", kind: "full" });
-  expect(raStatus(cg({ level: "unavailable", label: "이용 불가" }))).toEqual({ text: "이용 불가", kind: "unavailable" });
-  expect(raStatus(cg({ level: "unknown", label: "정보 없음" }))).toEqual({ text: "정보 없음", kind: "unavailable" });
-  expect(raStatus(undefined)).toEqual({ text: "정보 없음", kind: "unavailable" });
+  expect(raStatus(cg({ level: "busy", label: "혼잡", available: 1 }))).toEqual({
+    text: "혼잡 · 1대",
+    word: "혼잡",
+    count: "1대",
+    kind: "full",
+  });
+  expect(raStatus(cg({ level: "normal", label: "보통", available: 1 }))).toMatchObject({
+    text: "보통 · 1대",
+    kind: "available",
+  });
+  expect(raStatus(cg({ level: "smooth", label: "여유", available: 3 }))).toMatchObject({
+    text: "여유 · 3대",
+    word: "여유",
+    count: "3대",
+    kind: "available",
+  });
+  const only = (text: string, kind: string) => ({ text, word: text, count: null, kind });
+  expect(raStatus(cg({ level: "smooth", label: "여유", available: null }))).toEqual(only("여유", "available"));
+  expect(raStatus(cg({ level: "jammed", label: "만석", available: 0 }))).toEqual(only("만석", "full"));
+  expect(raStatus(cg({ level: "unavailable", label: "이용 불가" }))).toEqual(only("이용 불가", "unavailable"));
+  expect(raStatus(cg({ level: "unknown", label: "정보 없음" }))).toEqual(only("정보 없음", "unavailable"));
+  expect(raStatus(undefined)).toEqual(only("정보 없음", "unavailable"));
 });
 
 test("raAriaLabel: 이름 + 상태 단어 + 빈 대수 문구", () => {

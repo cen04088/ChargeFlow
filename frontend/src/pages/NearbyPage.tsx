@@ -35,6 +35,7 @@ import { useElementHeight } from "../lib/useElementHeight";
 import { getLocation, logClick, logScreen } from "../lib/toss";
 import {
   LOCATE_TIMEOUT_MS,
+  canGoBack,
   canUseMapLayout,
   fallbackCopy,
   floatButtons,
@@ -69,8 +70,9 @@ export default function NearbyPage() {
   toastRef.current = openToast;
   const [connector] = useConnector();
   const navigate = useNavigate();
+  const location = useLocation();
   const cameFromHighway =
-    (useLocation().state as { from?: string } | null)?.from === "highway";
+    (location.state as { from?: string } | null)?.from === "highway";
 
   /** 지도 중심 — 내 위치를 받았거나 지역을 골랐을 때만 바뀐다 */
   const [center, setCenter] = useState<Point | null>(null);
@@ -660,7 +662,9 @@ export default function NearbyPage() {
               // 고속도로 화면에서 "주변 충전소"로 왔으면 뒤로 간다(홈 ↔ 고속도로 기록이 쌓이지 않게)
               if (cameFromHighway) {
                 e.preventDefault();
-                navigate(-1);
+                // 앞 기록이 정말 있을 때만 뒤로(복원된 웹뷰에서 앱을 닫지 않게). 없으면 바꿔 연다
+                if (canGoBack(location.key)) navigate(-1);
+                else navigate("/highways", { replace: true });
               }
             }}
           >

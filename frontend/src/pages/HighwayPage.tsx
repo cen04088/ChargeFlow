@@ -24,13 +24,13 @@ import {
   type SheetToggleBy,
 } from "../components/NearbyListSheet";
 import { RouteMap, type RoutePin } from "../components/RouteMap";
-import { directionLabel, shortAvailability, shortName } from "../lib/format";
+import { RaStatusText } from "../components/RestAreaRow";
+import { directionLabel, shortName, timeAgo } from "../lib/format";
 import {
   listedRestAreas,
   loadLastHighway,
   raAriaLabel,
   raPin,
-  raStatus,
   saveLastHighway,
 } from "../lib/highway";
 import { findHighwayStart } from "../lib/highwayLocate";
@@ -39,13 +39,16 @@ import { getLocation, logClick, logScreen } from "../lib/toss";
 import { useAsync } from "../lib/useAsync";
 import { useElementHeight } from "../lib/useElementHeight";
 import {
+  TRAVEL_FRESH_MS,
   aheadText,
+  checkTravel,
   highwayPeek,
   nearestRestArea,
   nextRestArea,
 } from "./highwayState";
 import {
   LOCATE_TIMEOUT_MS,
+  canGoBack,
   canUseMapLayout,
   floatButtons,
   locateWithTimeout,
@@ -67,6 +70,8 @@ type From = "pin" | "peek" | "list";
 interface NavState {
   /** 이미 받은 내 위치 */
   me?: Point;
+  /** 그 위치를 받은 시각(Date.now) — 오래되면(뒤로가기·앱 복귀) 믿지 않는다 */
+  at?: number;
   /** 이 노선·방향이 이용자가 가는 방향이다(위치로 고를 때 direction_matched) */
   travel?: { code: string; dir: Direction };
   /** 홈에서 왔다 — "주변 충전소"는 새로 쌓지 않고 뒤로 간다 */
@@ -80,6 +85,7 @@ function navState(state: unknown): NavState {
 /** 홈으로: 홈에서 왔으면 뒤로(기록이 쌓이지 않게), 아니면 새로 연다 */
 function HomeLink({ from }: { from?: "home" }) {
   const navigate = useNavigate();
+  const location = useLocation();
   return (
     <Link
       to="/"
@@ -88,7 +94,9 @@ function HomeLink({ from }: { from?: "home" }) {
       onClick={(e) => {
         if (from !== "home") return;
         e.preventDefault();
-        navigate(-1);
+        // 앞 기록이 정말 있을 때만 뒤로(복원된 웹뷰에서 앱을 닫지 않게). 없으면 바꿔 연다
+        if (canGoBack(location.key)) navigate(-1);
+        else navigate("/", { replace: true });
       }}
     >
       주변 충전소
@@ -130,6 +138,7 @@ function usePicker(current?: { code: string; dir: Direction }) {
     // 노선·방향 바꾸기는 뒤로가기 기록을 쌓지 않는다. 직접 고르면 가는 방향(travel)이 아니다
     const state: NavState = {
       me: me ?? undefined,
+      at: me ? Date.now() : undefined,
       travel: matched ? { code, dir } : undefined,
       from,
     };
@@ -258,7 +267,11 @@ function StartView() {
         return;
       }
       logClick("highway_pick", { highway: r.start.code, by: "last" });
-      const state: NavState = { me: r.me ?? undefined, from };
+      const state: NavState = {
+        me: r.me ?? undefined,
+        at: r.me ? Date.now() : undefined,
+        from,
+      };
       navigate(`/highway/${r.start.code}?dir=${r.start.dir}`, {
         replace: true,
         state,
@@ -359,15 +372,31 @@ function RouteView({ code }: { code: string }) {
   const highways = picker.highways;
   const hw = highways.data?.find((h) => h.code === code);
   const dirLabel = directionLabel(highways.data, code, dir);
-  /** 이 노선·방향이 이용자가 가는 방향인지 — 위치로 고른 방향(direction_matched)일 때만.
+  /** 이 노선·방향이 이용자가 가는 방향으로 골라졌는지 — 위치로 고른 방향(direction_matched)일 때만.
    *  방향을 바꾸거나 직접 고르거나 마지막 노선으로 왔으면 false("다음 휴게소 · 앞"이라고 하지 않는다) */
-  const travel = nav.travel?.code === code && nav.travel.dir === dir;
+  const navTravel = nav.travel?.code === code && nav.travel.dir === dir;
   const otherDir: Direction = dir === "DOWN" ? "UP" : "DOWN";
   const { openToast } = useToast();
   const toastRef = useRef(openToast);
   toastRef.current = openToast;
 
-  const [me, setMe] = useState<Point | null>(navMe);
+  /** 받은 위치와 받은 시각. 넘겨받은 위치는 기록(history.state)에서 오므로 오래됐을 수 있다 */
+  const [fix, setFix] = useState<{ me: Point; at: number } | null>(() =>
+    navMe ? { me: navMe, at: nav.at ?? 0 } : null,
+  );
+  /** 위치가 2분 넘게 묵었다 — 새 위치가 올 때까지 내 위치·"다음 휴게소"에 쓰지 않는다 */
+  const [stale, setStale] = useState(
+    () => navMe != null && Date.now() - (nav.at ?? 0) > TRAVEL_FRESH_MS,
+  );
+  /** 새 위치로 보니 가는 방향이 아니었다(노선을 벗어남·종점 지남·반대로 감) */
+  const [dropped, setDropped] = useState(false);
+  const me = fix && !stale ? fix.me : null;
+  const travel = navTravel && !dropped && me != null;
+  const fixRef = useRef(fix);
+  fixRef.current = fix;
+  /** 1분마다 위치를 다시 받을지: 가는 방향으로 보는 중이거나 위치가 묵었다 */
+  const refreshMeRef = useRef(false);
+  refreshMeRef.current = (navTravel && !dropped) || stale;
   const [locating, setLocating] = useState(false);
   const locatingRef = useRef(false);
   /** "내 위치"를 누를 때마다 범위를 다시 맞춘다 */
@@ -406,14 +435,51 @@ function RouteView({ code }: { code: string }) {
     setQuery("");
   }, [code, dir]);
 
-  // 화면이 보이는 동안 60초마다 조용히 새로 받는다(시트·검색·지도는 그대로)
+  // 화면이 보이는 동안 60초마다 조용히 새로 받는다(시트·검색·지도는 그대로).
+  // 가는 방향으로 보는 중이면 위치도 한 번 다시 받는다(실패하면 이전 위치를 두되 시각은 늘리지 않는다)
   const { reload } = nodes;
   useEffect(() => {
     const timer = setInterval(() => {
-      if (document.visibilityState === "visible") reload();
+      if (document.visibilityState !== "visible") return;
+      reload();
+      const f = fixRef.current;
+      if (f && Date.now() - f.at > TRAVEL_FRESH_MS) setStale(true);
+      if (refreshMeRef.current) void locateRef.current(false);
     }, REFRESH_MS);
     return () => clearInterval(timer);
   }, [reload]);
+
+  // 다시 보일 때(앱 복귀) 위치가 묵었으면 쓰지 않고 새로 받는다
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      const f = fixRef.current;
+      if (f && Date.now() - f.at <= TRAVEL_FRESH_MS) return;
+      if (f) setStale(true);
+      void locateRef.current(false);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
+  // 노선·방향을 다른 위치 정보와 함께 다시 고르면(새 기록) 그 위치로 다시 시작한다
+  const navKey = location.key;
+  const prevNavKey = useRef(navKey);
+  const prevNextIdx = useRef<number | null>(null);
+  useEffect(() => {
+    if (prevNavKey.current === navKey) return;
+    prevNavKey.current = navKey;
+    setDropped(false);
+    prevNextIdx.current = null;
+    const n = navState(location.state);
+    if (n.me) {
+      const old = Date.now() - (n.at ?? 0) > TRAVEL_FRESH_MS;
+      setFix({ me: n.me, at: n.at ?? 0 });
+      setStale(old);
+      if (old) void locateRef.current(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navKey]);
 
   useEffect(() => {
     const onResize = () => setViewportH(window.innerHeight);
@@ -430,14 +496,17 @@ function RouteView({ code }: { code: string }) {
       getLocation,
       LOCATE_TIMEOUT_MS,
       (late) => {
-        if (late.ok) setMe({ lat: late.lat, lng: late.lng });
+        if (!late.ok) return;
+        setFix({ me: { lat: late.lat, lng: late.lng }, at: Date.now() });
+        setStale(false);
       },
       signal,
     );
     locatingRef.current = false;
     setLocating(false);
     if (r.ok) {
-      setMe({ lat: r.lat, lng: r.lng });
+      setFix({ me: { lat: r.lat, lng: r.lng }, at: Date.now() });
+      setStale(false);
       if (fromTap) setFitNonce((n) => n + 1);
       return;
     }
@@ -450,11 +519,15 @@ function RouteView({ code }: { code: string }) {
     }
   };
 
-  // 화면을 떠나면 기다리던 위치 요청을 무른다. 들어올 때 위치를 한 번 받는다(넘겨받았으면 그대로)
+  const locateRef = useRef(locate);
+  locateRef.current = locate;
+
+  // 화면을 떠나면 기다리던 위치 요청을 무른다. 들어올 때 위치를 한 번 받는다
+  // (넘겨받은 위치가 2분 안의 것이면 그대로 쓴다)
   useEffect(() => {
     const c = new AbortController();
     alive.current = c;
-    if (!navMe) void locate(false);
+    if (!fixRef.current || stale) void locate(false);
     return () => {
       c.abort();
       // 무른 요청은 끝나지 않는다 — 다음 요청을 막지 않게 푼다
@@ -469,6 +542,21 @@ function RouteView({ code }: { code: string }) {
   const next = travel ? geoNext : null;
   const nextIdx = next ? ras.findIndex((n) => n.id === next.id) : -1;
   const near = useMemo(() => nearestRestArea({ nodes: ras, me }), [ras, me]);
+
+  // 새 위치마다 가는 방향이 맞는지 다시 본다: 노선을 벗어났거나 종점을 지났거나 다음 휴게소가
+  // 뒤로 갔으면(반대로 가는 중) "다음 휴게소"를 그만 말한다
+  const geoIdx = geoNext ? ras.findIndex((n) => n.id === geoNext.id) : -1;
+  useEffect(() => {
+    if (!navTravel || dropped || !fix || ras.length === 0) return;
+    const v = checkTravel({
+      fixAt: stale ? null : fix.at,
+      now: Date.now(),
+      nextIdx: geoIdx,
+      prevNextIdx: prevNextIdx.current,
+    });
+    if (v === "drop") setDropped(true);
+    else if (v === "keep") prevNextIdx.current = geoIdx;
+  }, [navTravel, dropped, fix, stale, ras, geoIdx]);
   const nearIdx = near ? ras.findIndex((n) => n.id === near.id) : -1;
   /** 내 위치를 기점부터 거리로(다음 휴게소까지 직선거리를 뺀 값) */
   const meKm =
@@ -500,7 +588,7 @@ function RouteView({ code }: { code: string }) {
   const switchDirection = () => {
     logClick("highway_direction", { direction: otherDir });
     // 방향을 바꾸면 가는 방향이 아니다(travel을 뺀다)
-    const state: NavState = { me: me ?? undefined, from: nav.from };
+    const state: NavState = { me: fix?.me, at: fix?.at, from: nav.from };
     setParams({ dir: otherDir }, { replace: true, state });
   };
 
@@ -518,9 +606,15 @@ function RouteView({ code }: { code: string }) {
       ? raPin(n.congestion)
       : { text: "정보 없음", kind: "unavailable" as const };
 
+  /** 접힌 줄 둘째 줄: 빈 대수는 오른쪽에 있으니 전체 충전기 수와 확인 시각만 */
+  const peekCaption = (n: HighwayNode) => {
+    const c = n.congestion;
+    if (!c || c.level === "unknown" || c.total == null) return "실시간 정보 없음";
+    return `충전기 ${c.total}대` + (c.checked_at ? ` · ${timeAgo(c.checked_at)}` : "");
+  };
+
   const row = (n: HighwayNode, from: From) => {
-    // 상태 단어 + 빈 대수("혼잡 · 1대") — 색만으로 상태를 가르지 않는다
-    const p = raStatus(n.congestion);
+    // 오른쪽: 상태 단어 + 빈 대수(두 줄) — 색만으로 상태를 가르지 않는다
     return (
       <ListRow
         as="div"
@@ -534,15 +628,11 @@ function RouteView({ code }: { code: string }) {
             type="2RowTypeA"
             top={shortName(n.name)}
             topProps={{ fontWeight: "bold" }}
-            bottom={from === "peek" ? shortAvailability(n.congestion) : caption(n)}
+            bottom={from === "peek" ? peekCaption(n) : caption(n)}
             bottomProps={{ typography: "t6", color: "var(--muted)" }}
           />
         }
-        right={
-          <span className={`nearby-row__count nearby-row__count--${p.kind}`}>
-            {p.text}
-          </span>
-        }
+        right={<RaStatusText congestion={n.congestion} />}
         onClick={() => openRestArea(n.id, from)}
       />
     );

@@ -37,26 +37,35 @@ export function raPin(c: Congestion): { text: string; kind: PinKind } {
 }
 
 /**
- * 목록 줄 오른쪽 글자: 상태 단어 + 빈 대수("혼잡 · 1대", "여유 · 3대", "만석", "이용 불가", "정보 없음").
- * 색만으로 상태를 가르지 않도록 단어를 함께 쓴다. 색(kind)은 핀과 같다.
+ * 목록 줄 오른쪽 글자: 상태 단어(word) + 빈 대수(count). 합친 글자(text)는 "혼잡 · 1대", "여유 · 3대",
+ * "만석", "이용 불가", "정보 없음". 색만으로 상태를 가르지 않도록 단어를 함께 쓴다. 색(kind)은 핀과 같다.
  */
-export function raStatus(c: Congestion | undefined): { text: string; kind: PinKind } {
-  if (!c) return { text: "정보 없음", kind: "unavailable" };
+export function raStatus(c: Congestion | undefined): {
+  text: string;
+  word: string;
+  count: string | null;
+  kind: PinKind;
+} {
+  const one = (word: string, kind: PinKind) => ({ text: word, word, count: null, kind });
+  if (!c) return one("정보 없음", "unavailable");
   const { kind } = raPin(c);
   switch (c.level) {
     case "smooth":
     case "normal":
     case "busy":
+      if (c.available == null) return one(c.label, kind);
       return {
-        text: c.available == null ? c.label : `${c.label} · ${c.available}대`,
+        text: `${c.label} · ${c.available}대`,
+        word: c.label,
+        count: `${c.available}대`,
         kind,
       };
     case "jammed":
-      return { text: "만석", kind };
+      return one("만석", kind);
     case "unavailable":
-      return { text: "이용 불가", kind };
+      return one("이용 불가", kind);
     default:
-      return { text: "정보 없음", kind };
+      return one("정보 없음", kind);
   }
 }
 

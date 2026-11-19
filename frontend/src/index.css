@@ -1551,3 +1551,33 @@ html body {
   margin-top: 0;
   border-top: 0;
 }
+
+/* 휴게소 줄 오른쪽 상태: 위 상태 단어(15px), 아래 빈 대수(20px 굵게). 늘 두 줄 — 폭이 좁아 긴 이름이 잘리지 않는다 */
+.ra-status {
+  display: inline-flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  color: var(--state-unavailable);
+  line-height: 1.25;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.ra-status--available {
+  color: var(--state-available);
+}
+
+.ra-status--full {
+  color: var(--state-full);
+}
+
+.ra-status__word {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.ra-status__count {
+  font-size: 20px;
+  font-weight: 700;
+}

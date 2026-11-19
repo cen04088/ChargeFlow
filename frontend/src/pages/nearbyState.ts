@@ -285,3 +285,14 @@ export function noneDesc(mapFailed: boolean): string {
     ? "다른 지역에서 찾아보세요"
     : "지도를 옮겨 다른 곳에서 찾아보세요";
 }
+
+/**
+ * 홈 ↔ 고속도로 이동을 뒤로가기로 처리해도 되는지. 라우터가 처음 연 기록(key "default")이거나
+ * 기록이 하나뿐이면(복원된 웹뷰 등) 뒤로가면 미니앱이 닫힐 수 있으므로 false.
+ */
+export function canGoBack(
+  locationKey: string,
+  historyLength: number = typeof window === "undefined" ? 1 : window.history.length,
+): boolean {
+  return locationKey !== "default" && historyLength > 1;
+}

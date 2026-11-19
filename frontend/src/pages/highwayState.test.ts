@@ -2,7 +2,9 @@ import { expect, test } from "vitest";
 
 import type { Congestion, HighwayNode, NearbyRestArea } from "../api/types";
 import {
+  TRAVEL_FRESH_MS,
   aheadText,
+  checkTravel,
   highwayPeek,
   nearestRestArea,
   nextRestArea,
@@ -278,4 +280,29 @@ test("nearestRestArea: 20km 안의 가장 가까운 휴게소(앞뒤 상관없�
   expect(nearestRestArea({ nodes: ROUTE, me: { lat: 36.9, lng: 127.4 } })).toBeNull();
   expect(nearestRestArea({ nodes: ROUTE, me: null })).toBeNull();
   expect(nearestRestArea({ nodes: [], me: { lat: 37, lng: 127 } })).toBeNull();
+});
+
+test("checkTravel: 새 위치이고 다음 휴게소가 같거나 앞이면 유지", () => {
+  const now = 1_000_000;
+  expect(checkTravel({ fixAt: now - 5_000, now, nextIdx: 3, prevNextIdx: 3 })).toBe("keep");
+  expect(checkTravel({ fixAt: now - 5_000, now, nextIdx: 5, prevNextIdx: 3 })).toBe("keep");
+  expect(checkTravel({ fixAt: now, now, nextIdx: 0, prevNextIdx: null })).toBe("keep");
+  expect(checkTravel({ fixAt: now - TRAVEL_FRESH_MS, now, nextIdx: 2, prevNextIdx: 2 })).toBe("keep");
+});
+
+test("checkTravel: 2분 넘은 위치는 믿지 않는다(새 위치가 올 때까지)", () => {
+  const now = 1_000_000;
+  expect(checkTravel({ fixAt: now - TRAVEL_FRESH_MS - 1, now, nextIdx: 3, prevNextIdx: 3 })).toBe("stale");
+  expect(checkTravel({ fixAt: null, now, nextIdx: 3, prevNextIdx: null })).toBe("stale");
+  expect(TRAVEL_FRESH_MS).toBe(120_000);
+});
+
+test("checkTravel: 노선에서 멀어졌거나 마지막 휴게소를 지났으면(다음 없음) 버린다", () => {
+  const now = 1_000_000;
+  expect(checkTravel({ fixAt: now, now, nextIdx: -1, prevNextIdx: 2 })).toBe("drop");
+});
+
+test("checkTravel: 다음 휴게소가 가는 순서에서 뒤로 갔으면(반대로 가는 중) 버린다", () => {
+  const now = 1_000_000;
+  expect(checkTravel({ fixAt: now, now, nextIdx: 1, prevNextIdx: 2 })).toBe("drop");
 });

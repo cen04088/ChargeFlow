@@ -143,3 +143,24 @@ export function aheadText(node: HighwayNode, meKm: number | null): string {
   if (meKm == null) return `기점에서 ${Math.round(node.distance_from_start_km)}km`;
   return `약 ${roundKm(Math.max(0, node.distance_from_start_km - meKm))}km 앞`;
 }
+
+/** 이보다 오래된 위치로는 "다음 휴게소 · 앞"을 말하지 않는다(ms) */
+export const TRAVEL_FRESH_MS = 120_000;
+
+/**
+ * "가는 방향" 표시를 유지할지. 다시 열었거나(뒤로가기·앱 복귀) 갱신에 실패해 위치가 2분 넘게 묵었으면
+ * "stale"(새 위치가 올 때까지 가는 방향이 아닌 것처럼 보인다). 새 위치가 노선에서 멀거나 마지막 휴게소를
+ * 지났으면(nextIdx -1), 또는 다음 휴게소가 가는 순서에서 뒤로 갔으면(반대로 가는 중) "drop".
+ */
+export function checkTravel(input: {
+  fixAt: number | null;
+  now: number;
+  nextIdx: number;
+  prevNextIdx: number | null;
+}): "keep" | "stale" | "drop" {
+  const { fixAt, now, nextIdx, prevNextIdx } = input;
+  if (fixAt == null || now - fixAt > TRAVEL_FRESH_MS) return "stale";
+  if (nextIdx < 0) return "drop";
+  if (prevNextIdx != null && prevNextIdx >= 0 && nextIdx < prevNextIdx) return "drop";
+  return "keep";
+}

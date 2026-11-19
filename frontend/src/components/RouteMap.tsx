@@ -2,7 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { loadKakaoMaps } from "../lib/kakao";
 import type { PinKind } from "../lib/highway";
-import { declutterPins, shouldRefitForInset } from "../lib/nearby";
+import {
+  INSET_REFIT_WINDOW_MS,
+  declutterPins,
+  shouldRefitForInset,
+} from "../lib/nearby";
 
 interface Point {
   lat: number;
@@ -55,8 +59,11 @@ interface RouteMapProps {
   label: string;
 }
 
-/** 지도 가장자리 여백(위·오른쪽·아래·왼쪽) — 핀이 잘리지 않게 */
-const PAD = [56, 40, 40, 40] as const;
+/** 지도 가장자리 여백(위·오른쪽·아래·왼쪽) — 글자 핀은 좌표 위로 서고(위 56), 폭의 반쯤 옆으로 퍼진다(36).
+ *  아래는 점의 반지름만큼만(20) — 노선이 보이는 칸 가운데 크게 오게 */
+const PAD = [56, 36, 20, 36] as const;
+/** 맞춘 뒤 이 시간(ms) 안에 접힌 시트 높이가 바뀌면 한 번 다시 맞춘다 */
+const ROUTE_INSET_WINDOW_MS = 4000;
 /** 범위 맞춤 때 시트 여백을 더해도 핀이 들어갈 세로 공간은 이만큼 남긴다(px) */
 const MIN_FIT_SPACE = 120;
 /** 핀을 누른 직후에 오는 지도 click은 무시한다(ms) */
@@ -349,20 +356,30 @@ export function RouteMap({
     insetRefitDone.current = false;
   }, [ready, fitKey, softFitKey, fitSig, fitNow]);
 
-  // 맞춘 직후(1초 안) 접힌 시트가 실제 높이로 바뀌면 한 번만 다시 맞춘다(NearbyMap과 같은 규칙)
+  // 맞춘 직후 접힌 시트가 실제 높이로 바뀌면 한 번만 다시 맞춘다(NearbyMap과 같은 규칙에 기다리는 시간만 더 길게).
+  // 노선 화면은 처음 맞출 때 시트가 아직 "불러오고 있어요" 한 줄이고, 실제 높이는 2~3초 뒤에야 오기도 했다
+  // (실제 지도 확인: 노선이 시트 높이를 덜 뺀 채 맞춰져 아래로 치우쳤다). 이용자가 지도를 건드리지 않았을 때만
   useEffect(() => {
     if (!ready || insetRefitDone.current || needsFit.current) return;
     if (bottomInset === fittedInset.current) return;
+    const msSinceFit = performance.now() - fittedAt.current;
+    // 시간 창만 이 지도 기준(ROUTE_INSET_WINDOW_MS)으로 바꿔 같은 판정 함수를 쓴다
     const refit = shouldRefitForInset({
       userMoved: userMoved.current,
       hasFitted: fittedAt.current > 0,
       refitSpent: false,
-      msSinceFit: performance.now() - fittedAt.current,
+      msSinceFit: msSinceFit * (INSET_REFIT_WINDOW_MS / ROUTE_INSET_WINDOW_MS),
       prevInset: fittedInset.current,
       nextInset: bottomInset,
     });
+    if (!refit) {
+      // 작은 중간 변화로 기회를 써 버리지 않는다 — 창이 지났거나 이용자가 옮겼을 때만 기회를 닫는다
+      if (userMoved.current || msSinceFit >= ROUTE_INSET_WINDOW_MS) {
+        insetRefitDone.current = true;
+      }
+      return;
+    }
     insetRefitDone.current = true;
-    if (!refit) return;
     let fired = false;
     const frame = requestAnimationFrame(() => {
       fired = true;
