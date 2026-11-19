@@ -3,6 +3,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import type { NearbyStation } from "../api/types";
 import {
   DOT_LEVEL,
+  INSET_REFIT_MIN_PX,
   REGIONS,
   ULTRA_FAST_KW,
   checkedText,
@@ -17,6 +18,7 @@ import {
   rowCaption,
   saveLastLocation,
   sheetRows,
+  shouldRefitForInset,
   summaryText,
 } from "./nearby";
 
@@ -106,6 +108,16 @@ test("isUltraFast / pinLabel", () => {
   expect(pinLabel(st({ state: "full", available: 0 }), "count")).toBe("충전 중");
   expect(pinLabel(st({ state: "unavailable", available: 0 }), "count")).toBe("이용 불가");
   expect(pinLabel(st({ power_kw: 200, state: "full", available: 0 }), "power")).toBe("200kW");
+});
+test("shouldRefitForInset: only before the user moves, after a fit, on a real change", () => {
+  const ok = { userMoved: false, hasFitted: true, prevInset: 111, nextInset: 236 };
+  expect(INSET_REFIT_MIN_PX).toBe(16);
+  expect(shouldRefitForInset(ok)).toBe(true);
+  expect(shouldRefitForInset({ ...ok, userMoved: true })).toBe(false);
+  expect(shouldRefitForInset({ ...ok, hasFitted: false })).toBe(false);
+  expect(shouldRefitForInset({ ...ok, nextInset: 111 + 15 })).toBe(false);
+  expect(shouldRefitForInset({ ...ok, nextInset: 111 + 16 })).toBe(true);
+  expect(shouldRefitForInset({ ...ok, prevInset: 236, nextInset: 200 })).toBe(true);
 });
 test("isDotLevel", () => {
   expect(DOT_LEVEL).toBe(7);

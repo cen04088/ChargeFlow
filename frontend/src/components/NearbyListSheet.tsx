@@ -7,6 +7,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  type Ref,
 } from "react";
 
 import { SHEET_TAP_PX, sheetSnap } from "../pages/nearbyState";
@@ -22,6 +23,8 @@ interface NearbyListSheetProps {
   children: ReactNode;
   /** 접힌 시트 높이(손잡이 + peek) — 지도 위 버튼·범위 맞춤 여백에 쓴다 */
   onPeekHeight: (px: number) => void;
+  /** 손잡이 버튼 — 버튼으로 펼친 뒤 포커스를 옮길 곳 */
+  handleRef?: Ref<HTMLButtonElement>;
 }
 
 /** 펼친 높이: 지도 영역의 85%와 화면 높이의 70% 중 작은 값 */
@@ -31,8 +34,6 @@ const OPEN_VIEWPORT_RATIO = 0.7;
 const VELOCITY_WINDOW_MS = 80;
 /** 끌기 시작 판정: 이만큼 움직인 뒤 가로·세로를 비교한다 */
 const DRAG_DECIDE_PX = 6;
-/** 끌기·가로 쓸기 뒤에 따라오는 click은 누르기로 치지 않는다(ms) */
-const CLICK_GUARD_MS = 400;
 
 interface Drag {
   pointerId: number;
@@ -54,6 +55,7 @@ export function NearbyListSheet({
   peek,
   children,
   onPeekHeight,
+  handleRef,
 }: NearbyListSheetProps) {
   const sheetRef = useRef<HTMLElement>(null);
   const headRef = useRef<HTMLDivElement>(null);
@@ -66,7 +68,9 @@ export function NearbyListSheet({
   const [dragY, setDragY] = useState<number | null>(null);
 
   const drag = useRef<Drag | null>(null);
-  const clickGuardUntil = useRef(0);
+  /** 방금 끝난 끌기(또는 포기한 가로 쓸기)에 딸려 오는 click 하나를 누르기로 치지 않는다.
+   *  다음 pointerdown에서 풀리므로 새 누르기·끌기를 막지 않는다 */
+  const suppressClick = useRef(false);
   const openRef = useRef(open);
   openRef.current = open;
   const peekCb = useRef(onPeekHeight);
@@ -139,7 +143,11 @@ export function NearbyListSheet({
   };
 
   const onPointerDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
-    if (e.button !== 0 || drag.current) return;
+    if (e.button !== 0) return;
+    // 이전 끌기가 끝 소식 없이 남아 있어도(capture를 잃음) 새 누르기를 막지 않는다
+    const stale = drag.current;
+    if (stale && e.currentTarget.hasPointerCapture?.(stale.pointerId)) return;
+    suppressClick.current = false;
     drag.current = {
       pointerId: e.pointerId,
       startX: e.clientX,
@@ -160,7 +168,7 @@ export function NearbyListSheet({
       d.vertical = Math.abs(dy) >= Math.abs(dx);
       if (!d.vertical) {
         // 가로 쓸기(뒤로가기 등)는 가로채지 않는다
-        clickGuardUntil.current = e.timeStamp + CLICK_GUARD_MS;
+        suppressClick.current = true;
         endDrag(e);
         return;
       }
@@ -180,7 +188,7 @@ export function NearbyListSheet({
     const dy = e.clientY - d.startY;
     // 8px 미만은 누르기 — 뒤따르는 click이 토글한다(키보드 Enter/Space와 같은 길)
     if (d.vertical !== true || Math.abs(dy) < SHEET_TAP_PX) return;
-    clickGuardUntil.current = e.timeStamp + CLICK_GUARD_MS;
+    suppressClick.current = true;
     d.samples.push({ t: e.timeStamp, y: e.clientY });
     const last = d.samples[d.samples.length - 1];
     const first =
@@ -199,8 +207,19 @@ export function NearbyListSheet({
     setDragY(null);
   };
 
+  /** capture를 pointerup/cancel 없이 잃었을 때도 끌기를 끝낸다(다음 끌기가 막히지 않게) */
+  const onLostPointerCapture = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    const d = drag.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    drag.current = null;
+    setDragY(null);
+  };
+
   const onClick = (e: ReactMouseEvent<HTMLButtonElement>) => {
-    if (e.timeStamp < clickGuardUntil.current) return;
+    // 키보드(Enter/Space)로 온 click(detail 0)은 언제나 토글한다
+    const suppressed = suppressClick.current && e.detail !== 0;
+    suppressClick.current = false;
+    if (suppressed) return;
     onToggle(!open, "handle");
   };
 
@@ -219,6 +238,7 @@ export function NearbyListSheet({
     >
       <div ref={headRef} className="nearby-sheet__head">
         <button
+          ref={handleRef}
           type="button"
           className="nearby-sheet__handle"
           aria-expanded={open}
@@ -228,6 +248,7 @@ export function NearbyListSheet({
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerCancel}
+          onLostPointerCapture={onLostPointerCapture}
           onClick={onClick}
         >
           <span className="nearby-sheet__bar" aria-hidden="true" />

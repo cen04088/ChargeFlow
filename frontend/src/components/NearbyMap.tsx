@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { NearbyStation } from "../api/types";
 import { loadKakaoMaps } from "../lib/kakao";
@@ -7,6 +7,7 @@ import {
   isUltraFast,
   pinLabel,
   pinText,
+  shouldRefitForInset,
   type PinMode,
 } from "../lib/nearby";
 
@@ -123,6 +124,10 @@ export function NearbyMap({
   const failedCalled = useRef(false);
   /** 지금 핀을 점으로 줄여 보이는 중(축소 레벨) — 이용자 조작 판정과 별개 */
   const dot = useRef(false);
+  /** 마지막 범위 맞춤에 쓴 시트 높이 */
+  const fittedInset = useRef(0);
+  /** 이 기준점에서 시트 높이 때문에 한 번 더 맞췄다(한 번만 허용) */
+  const insetRefitDone = useRef(false);
   /** 마지막으로 핀을 누른 시각 — 그 직후의 지도 click은 빈 곳 누르기가 아니다 */
   const pinTapAt = useRef(0);
 
@@ -233,6 +238,46 @@ export function NearbyMap({
     };
   }, []);
 
+  /** 기준점과 가까운 충전소들이 접힌 시트 위 화면에 들어오게 맞춘다(ref만 읽는다) */
+  const fitToNearest = useCallback(() => {
+    const kakao = window.kakao;
+    if (!map.current || !kakao) return;
+    const { maps } = kakao;
+    const shown = stationsRef.current.slice(0, MAX_PINS);
+    if (shown.length === 0) return;
+    const c = centerRef.current;
+    const bounds = new maps.LatLngBounds();
+    bounds.extend(new maps.LatLng(c.lat, c.lng));
+    shown
+      .map((s) => ({
+        s,
+        d: (+s.latitude - c.lat) ** 2 + (+s.longitude - c.lng) ** 2,
+      }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, FIT_COUNT)
+      .forEach(({ s }) =>
+        bounds.extend(new maps.LatLng(+s.latitude, +s.longitude)),
+      );
+    const inset = Math.max(0, insetRef.current);
+    fittedInset.current = inset;
+    // zoom_changed가 호출 중에 바로 오든 조금 뒤에 오든 이 맞춤은 이용자 조작으로 치지 않는다
+    programmatic.current = true;
+    try {
+      // 아래 여백은 그 순간 지도를 가리는 시트 높이만큼 더 둔다.
+      // 지도가 낮으면 핀이 들어갈 자리(MIN_FIT_SPACE)는 남긴다
+      const h = box.current?.clientHeight ?? 0;
+      const bottom = Math.min(
+        PAD[2] + inset,
+        Math.max(PAD[2], h - PAD[0] - MIN_FIT_SPACE),
+      );
+      map.current.setBounds(bounds, PAD[0], PAD[1], bottom, PAD[3]);
+    } finally {
+      setTimeout(() => {
+        programmatic.current = false;
+      }, 0);
+    }
+  }, []);
+
   // center 값이 바뀌면 그 위치로 옮기고 '이용자가 옮김' 표시를 풀어 한 번 다시 맞추게 한다
   useEffect(() => {
     const kakao = window.kakao;
@@ -278,38 +323,34 @@ export function NearbyMap({
 
     if (!needsFit.current || userMoved.current || shown.length === 0) return;
     needsFit.current = false;
-    const c = centerRef.current;
-    const bounds = new maps.LatLngBounds();
-    bounds.extend(new maps.LatLng(c.lat, c.lng));
-    shown
-      .map((s) => ({
-        s,
-        d: (+s.latitude - c.lat) ** 2 + (+s.longitude - c.lng) ** 2,
-      }))
-      .sort((a, b) => a.d - b.d)
-      .slice(0, FIT_COUNT)
-      .forEach(({ s }) =>
-        bounds.extend(new maps.LatLng(+s.latitude, +s.longitude)),
-      );
-    // zoom_changed가 호출 중에 바로 오든 조금 뒤에 오든 이 맞춤은 이용자 조작으로 치지 않는다
-    programmatic.current = true;
-    try {
-      // 아래 여백은 그 순간 지도를 가리는 시트 높이만큼 더 둔다.
-      // 지도가 낮으면 핀이 들어갈 자리(MIN_FIT_SPACE)는 남긴다
-      const h = box.current?.clientHeight ?? 0;
-      const bottom = Math.min(
-        PAD[2] + Math.max(0, insetRef.current),
-        Math.max(PAD[2], h - PAD[0] - MIN_FIT_SPACE),
-      );
-      map.current.setBounds(bounds, PAD[0], PAD[1], bottom, PAD[3]);
-    } finally {
-      setTimeout(() => {
-        programmatic.current = false;
-      }, 0);
-    }
+    insetRefitDone.current = false;
+    fitToNearest();
     // signature가 stations의 구성을 대표한다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, signature]);
+
+  // 첫 맞춤 때 시트는 아직 "찾고 있어요" 한 줄이라 낮다. 접힌 시트가 실제 높이로 바뀌면
+  // (이용자가 지도를 건드리기 전에 한해) 이 기준점에서 한 번만 다시 맞춘다. 한 프레임 모아서.
+  // 시트를 펼쳐도 bottomInset(접힌 높이)은 그대로라 여기서 다시 맞추지 않는다
+  useEffect(() => {
+    if (!ready || insetRefitDone.current) return;
+    if (
+      !shouldRefitForInset({
+        userMoved: userMoved.current,
+        hasFitted: !needsFit.current,
+        prevInset: fittedInset.current,
+        nextInset: bottomInset,
+      })
+    ) {
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      if (userMoved.current || needsFit.current || insetRefitDone.current) return;
+      insetRefitDone.current = true;
+      fitToNearest();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [ready, bottomInset, fitToNearest]);
 
   // 글자 모드가 바뀌면 핀 글자만 바꾼다(다시 그리거나 지도를 옮기지 않는다)
   useEffect(() => {

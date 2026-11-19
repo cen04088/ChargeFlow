@@ -1003,11 +1003,25 @@ html body {
 }
 
 .nearby-map-btn--me {
+  right: 12px;
+  bottom: 16px;
   color: var(--brand-deep);
   background: #fff;
 }
 
+/* 낮은 화면(쌓인 배치)의 지도 카드: "이 위치에서 찾기"는 위쪽 가운데 */
+.nearby-here {
+  position: absolute;
+  inset: 12px 0 auto;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
 .nearby-map-btn--here {
+  position: static;
+  pointer-events: auto;
   border: 0;
   color: #fff;
   background: var(--brand-strong);
@@ -1030,9 +1044,10 @@ html body {
   flex: none;
 }
 
+/* 화면이 낮으면(nearbyState의 MIN_MAP_LAYOUT_HEIGHT) 이 배치를 쓰지 않으므로 최소 높이를 두지 않는다 */
 .nearby-map-wrap--full {
   flex: 1 1 auto;
-  min-height: 260px;
+  min-height: 0;
   margin: 0;
   border-radius: 0;
 }
@@ -1043,8 +1058,8 @@ html body {
   height: auto;
 }
 
-/* 지도 위 왼쪽 위 요약 칩, 오른쪽 위 핀 글자 토글.
-   좁아서 한 줄에 못 들어가면 토글이 다음 줄 오른쪽으로 내려간다 */
+/* 지도 위 왼쪽 위 요약 칩, 오른쪽 위 핀 글자 토글 — 늘 한 줄.
+   칩은 남는 폭만 쓰고(넘치면 말줄임), 360px 미만에서는 숨긴다(접힌 시트가 가장 가까운 빈 곳을 알린다) */
 .nearby-map-top {
   position: absolute;
   top: 12px;
@@ -1052,29 +1067,37 @@ html body {
   right: 12px;
   z-index: 2;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 8px;
   pointer-events: none;
 }
 
 .nearby-chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: 40px;
+  flex: 0 1 auto;
+  min-width: 0;
   margin: 0;
-  padding: 8px 14px;
+  padding: 9px 14px;
   border-radius: 999px;
   font-size: 15px;
   font-weight: 700;
   line-height: 1.35;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-variant-numeric: tabular-nums;
   color: var(--ink);
 }
 
+@media (max-width: 359px) {
+  .nearby-chip {
+    display: none;
+  }
+}
+
 .nearby-mode {
-  width: 184px;
+  flex: none;
+  width: 172px;
   margin-inline-start: auto;
   padding: 2px;
   border-radius: 14px;
@@ -1092,31 +1115,25 @@ html body {
   min-height: 44px;
 }
 
-/* 지도 아래쪽 떠 있는 버튼: 접힌 시트 바로 위(bottom은 시트 높이로 정한다) */
+/* 지도 위 떠 있는 버튼 칸: 위쪽 줄 아래부터 접힌 시트 위까지(top·bottom·gap은 잰 높이로 정한다).
+   버튼은 오른쪽에 아래부터 쌓고("내 위치" 아래, "이 위치에서 찾기" 위), 넘치면 페이지가 숨긴다 */
 .nearby-map-float {
   position: absolute;
   left: 12px;
   right: 12px;
   z-index: 2;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: end;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-end;
   pointer-events: none;
 }
 
 .nearby-map-float .nearby-map-btn {
   position: static;
+  flex: none;
+  max-width: 100%;
   pointer-events: auto;
-}
-
-.nearby-map-float .nearby-map-btn--here {
-  grid-column: 2;
-}
-
-.nearby-map-float .nearby-map-btn--me {
-  grid-column: 3;
-  justify-self: end;
 }
 
 /* 목록 시트(비모달). 높이는 펼친 높이로 고정하고 transform으로 접는다 */
@@ -1218,6 +1235,14 @@ html body {
   color: var(--ink);
   font-size: 17px;
   font-weight: 700;
+  line-height: 1.45;
+}
+
+.nearby-peek__subtitle {
+  margin: 0;
+  padding: 0 var(--gutter) 4px;
+  color: var(--muted);
+  font-size: 15px;
   line-height: 1.45;
 }
 

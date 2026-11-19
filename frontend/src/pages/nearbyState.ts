@@ -19,11 +19,11 @@ export interface ViewInput {
   locFailure: LocFailure | null;
   /** 지도를 못 띄운 화면에서 "다른 지역에서 찾기"를 눌렀다 */
   regionsRequested: boolean;
-  /** 지도 실패 화면에서 "N곳 더 보기"를 눌렀다 */
+  /** 쌓인 목록에서 "N곳 더 보기"를 눌렀다 */
   expanded: boolean;
-  /** 지도를 못 띄웠다 — 쌓인 목록(처음 3곳 + 더 보기)으로 보인다.
-   *  아니면 지도 시트에 고른 묶음 전부를 넘긴다 */
-  mapFailed: boolean;
+  /** 지도 시트가 아니라 쌓인 목록(처음 3곳 + 더 보기)으로 보인다 —
+   *  지도를 못 띄웠거나 화면이 낮을 때. 아니면 지도 시트에 고른 묶음 전부를 넘긴다 */
+  stacked: boolean;
 }
 
 export type NearbyView =
@@ -55,7 +55,7 @@ export function nearbyView(v: ViewInput): NearbyView {
       // 예전 응답처럼 feed_stale이 없으면 false로 본다
       return { kind: v.result.feed_stale === true ? "stale" : "none", notice };
     }
-    const rows = v.mapFailed
+    const rows = v.stacked
       ? listRows(v.result.stations, v.expanded)
       : { ...sheetRows(v.result.stations), hidden: 0 };
     return { kind: "list", ...rows, notice };
@@ -175,40 +175,58 @@ export function sheetSnap(input: {
 /** 접힌 시트에 보일 한 줄: 가장 가까운 빈 곳, 또는 지금 상태의 안내 제목 */
 export type PeekInfo =
   | { kind: "station"; label: string; station: NearbyStation; more: number }
-  | { kind: "message"; title: string; action?: "retry" };
+  | {
+      kind: "message";
+      title: string;
+      /** 지난번 위치로 보여 주는 중이면 제목 아래 한 줄 */
+      subtitle?: string;
+      action?: "retry";
+      /** 펼치면 보일 줄 수 — 있으면 시트를 펼치는 버튼(moreLabel)을 둔다 */
+      more?: number;
+      moreLabel?: string;
+    };
 
+const LAST_LOCATION_SUBTITLE = "지난번 위치 기준이에요";
+
+/**
+ * searching은 지금 검색이 진행 중인지다. 이전 결과가 있으면 그 결과의 줄을 그대로 두고
+ * (본문이 진행을 알린다), 결과가 없을 때(view가 loading)만 찾는 중 문구가 된다.
+ */
 export function peekInfo(input: {
   view: NearbyView;
   radiusKm: number;
   searching: boolean;
   hasOrigin: boolean;
 }): PeekInfo {
-  const { view, radiusKm, searching, hasOrigin } = input;
-  // 지역 선택·오류 화면에는 시트가 없다. 혹시 불려도 찾는 중 문구로 둔다.
-  // 새 기준점으로 찾는 동안에는 예전 결과 대신 찾는 중을 보인다
-  if (
-    view.kind === "loading" ||
-    view.kind === "regions" ||
-    view.kind === "error" ||
-    searching
-  ) {
+  const { view, radiusKm, hasOrigin } = input;
+  // 지역 선택·오류 화면에는 시트가 없다. 혹시 불려도 찾는 중 문구로 둔다
+  if (view.kind === "loading" || view.kind === "regions" || view.kind === "error") {
     return {
       kind: "message",
       title: hasOrigin ? "급속충전소를 찾고 있어요" : "현재 위치를 확인하고 있어요",
     };
   }
+  const notice = view.notice ? { subtitle: LAST_LOCATION_SUBTITLE } : {};
   if (view.kind === "stale") {
     return {
       kind: "message",
       title: "지금 충전소 정보를 받지 못하고 있어요",
+      ...notice,
       action: "retry",
     };
   }
   if (view.kind === "none") {
-    return { kind: "message", title: "30km 안에 급속충전소가 없어요" };
+    return { kind: "message", title: "30km 안에 급속충전소가 없어요", ...notice };
   }
   if (view.fallback) {
-    return { kind: "message", title: fallbackCopy(view.fallback, radiusKm).title };
+    const n = view.rows.length;
+    return {
+      kind: "message",
+      title: fallbackCopy(view.fallback, radiusKm).title,
+      ...notice,
+      more: n,
+      moreLabel: view.fallback === "full" ? `충전 중인 ${n}곳 보기` : `${n}곳 보기`,
+    };
   }
   return {
     kind: "station",
@@ -216,6 +234,30 @@ export function peekInfo(input: {
     station: view.rows[0],
     more: view.rows.length - 1,
   };
+}
+
+/** 웹뷰 높이가 이보다 낮으면(가로 화면 등) 지도 시트 대신 쌓인 배치로 — 잘리지 않고 스크롤된다 */
+export const MIN_MAP_LAYOUT_HEIGHT = 560;
+
+export function canUseMapLayout(viewportHeight: number): boolean {
+  return viewportHeight >= MIN_MAP_LAYOUT_HEIGHT;
+}
+
+/**
+ * 지도 위 떠 있는 버튼("이 위치에서 찾기" 위, "내 위치" 아래로 쌓음) 중 무엇을 보일지.
+ * space는 위쪽 줄과 접힌 시트 사이의 높이. 모자라면 "내 위치"부터 숨긴다
+ * (지역 선택 → 내 위치로 찾기로도 갈 수 있다).
+ */
+export function floatButtons(input: {
+  space: number;
+  here: boolean;
+  buttonH: number;
+  gap: number;
+}): { showHere: boolean; showMe: boolean } {
+  const { space, here, buttonH, gap } = input;
+  const showHere = here && space >= buttonH;
+  const showMe = space >= (showHere ? 2 * buttonH + gap : buttonH);
+  return { showHere, showMe };
 }
 
 /** 충전소가 하나도 없을 때 둘째 줄 — 지도가 없으면 지도를 옮기라고 하지 않는다 */

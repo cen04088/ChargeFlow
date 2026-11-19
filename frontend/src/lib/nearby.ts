@@ -54,6 +54,25 @@ export function isDotLevel(level: number): boolean {
   return level >= DOT_LEVEL;
 }
 
+/** 접힌 시트 높이가 이만큼(px) 이상 바뀌어야 범위를 다시 맞춘다 */
+export const INSET_REFIT_MIN_PX = 16;
+
+/**
+ * 지도 아래를 가리는 시트 높이가 바뀌었을 때 범위를 한 번 더 맞출지.
+ * 이 기준점으로 이미 맞췄고, 이용자가 지도를 건드리지 않았고, 높이가 실제로 바뀐 경우만.
+ * (첫 맞춤 때는 시트에 아직 "찾고 있어요" 한 줄이라 높이가 작다)
+ */
+export function shouldRefitForInset(input: {
+  userMoved: boolean;
+  hasFitted: boolean;
+  prevInset: number;
+  nextInset: number;
+}): boolean {
+  const { userMoved, hasFitted, prevInset, nextInset } = input;
+  if (userMoved || !hasFitted) return false;
+  return Math.abs(nextInset - prevInset) >= INSET_REFIT_MIN_PX;
+}
+
 export function checkedText(iso: string | null, now: number): string {
   if (!iso) return "";
   const min = Math.floor((now - new Date(iso).getTime()) / 60000);

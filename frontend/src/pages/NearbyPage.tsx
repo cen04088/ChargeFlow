@@ -32,10 +32,13 @@ import {
   type Region,
 } from "../lib/nearby";
 import { connectorName, useConnector } from "../lib/store";
+import { useElementHeight } from "../lib/useElementHeight";
 import { getLocation, logClick, logScreen } from "../lib/toss";
 import {
   LOCATE_TIMEOUT_MS,
+  canUseMapLayout,
   fallbackCopy,
+  floatButtons,
   fetchedText,
   locateWithTimeout,
   nearbyView,
@@ -48,6 +51,12 @@ import {
 } from "./nearbyState";
 
 const REFRESH_MS = 60_000;
+/** 지도 위 요소와 지도 가장자리·접힌 시트 사이 여백(px) */
+const MAP_EDGE = 12;
+/** 지도 위 떠 있는 버튼 사이·위쪽 줄과의 간격(px) */
+const FLOAT_GAP = 8;
+/** 지도 위 버튼을 아직 재지 못했을 때 쓰는 높이 — CSS .nearby-map-btn의 min-height와 같다 */
+const MAP_BUTTON_MIN_H = 44;
 
 const REGION_TITLE: Record<LocFailure | "pick", string> = {
   denied: "위치 권한 없이도 지역을 선택해 검색할 수 있어요.",
@@ -86,6 +95,14 @@ export default function NearbyPage() {
   /** 접힌 목록 시트 높이 — 지도 위 버튼과 범위 맞춤 여백을 그만큼 올린다 */
   const [peekH, setPeekH] = useState(0);
   const [pinMode, setPinMode] = useState<PinMode>("count");
+  /** 웹뷰 높이 — 낮으면(가로 화면 등) 지도 시트 대신 쌓인 배치 */
+  const [viewportH, setViewportH] = useState(() => window.innerHeight);
+  const handleRef = useRef<HTMLButtonElement>(null);
+  // 지도 위 떠 있는 버튼 자리: 위쪽 줄 높이, 버튼 칸의 높이, 버튼 높이를 잰다
+  const [setTopRowEl, topRowH] = useElementHeight<HTMLDivElement>();
+  const [setFloatEl, floatSpace] = useElementHeight<HTMLDivElement>();
+  const [setMeBtnEl, meBtnH] = useElementHeight<HTMLButtonElement>();
+  const [setHereBtnEl, hereBtnH] = useElementHeight<HTMLButtonElement>();
   const [sheet, setSheet] = useState<NearbyStation | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -294,10 +311,12 @@ export default function NearbyPage() {
     setListOpen(open);
   };
 
-  /** 접힌 줄의 "N곳 더 보기": 목록 시트를 펼친다 */
+  /** 접힌 줄의 "N곳 더 보기"·"충전 중인 N곳 보기": 목록 시트를 펼친다.
+   *  누른 버튼은 펼치면 숨으므로 포커스를 손잡이로 옮긴다 */
   const openListFromButton = () => {
     logClick("nearby_more");
     toggleList(true, "button");
+    requestAnimationFrame(() => handleRef.current?.focus({ preventScroll: true }));
   };
 
   const changePinMode = (v: string) => {
@@ -305,6 +324,14 @@ export default function NearbyPage() {
     logClick("nearby_pin_mode", { mode });
     setPinMode(mode);
   };
+
+  // 화면 높이(회전·주소창)를 따라간다
+  useEffect(() => {
+    const onResize = () => setViewportH(window.innerHeight);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  const tall = canUseMapLayout(viewportH);
 
   const view = nearbyView({
     hasOrigin: origin != null,
@@ -315,7 +342,7 @@ export default function NearbyPage() {
     locFailure,
     regionsRequested,
     expanded,
-    mapFailed,
+    stacked: mapFailed || !tall,
   });
 
   // 지역 고르기 화면으로 바뀌면 열려 있던 충전소 시트를 닫는다
@@ -336,6 +363,9 @@ export default function NearbyPage() {
       view.kind === "list" ||
       view.kind === "none" ||
       view.kind === "stale");
+
+  /** 지도가 머리말 아래를 채우고 목록이 시트로 얹히는 배치 */
+  const mapLayout = showMap && tall;
 
   const stations = result?.stations ?? [];
   const regionRequired = view.kind === "regions" && view.reason !== "pick";
@@ -536,6 +566,9 @@ export default function NearbyPage() {
         <p className="nearby-peek__title" role="status">
           {peek.title}
         </p>
+        {peek.subtitle && (
+          <p className="nearby-peek__subtitle">{peek.subtitle}</p>
+        )}
         {peek.action === "retry" && (
           <div className="nearby-peek__action">
             <Button
@@ -549,11 +582,30 @@ export default function NearbyPage() {
             </Button>
           </div>
         )}
+        {peek.moreLabel && (peek.more ?? 0) > 0 && (
+          <div className="nearby-peek__action">
+            <Button
+              size="large"
+              variant="weak"
+              display="full"
+              onClick={openListFromButton}
+            >
+              {peek.moreLabel}
+            </Button>
+          </div>
+        )}
       </div>
     );
 
+  const { showHere, showMe } = floatButtons({
+    space: floatSpace,
+    here: moved != null,
+    buttonH: meBtnH || hereBtnH || MAP_BUTTON_MIN_H,
+    gap: FLOAT_GAP,
+  });
+
   return (
-    <main className={showMap ? "page page--map" : "page"}>
+    <main className={mapLayout ? "page page--map" : "page"}>
       <div className="nearby-intro">
         <PageHeading
           title="주변 급속충전소"
@@ -598,15 +650,23 @@ export default function NearbyPage() {
         </div>
       </div>
 
-      {showMap && center ? (
-        <div key="map" className="nearby-map-wrap nearby-map-wrap--full">
+      {/* 지도는 큰 화면(시트)과 낮은 화면(쌓인 배치)에서 같은 자리에 두어 다시 만들지 않는다 */}
+      {showMap && center && (
+        <div
+          key="map"
+          className={
+            mapLayout
+              ? "nearby-map-wrap nearby-map-wrap--full"
+              : "nearby-map-wrap"
+          }
+        >
           <NearbyMap
             center={center}
             me={me}
             stations={stations}
             focusId={liveSheet?.id ?? null}
-            mode={pinMode}
-            bottomInset={peekH}
+            mode={mapLayout ? pinMode : "count"}
+            bottomInset={mapLayout ? peekH : 0}
             onSelect={(id) => {
               const s = stations.find((x) => x.id === id);
               if (s) openStation(s, "pin");
@@ -617,75 +677,122 @@ export default function NearbyPage() {
               setMoved(null);
             }}
             onMapTap={() => {
-              if (listOpen) toggleList(false, "map");
+              if (mapLayout && listOpen) toggleList(false, "map");
             }}
           />
 
-          <div className="nearby-map-top">
-            {view.kind === "list" && (
-              <p className="nearby-chip glass">{summaryText(stations)}</p>
-            )}
-            <div
-              className="nearby-mode"
-              role="group"
-              aria-label="지도 핀에 보일 정보"
-            >
-              <SegmentedControl
-                className="nearby-mode__control"
-                size="large"
-                alignment="fixed"
-                value={pinMode}
-                onChange={changePinMode}
-              >
-                <SegmentedControl.Item value="count">빈 대수</SegmentedControl.Item>
-                <SegmentedControl.Item value="power">출력</SegmentedControl.Item>
-              </SegmentedControl>
-            </div>
-          </div>
+          {mapLayout ? (
+            <>
+              <div ref={setTopRowEl} className="nearby-map-top">
+                {view.kind === "list" && (
+                  <p className="nearby-chip glass">{summaryText(stations)}</p>
+                )}
+                <div
+                  className="nearby-mode"
+                  role="group"
+                  aria-label="지도 핀에 보일 정보"
+                >
+                  <SegmentedControl
+                    className="nearby-mode__control"
+                    size="large"
+                    alignment="fixed"
+                    value={pinMode}
+                    onChange={changePinMode}
+                  >
+                    <SegmentedControl.Item value="count">
+                      빈 대수
+                    </SegmentedControl.Item>
+                    <SegmentedControl.Item value="power">
+                      출력
+                    </SegmentedControl.Item>
+                  </SegmentedControl>
+                </div>
+              </div>
 
-          {/* 접힌 시트에 가려지지 않게 그 높이만큼 위에 둔다(펼치면 가려져도 된다) */}
-          <div className="nearby-map-float" style={{ bottom: peekH + 12 }}>
-            {moved && (
+              {/* 위쪽 줄과 접힌 시트 사이에 오른쪽으로 쌓는다. 자리가 모자라면 "내 위치"부터 숨긴다
+                  (펼친 시트에는 가려져도 된다) */}
+              <div
+                ref={setFloatEl}
+                className="nearby-map-float"
+                style={{
+                  top: MAP_EDGE + topRowH + FLOAT_GAP,
+                  bottom: peekH + MAP_EDGE,
+                  gap: FLOAT_GAP,
+                }}
+              >
+                {showHere && (
+                  <button
+                    ref={setHereBtnEl}
+                    type="button"
+                    className="nearby-map-btn nearby-map-btn--here press"
+                    onClick={searchHere}
+                  >
+                    이 위치에서 찾기
+                  </button>
+                )}
+                {showMe && (
+                  <button
+                    ref={setMeBtnEl}
+                    type="button"
+                    className="nearby-map-btn nearby-map-btn--me glass press"
+                    aria-busy={locating}
+                    aria-disabled={locating}
+                    onClick={locateMe}
+                  >
+                    내 위치
+                  </button>
+                )}
+              </div>
+
+              <NearbyListSheet
+                open={listOpen}
+                onToggle={toggleList}
+                peek={peekContent}
+                onPeekHeight={setPeekH}
+                handleRef={handleRef}
+              >
+                {view.kind === "loading" ? (
+                  <>
+                    <p className="nearby-progress">
+                      {origin
+                        ? "급속충전소를 찾고 있어요"
+                        : "현재 위치를 확인하고 있어요"}
+                    </p>
+                    <Skeleton pattern="listOnly" repeatLastItemCount={3} />
+                  </>
+                ) : (
+                  resultsSection(true)
+                )}
+              </NearbyListSheet>
+            </>
+          ) : (
+            <>
+              {moved && (
+                <div className="nearby-here">
+                  <button
+                    type="button"
+                    className="nearby-map-btn nearby-map-btn--here press"
+                    onClick={searchHere}
+                  >
+                    이 위치에서 찾기
+                  </button>
+                </div>
+              )}
               <button
                 type="button"
-                className="nearby-map-btn nearby-map-btn--here press"
-                onClick={searchHere}
+                className="nearby-map-btn nearby-map-btn--me glass press"
+                aria-busy={locating}
+                aria-disabled={locating}
+                onClick={locateMe}
               >
-                이 위치에서 찾기
+                내 위치
               </button>
-            )}
-            <button
-              type="button"
-              className="nearby-map-btn nearby-map-btn--me glass press"
-              aria-busy={locating}
-              aria-disabled={locating}
-              onClick={locateMe}
-            >
-              내 위치
-            </button>
-          </div>
-
-          <NearbyListSheet
-            open={listOpen}
-            onToggle={toggleList}
-            peek={peekContent}
-            onPeekHeight={setPeekH}
-          >
-            {view.kind === "loading" ? (
-              <div className="nearby-sheet__loading">
-                <p className="nearby-progress">
-                  {origin
-                    ? "급속충전소를 찾고 있어요"
-                    : "현재 위치를 확인하고 있어요"}
-                </p>
-                <Skeleton pattern="listOnly" repeatLastItemCount={3} />
-              </div>
-            ) : (
-              resultsSection(true)
-            )}
-          </NearbyListSheet>
+            </>
+          )}
         </div>
-      ) : (
+      )}
+
+      {!mapLayout && (
         <div key="stacked" className="nearby-body">
           {view.kind === "loading" && (
             <>
