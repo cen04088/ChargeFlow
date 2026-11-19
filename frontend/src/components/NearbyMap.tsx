@@ -23,7 +23,7 @@ const MAX_PINS = 30;
 /** 처음 화면에 들어오게 맞출 가까운 충전소 수 */
 const FIT_COUNT = 5;
 /** 지도 가장자리 여백(위·오른쪽·아래·왼쪽) — 핀이 잘리지 않게 */
-const PAD = [56, 40, 40, 40] as const;
+const PAD = [44, 40, 60, 40] as const;
 
 /** DB에서 온 이름이 HTML로 해석되지 않도록 DOM으로 만든다 */
 function pinElement(s: NearbyStation, focused: boolean, onClick: () => void) {
@@ -89,7 +89,9 @@ export function NearbyMap({
   // 같은 구성이면 다시 그리지 않는다(1분마다 새로 받아도 깜박이지 않게)
   const signature = stations
     .slice(0, MAX_PINS)
-    .map((s) => `${s.id}:${s.state}:${s.available}:${s.latitude}:${s.longitude}`)
+    .map(
+      (s) => `${s.id}:${s.state}:${s.available}:${s.latitude}:${s.longitude}`,
+    )
     .join("|");
 
   // 지도 만들기 (마운트 시 한 번)
@@ -191,7 +193,9 @@ export function NearbyMap({
       }))
       .sort((a, b) => a.d - b.d)
       .slice(0, FIT_COUNT)
-      .forEach(({ s }) => bounds.extend(new maps.LatLng(+s.latitude, +s.longitude)));
+      .forEach(({ s }) =>
+        bounds.extend(new maps.LatLng(+s.latitude, +s.longitude)),
+      );
     // zoom_changed가 호출 중에 바로 오든 조금 뒤에 오든 이 맞춤은 이용자 조작으로 치지 않는다
     programmatic.current = true;
     try {
@@ -249,6 +253,11 @@ export function NearbyMap({
   if (failed) return null;
   return (
     <div className="nearby-map-card">
+      {!ready && (
+        <p className="nearby-map-loading" role="status">
+          지도를 불러오는 중이에요
+        </p>
+      )}
       <div
         ref={box}
         className="nearby-map"

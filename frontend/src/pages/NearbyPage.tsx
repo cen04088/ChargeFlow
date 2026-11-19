@@ -5,9 +5,8 @@ import {
   Skeleton,
   useToast,
 } from "@toss/tds-mobile";
-import { adaptive } from "@toss/tds-colors";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 import { ApiError, api } from "../api/client";
 import type { NearbyStation, NearbyStationsResponse } from "../api/types";
@@ -15,6 +14,8 @@ import { ConnectorPicker } from "../components/ConnectorPicker";
 import { ErrorState } from "../components/ErrorState";
 import { NearbyMap } from "../components/NearbyMap";
 import { NearbySheet } from "../components/NearbySheet";
+import { PageHeading } from "../components/PageHeading";
+import { SheetHeading } from "../components/SheetHeading";
 import {
   REGIONS,
   countText,
@@ -42,18 +43,12 @@ import {
 const REFRESH_MS = 60_000;
 
 const REGION_TITLE: Record<LocFailure | "pick", string> = {
-  denied: "위치를 켜지 않아도 지역을 골라 찾을 수 있어요",
-  failed: "현재 위치를 찾지 못했어요. 지역을 골라 주세요",
-  pick: "지역을 골라 주세요",
+  denied: "위치 권한 없이도 지역을 선택해 검색할 수 있어요.",
+  failed: "현재 위치를 확인하지 못했어요. 검색할 지역을 골라 주세요.",
+  pick: "선택한 지역의 중심을 기준으로 찾아요.",
 };
 
-function countColor(s: NearbyStation) {
-  if (s.state === "available") return "var(--brand-strong)";
-  return s.state === "full" ? adaptive.grey600 : adaptive.red700;
-}
-
 export default function NearbyPage() {
-  const navigate = useNavigate();
   const { openToast } = useToast();
   const toastRef = useRef(openToast);
   toastRef.current = openToast;
@@ -75,6 +70,7 @@ export default function NearbyPage() {
   const [locating, setLocating] = useState(false);
   const [locFailure, setLocFailure] = useState<LocFailure | null>(null);
   const [regionsRequested, setRegionsRequested] = useState(false);
+  const [regionName, setRegionName] = useState("");
   const [mapFailed, setMapFailed] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [sheet, setSheet] = useState<NearbyStation | null>(null);
@@ -94,40 +90,40 @@ export default function NearbyPage() {
   const inflight = useRef(false);
 
   /** 가장 최근 요청의 응답만 화면에 반영한다 */
-  const search = useCallback(
-    async (p: Point, silent = false) => {
-      const id = ++searchSeq.current;
-      inflight.current = true;
-      if (!silent) {
-        setSearching(true);
-        setError(null);
+  const search = useCallback(async (p: Point, silent = false) => {
+    const id = ++searchSeq.current;
+    inflight.current = true;
+    if (!silent) {
+      setSearching(true);
+      setError(null);
+    }
+    try {
+      const r = await api.nearbyStations(p.lat, p.lng, connectorRef.current);
+      if (id !== searchSeq.current) return;
+      hasResult.current = true;
+      setResult(r);
+      setError(null);
+      // 열려 있는 시트는 새 값으로, 목록에서 사라졌으면 마지막 값 그대로
+      setSheet((prev) =>
+        prev ? (r.stations.find((s) => s.id === prev.id) ?? prev) : prev,
+      );
+    } catch (e) {
+      if (id !== searchSeq.current || silent) return;
+      const err = e instanceof Error ? e : new Error(String(e));
+      setError(err);
+      if (
+        hasResult.current &&
+        !(err instanceof ApiError && err.status === 400)
+      ) {
+        toastRef.current(err.message || "잠시 후 다시 시도해 주세요");
       }
-      try {
-        const r = await api.nearbyStations(p.lat, p.lng, connectorRef.current);
-        if (id !== searchSeq.current) return;
-        hasResult.current = true;
-        setResult(r);
-        setError(null);
-        // 열려 있는 시트는 새 값으로, 목록에서 사라졌으면 마지막 값 그대로
-        setSheet((prev) =>
-          prev ? (r.stations.find((s) => s.id === prev.id) ?? prev) : prev,
-        );
-      } catch (e) {
-        if (id !== searchSeq.current || silent) return;
-        const err = e instanceof Error ? e : new Error(String(e));
-        setError(err);
-        if (hasResult.current && !(err instanceof ApiError && err.status === 400)) {
-          toastRef.current(err.message || "잠시 후 다시 시도해 주세요");
-        }
-      } finally {
-        if (id === searchSeq.current) {
-          inflight.current = false;
-          setSearching(false);
-        }
+    } finally {
+      if (id === searchSeq.current) {
+        inflight.current = false;
+        setSearching(false);
       }
-    },
-    [],
-  );
+    }
+  }, []);
 
   /** 새 기준점으로 찾는다. moveMap이면 지도 중심도 그곳으로 옮긴다 */
   const searchFrom = useCallback(
@@ -151,15 +147,20 @@ export default function NearbyPage() {
       setLocating(true);
       // 기기가 끝내 답하지 않아도 지역 선택으로 넘어갈 수 있게 시간 제한을 둔다.
       // 제한 뒤에 온 응답은 성공일 때만, 그사이 다른 조작이 없었으면 반영한다
-      const r = await locateWithTimeout(getLocation, LOCATE_TIMEOUT_MS, (late) => {
-        if (!late.ok) return;
-        saveLastLocation(late.lat, late.lng);
-        const p = { lat: late.lat, lng: late.lng };
-        setMe(p);
-        if (id !== locSeq.current) return;
-        setLocFailure(null);
-        searchFrom(p, "me", true);
-      }, alive.current?.signal);
+      const r = await locateWithTimeout(
+        getLocation,
+        LOCATE_TIMEOUT_MS,
+        (late) => {
+          if (!late.ok) return;
+          saveLastLocation(late.lat, late.lng);
+          const p = { lat: late.lat, lng: late.lng };
+          setMe(p);
+          if (id !== locSeq.current) return;
+          setLocFailure(null);
+          searchFrom(p, "me", true);
+        },
+        alive.current?.signal,
+      );
       if (r.ok) saveLastLocation(r.lat, r.lng);
       // 실패 기록은 응답이 늦었어도 시도마다 한 번 남긴다
       else logClick("nearby_location_denied", { reason: r.reason });
@@ -235,6 +236,7 @@ export default function NearbyPage() {
     locatingRef.current = false;
     setLocating(false);
     setMe(null);
+    setRegionName(r.name);
     searchFrom({ lat: r.lat, lng: r.lng }, "region", true);
   };
 
@@ -302,41 +304,55 @@ export default function NearbyPage() {
       view.kind === "none" ||
       view.kind === "stale");
 
-  const highwayRow = (
-    <div className="nearby-bottom">
-      <button
-        type="button"
-        className="nearby-highway press"
-        onClick={() => {
-          logClick("nearby_open_highway");
-          navigate("/highways");
-        }}
-      >
-        <span className="nearby-highway__label">고속도로 가는 날이에요</span>
-        <span className="nearby-highway__action">
-          휴게소 보기
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M9 6l6 6-6 6" />
-          </svg>
-        </span>
-      </button>
-    </div>
-  );
-
   const stations = result?.stations ?? [];
+  const regionRequired = view.kind === "regions" && view.reason !== "pick";
 
   return (
-    <div className="page nearby-page">
+    <main className="page">
+      <div className="nearby-intro">
+        <PageHeading
+          title="주변 급속충전소"
+          description="지금 비어 있는 충전기를 찾아요."
+        />
+        <div
+          className="nearby-controls"
+          aria-label="충전소 검색 설정"
+          role="group"
+        >
+          <Button
+            type="button"
+            className="nearby-filter"
+            size="medium"
+            variant="weak"
+            color={view.kind === "regions" ? "primary" : "dark"}
+            aria-expanded={view.kind === "regions"}
+            disabled={regionRequired}
+            onClick={() => setRegionsRequested((open) => !open)}
+          >
+            지역 선택
+          </Button>
+          <Button
+            type="button"
+            className="nearby-filter"
+            size="medium"
+            variant="weak"
+            color={connector ? "primary" : "dark"}
+            aria-haspopup="dialog"
+            onClick={openPicker}
+          >
+            {connector ? connectorName(connector) : "충전 규격"}
+          </Button>
+          <Link
+            to="/highways"
+            className="nearby-ctrl nearby-ctrl--highway press"
+            aria-label="고속도로 휴게소"
+            onClick={() => logClick("nearby_open_highway")}
+          >
+            고속도로
+          </Link>
+        </div>
+      </div>
+
       {showMap && center && (
         <div className="nearby-map-wrap">
           <NearbyMap
@@ -354,18 +370,6 @@ export default function NearbyPage() {
               setMoved(null);
             }}
           />
-          {result && (
-            <span className="nearby-chip glass" aria-live="polite">
-              {summaryText(stations)}
-            </span>
-          )}
-          <button
-            type="button"
-            className="nearby-map-btn nearby-map-btn--connector glass press"
-            onClick={openPicker}
-          >
-            {connector ? connectorName(connector) : "충전 규격"}
-          </button>
           {moved && (
             <div className="nearby-here">
               <button
@@ -391,7 +395,14 @@ export default function NearbyPage() {
 
       <div className="nearby-body">
         {view.kind === "loading" && (
-          <Skeleton pattern="listOnly" repeatLastItemCount={3} />
+          <>
+            <p className="nearby-progress" role="status">
+              {origin
+                ? "급속충전소를 찾고 있어요"
+                : "현재 위치를 확인하고 있어요"}
+            </p>
+            <Skeleton pattern="listOnly" repeatLastItemCount={3} />
+          </>
         )}
 
         {view.kind === "error" && (
@@ -399,9 +410,30 @@ export default function NearbyPage() {
         )}
 
         {view.kind === "regions" && (
-          <div className="rise">
+          <section
+            className="nearby-regions rise"
+            aria-labelledby="nearby-regions-title"
+          >
             <div className="nearby-regions__head">
-              <h1 className="nearby-regions__title">{REGION_TITLE[view.reason]}</h1>
+              <h2 className="nearby-regions__title" id="nearby-regions-title">
+                어느 지역에서 찾을까요?
+              </h2>
+              <p>{REGION_TITLE[view.reason]}</p>
+            </div>
+            <ul className="nearby-regions__grid">
+              {REGIONS.map((r) => (
+                <li key={r.name}>
+                  <button
+                    type="button"
+                    className="nearby-region press"
+                    onClick={() => pickRegion(r)}
+                  >
+                    {r.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="nearby-regions__locate">
               <Button
                 size="large"
                 variant="weak"
@@ -410,165 +442,177 @@ export default function NearbyPage() {
                 aria-disabled={locating}
                 onClick={locateMe}
               >
-                위치 켜고 다시 찾기
+                내 위치로 찾기
               </Button>
             </div>
-            {REGIONS.map((r) => (
-              <ListRow
-                key={r.name}
-                contents={<ListRow.Texts type="1RowTypeA" top={r.name} />}
-                arrowType="right"
-                onClick={() => pickRegion(r)}
-              />
-            ))}
-          </div>
+          </section>
         )}
 
-        {(view.kind === "list" || view.kind === "none" || view.kind === "stale") &&
+        {(view.kind === "list" ||
+          view.kind === "none" ||
+          view.kind === "stale") &&
           result && (
-          <div className={"nearby-list" + (searching ? " nearby-list--busy" : "")}>
-            {mapFailed && (
-              <div className="nearby-controls">
-                <button
-                  type="button"
-                  className="nearby-ctrl press"
-                  onClick={() => setRegionsRequested(true)}
-                >
-                  다른 지역에서 찾기
-                </button>
-                <button
-                  type="button"
-                  className="nearby-ctrl press"
-                  onClick={openPicker}
-                >
-                  {connector ? connectorName(connector) : "충전 규격"}
-                </button>
-                <button
-                  type="button"
-                  className="nearby-ctrl nearby-ctrl--me press"
-                  aria-busy={locating}
-                  aria-disabled={locating}
-                  onClick={locateMe}
-                >
-                  내 위치
-                </button>
-              </div>
-            )}
-
-            {view.notice && (
-              <div className="nearby-notice">
-                <p className="nearby-notice__text">
-                  현재 위치를 찾지 못해 지난번 위치로 보여 드려요
-                </p>
-                <button
-                  type="button"
-                  className="nearby-notice__action"
-                  aria-busy={locating}
-                  aria-disabled={locating}
-                  onClick={locateMe}
-                >
-                  위치 켜고 다시 찾기
-                </button>
-              </div>
-            )}
-
-            {view.kind === "none" && (
-              <div className="nearby-message">
-                <p className="nearby-message__title">30km 안에 급속충전소가 없어요</p>
-                <p className="nearby-message__desc">{noneDesc(mapFailed)}</p>
-              </div>
-            )}
-
-            {view.kind === "stale" && (
-              <div className="nearby-message">
-                <p className="nearby-message__title">
-                  지금 충전소 정보를 받지 못하고 있어요
-                </p>
-                <p className="nearby-message__desc">잠시 후 다시 확인해 주세요</p>
-                <div className="nearby-message__action">
-                  <Button
-                    size="large"
-                    variant="weak"
-                    display="full"
-                    loading={searching}
-                    onClick={retryStale}
-                  >
-                    다시 시도
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {view.kind === "list" && (
-              <>
-                {view.fallback && (
-                  <div className="nearby-message">
-                    <p className="nearby-message__title">
-                      {fallbackCopy(view.fallback, result.radius_km).title}
-                    </p>
-                    <p className="nearby-message__desc">
-                      {fallbackCopy(view.fallback, result.radius_km).desc}
-                    </p>
-                  </div>
+            <section
+              className="nearby-list"
+              aria-busy={searching}
+              aria-labelledby="nearby-results-title"
+            >
+              <div className="nearby-results-heading">
+                <h2 id="nearby-results-title">
+                  {source === "region" ? `${regionName} 주변` : "검색 결과"}
+                </h2>
+                {view.kind === "list" && (
+                  <span className="nearby-results-summary">
+                    {summaryText(stations)}
+                  </span>
                 )}
-                <ul className="nearby-rows">
-                  {view.rows.map((s) => (
-                    <li key={s.id}>
-                      <button
-                        type="button"
-                        className={
-                          "nearby-row" +
-                          (liveSheet?.id === s.id ? " row-focused" : "")
-                        }
-                        onClick={() => openStation(s, "list")}
-                      >
-                        <span className="nearby-row__text">
-                          <span className="nearby-row__name">{s.name}</span>
-                          <span className="nearby-row__caption">
-                            {rowCaption(s, Date.now())}
-                          </span>
-                        </span>
-                        <span
-                          className="nearby-row__count"
-                          style={{ color: countColor(s) }}
-                        >
-                          {countText(s)}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                {view.hidden > 0 && (
-                  <div className="section-pad section-pad--tight">
+              </div>
+              {mapFailed && (
+                <div className="nearby-map-fallback">
+                  <div>
+                    <p>지도를 불러오지 못했어요</p>
+                    {view.notice && <p>지난번 위치로 보여 드려요</p>}
+                  </div>
+                  <button
+                    type="button"
+                    className="nearby-ctrl nearby-ctrl--me press"
+                    aria-busy={locating}
+                    aria-disabled={locating}
+                    onClick={locateMe}
+                  >
+                    내 위치
+                  </button>
+                </div>
+              )}
+
+              {searching && (
+                <p className="nearby-progress" role="status">
+                  검색 결과를 새로 불러오고 있어요
+                </p>
+              )}
+
+              {view.notice && !mapFailed && (
+                <div className="nearby-notice">
+                  <p className="nearby-notice__text">
+                    현재 위치를 찾지 못해 지난번 위치로 보여 드려요
+                  </p>
+                </div>
+              )}
+
+              {view.kind === "none" && (
+                <div className="nearby-message">
+                  <p className="nearby-message__title">
+                    30km 안에 급속충전소가 없어요
+                  </p>
+                  <p className="nearby-message__desc">{noneDesc(mapFailed)}</p>
+                </div>
+              )}
+
+              {view.kind === "stale" && (
+                <div className="nearby-message">
+                  <p className="nearby-message__title">
+                    지금 충전소 정보를 받지 못하고 있어요
+                  </p>
+                  <p className="nearby-message__desc">
+                    잠시 후 다시 확인해 주세요
+                  </p>
+                  <div className="nearby-message__action">
                     <Button
                       size="large"
                       variant="weak"
                       display="full"
-                      onClick={() => {
-                        logClick("nearby_more");
-                        setExpanded(true);
-                      }}
+                      loading={searching}
+                      onClick={retryStale}
                     >
-                      {`${view.hidden}곳 더 보기`}
+                      다시 시도
                     </Button>
                   </div>
-                )}
-              </>
-            )}
+                </div>
+              )}
 
-            {view.kind !== "stale" && (
-              <p className="nearby-time">{fetchedText(result.fetched_at)}</p>
-            )}
-          </div>
-        )}
+              {view.kind === "list" && (
+                <>
+                  {view.fallback && (
+                    <div className="nearby-message">
+                      <p className="nearby-message__title">
+                        {fallbackCopy(view.fallback, result.radius_km).title}
+                      </p>
+                      <p className="nearby-message__desc">
+                        {fallbackCopy(view.fallback, result.radius_km).desc}
+                      </p>
+                    </div>
+                  )}
+                  <ul className="nearby-rows">
+                    {view.rows.map((s) => (
+                      <li
+                        key={s.id}
+                        className={
+                          liveSheet?.id === s.id ? "row-focused" : undefined
+                        }
+                      >
+                        <ListRow
+                          as="div"
+                          className="nearby-row"
+                          horizontalPadding="small"
+                          arrowType="right"
+                          border="none"
+                          withTouchEffect
+                          contents={
+                            <ListRow.Texts
+                              type="2RowTypeA"
+                              top={s.name}
+                              topProps={{ fontWeight: "bold" }}
+                              bottom={rowCaption(s, Date.now())}
+                              bottomProps={{
+                                typography: "t6",
+                                color: "var(--muted)",
+                              }}
+                            />
+                          }
+                          right={
+                            <span
+                              className={`nearby-row__count nearby-row__count--${s.state}`}
+                            >
+                              {countText(s)}
+                            </span>
+                          }
+                          onClick={() => openStation(s, "list")}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                  {view.hidden > 0 && (
+                    <div className="section-pad section-pad--tight">
+                      <Button
+                        size="large"
+                        variant="weak"
+                        display="full"
+                        onClick={() => {
+                          logClick("nearby_more");
+                          setExpanded(true);
+                        }}
+                      >
+                        {`${view.hidden}곳 더 보기`}
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {view.kind !== "stale" && (
+                <p className="nearby-time">{fetchedText(result.fetched_at)}</p>
+              )}
+            </section>
+          )}
       </div>
-
-      {highwayRow}
 
       <NearbySheet station={liveSheet} onClose={() => setSheet(null)} />
 
-      <BottomSheetPicker open={pickerOpen} onClose={() => setPickerOpen(false)} />
-    </div>
+      <BottomSheetPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+      />
+    </main>
   );
 }
 
@@ -583,7 +627,9 @@ function BottomSheetPicker({
     <BottomSheet
       open={open}
       onDimmerClick={onClose}
-      header={<BottomSheet.Header>내 차 충전 규격</BottomSheet.Header>}
+      onClose={onClose}
+      aria-label="내 차 충전 규격"
+      header={<SheetHeading title="내 차 충전 규격" onClose={onClose} />}
       headerDescription={
         <BottomSheet.HeaderDescription>
           고르면 맞는 충전소만 보여 드려요. 다음에도 기억해요.

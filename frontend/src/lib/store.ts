@@ -21,6 +21,7 @@ export function loadHighways() {
 
 export function useHighways() {
   const [state, setState] = useState<{ data?: Highway[]; error?: Error }>({});
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let alive = true;
     loadHighways().then(
@@ -30,8 +31,14 @@ export function useHighways() {
     return () => {
       alive = false;
     };
-  }, []);
-  return state;
+  }, [attempt]);
+  return {
+    ...state,
+    reload: () => {
+      setState({});
+      setAttempt((value) => value + 1);
+    },
+  };
 }
 
 // ── 내 차 커넥터 ───────────────────────────────

@@ -1,12 +1,9 @@
 import {
   ListRow,
-  Paragraph,
   SearchField,
   SegmentedControl,
   Skeleton,
-  Top,
 } from "@toss/tds-mobile";
-import { adaptive } from "@toss/tds-colors";
 import { useEffect, useMemo, useState } from "react";
 import {
   Navigate,
@@ -18,7 +15,9 @@ import {
 import { api } from "../api/client";
 import type { Direction } from "../api/types";
 import { ErrorState } from "../components/ErrorState";
+import { PageHeading } from "../components/PageHeading";
 import { RestAreaRow } from "../components/RestAreaRow";
+import { SectionHeader } from "../components/SectionHeader";
 import { highwayRange, shortName } from "../lib/format";
 import { useHighways } from "../lib/store";
 import { logClick, logScreen } from "../lib/toss";
@@ -50,24 +49,13 @@ export default function HighwayPage() {
     );
   }, [nodes.data, query]);
 
-
   if (highways.data && !hw) return <Navigate to="/" replace />;
 
   return (
-    <div className="page">
-      <Top
-        title={
-          <Top.TitleParagraph size={22}>
-            {hw?.name ?? nodes.data?.highway ?? ""}
-          </Top.TitleParagraph>
-        }
-        subtitleBottom={
-          hw && (
-            <Top.SubtitleParagraph size={15}>
-              {highwayRange(hw)}
-            </Top.SubtitleParagraph>
-          )
-        }
+    <main className="page">
+      <PageHeading
+        title={hw?.name ?? nodes.data?.highway ?? "고속도로 휴게소"}
+        description={hw && highwayRange(hw)}
       />
 
       {hw && (
@@ -100,34 +88,42 @@ export default function HighwayPage() {
         />
       </div>
 
-      <ListRow
-        contents={
-          <ListRow.Texts
-            type="2RowTypeA"
-            top="구간 미리 보기"
-            bottom="출발과 도착을 고르면 지날 휴게소를 순서대로 보여 드려요"
-          />
-        }
-        arrowType="right"
-        onClick={() => {
-          logClick("highway_open_trip");
-          navigate(`/trip?hw=${code}&dir=${direction}`);
-        }}
-      />
+      <div className="route-shortcut">
+        <ListRow
+          contents={
+            <ListRow.Texts
+              type="2RowTypeA"
+              top="구간 미리 보기"
+              bottom="출발과 도착을 고르면 지날 휴게소를 순서대로 보여 드려요"
+            />
+          }
+          arrowType="right"
+          onClick={() => {
+            logClick("highway_open_trip");
+            navigate(`/trip?hw=${code}&dir=${direction}`);
+          }}
+        />
+      </div>
 
       {nodes.error && !nodes.data ? (
         <ErrorState error={nodes.error} onRetry={nodes.reload} />
       ) : nodes.loading && !nodes.data ? (
         <Skeleton pattern="listOnly" repeatLastItemCount={6} />
       ) : (
-        <>
-          <div className="section-pad">
-            <Paragraph typography="t6" color={adaptive.grey600}>
-              {list.length === 0
-                ? `'${query}'와 일치하는 휴게소가 없어요.`
-                : `휴게소 ${list.length}곳 · 가는 방향 순서예요`}
-            </Paragraph>
-          </div>
+        <section className="flow-section">
+          <SectionHeader
+            title={`휴게소 ${list.length}곳`}
+            description={
+              list.length > 0 ? "가는 방향 순서로 보여 드려요." : undefined
+            }
+          />
+          {list.length === 0 && (
+            <p className="flow-notice">
+              {query.trim()
+                ? `‘${query.trim()}’와 일치하는 휴게소가 없어요.`
+                : "이 방향에 표시할 휴게소가 없어요."}
+            </p>
+          )}
           {list.map((n) => (
             <RestAreaRow
               key={n.id}
@@ -139,8 +135,8 @@ export default function HighwayPage() {
               }}
             />
           ))}
-        </>
+        </section>
       )}
-    </div>
+    </main>
   );
 }

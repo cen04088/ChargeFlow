@@ -1,8 +1,6 @@
 import {
   BottomSheet,
-  Border,
   Button,
-  ListHeader,
   ListRow,
   Paragraph,
   Skeleton,
@@ -14,8 +12,11 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import type { NearbyRestArea, UserRoute } from "../api/types";
 import { ConnectorPicker } from "../components/ConnectorPicker";
+import { ErrorState } from "../components/ErrorState";
+import { PageHeading } from "../components/PageHeading";
 import { RestAreaRow } from "../components/RestAreaRow";
 import { SectionHeader } from "../components/SectionHeader";
+import { SheetHeading } from "../components/SheetHeading";
 import {
   directionLabel,
   formatKm,
@@ -101,34 +102,19 @@ export default function HomePage() {
     .filter((r) => !favoriteIds.has(r.ra_node_id))
     .slice(0, 3);
 
-  // 다시 온 사람은 저장한 휴게소가 첫 화면에 보이도록 머리말을 줄인다
-  const returning = favorites.length > 0 || recent.length > 0;
-
   return (
-    <div className="page">
-      <section className="hero rise" aria-labelledby="home-title">
-        {!returning && (
-          <span className="hero__mark tf" aria-hidden="true">
-            ⚡
-          </span>
-        )}
-        <h1
-          id="home-title"
-          className={"display" + (returning ? " display--small" : "")}
-        >
-          휴게소가 붐빌 때 IC 밖 충전소를 찾아 드려요
-        </h1>
-        {!returning && (
-          <p className="lede">
-            휴게소 앞뒤 IC로 나가면 몇 분 더 걸리는지 비교해 드려요
-          </p>
-        )}
+    <main className="page">
+      <PageHeading
+        title="고속도로 휴게소"
+        description="휴게소 충전기 상태와 IC 밖 대체 충전소를 확인해 보세요."
+      />
+      <section className="hero" aria-labelledby="highway-nearby-title">
+        <h2 id="highway-nearby-title">가는 길에 충전할 곳</h2>
+        <p>현재 위치에서 가까운 휴게소를 찾아요.</p>
         <div className="hero__cta">
           <Button
             display="full"
             size="large"
-            color="light"
-            style={{ color: "var(--brand-deep)" }}
             loading={nearby.status === "loading"}
             onClick={findNearby}
           >
@@ -138,7 +124,7 @@ export default function HomePage() {
       </section>
 
       {nearby.status === "done" && (
-        <div className="rise">
+        <section className="flow-section rise">
           <SectionHeader
             title={nearby.matched ? "가는 방향 휴게소" : "가까운 휴게소"}
             description={
@@ -149,6 +135,11 @@ export default function HomePage() {
                   : "차가 멈춰 있으면 양방향 휴게소를 모두 보여 드려요"
             }
           />
+          {nearby.items.length === 0 && (
+            <p className="flow-notice">
+              가까운 휴게소가 없어요. 아래에서 고속도로를 골라 찾아보세요.
+            </p>
+          )}
           {nearby.items.map((ra) => (
             <RestAreaRow
               key={ra.id}
@@ -158,7 +149,7 @@ export default function HomePage() {
               onClick={() => openRestArea(ra.id, "nearby")}
             />
           ))}
-        </div>
+        </section>
       )}
       {(nearby.status === "denied" || nearby.status === "failed") && (
         <div className="section-pad">
@@ -169,8 +160,6 @@ export default function HomePage() {
           </Paragraph>
         </div>
       )}
-
-      <Border variant="height16" />
 
       {routes.loading && !routes.data && (
         <Skeleton pattern="listOnly" repeatLastItemCount={2} />
@@ -209,12 +198,12 @@ export default function HomePage() {
               {connectorName(connector)}만 보는 중
             </span>
           ) : (
-            <span className="tile__desc">고르면 맞는 충전소만 보여 드려요</span>
+            <span className="tile__desc">맞는 충전소만 보기</span>
           )}
         </button>
         <button
           type="button"
-          className="tile tile--sky press"
+          className="tile press"
           onClick={() => {
             logClick("home_open_trip");
             navigate("/trip");
@@ -224,55 +213,46 @@ export default function HomePage() {
             🛣️
           </span>
           <span className="tile__title">구간 미리 보기</span>
-          <span className="tile__desc">출발과 도착 사이 휴게소를 순서대로 봐요</span>
+          <span className="tile__desc">지날 휴게소 확인</span>
         </button>
       </div>
 
-      <Border variant="height16" />
-      <ListHeader
-        title={
-          <ListHeader.TitleParagraph fontWeight="bold">
-            고속도로에서 찾기
-          </ListHeader.TitleParagraph>
-        }
-      />
-      {highways.error && !hw && (
-        <div className="section-pad">
-          <Paragraph typography="t6" color={adaptive.grey600}>
-            고속도로 목록을 불러오지 못했어요. 잠시 후 다시 열어 주세요.
-          </Paragraph>
-        </div>
-      )}
-      {!hw && !highways.error && (
-        <Skeleton pattern="listOnly" repeatLastItemCount={4} />
-      )}
-      {hw?.map((h) => (
-        <ListRow
-          key={h.code}
-          left={
-            <ListRow.AssetText
-              shape="squircle"
-              size="medium"
-              backgroundColor="var(--brand-tint)"
-              color="var(--brand-strong)"
-            >
-              {routeNumber(h.code)}
-            </ListRow.AssetText>
-          }
-          contents={
-            <ListRow.Texts
-              type="2RowTypeA"
-              top={h.name}
-              bottom={highwayRange(h)}
-            />
-          }
-          arrowType="right"
-          onClick={() => {
-            logClick("home_open_highway", { highway: h.code });
-            navigate(`/highway/${h.code}`);
-          }}
-        />
-      ))}
+      <section className="flow-section">
+        <SectionHeader title="고속도로 목록" />
+        {highways.error && !hw && (
+          <ErrorState error={highways.error} onRetry={highways.reload} />
+        )}
+        {!hw && !highways.error && (
+          <Skeleton pattern="listOnly" repeatLastItemCount={4} />
+        )}
+        {hw?.map((h) => (
+          <ListRow
+            key={h.code}
+            left={
+              <ListRow.AssetText
+                shape="squircle"
+                size="medium"
+                backgroundColor="var(--brand-tint)"
+                color="var(--brand-strong)"
+              >
+                {routeNumber(h.code)}
+              </ListRow.AssetText>
+            }
+            contents={
+              <ListRow.Texts
+                type="2RowTypeA"
+                top={h.name}
+                bottom={highwayRange(h)}
+              />
+            }
+            arrowType="right"
+            onClick={() => {
+              logClick("home_open_highway", { highway: h.code });
+              navigate(`/highway/${h.code}`);
+            }}
+          />
+        ))}
+      </section>
 
       <div className="footnote">
         <Paragraph typography="t7" color={adaptive.grey600}>
@@ -284,7 +264,14 @@ export default function HomePage() {
       <BottomSheet
         open={pickerOpen}
         onDimmerClick={() => setPickerOpen(false)}
-        header={<BottomSheet.Header>내 차 충전 규격</BottomSheet.Header>}
+        onClose={() => setPickerOpen(false)}
+        aria-label="내 차 충전 규격"
+        header={
+          <SheetHeading
+            title="내 차 충전 규격"
+            onClose={() => setPickerOpen(false)}
+          />
+        }
         headerDescription={
           <BottomSheet.HeaderDescription>
             고르면 맞는 충전소만 보여 드려요. 다음에도 기억해요.
@@ -295,7 +282,7 @@ export default function HomePage() {
           <ConnectorPicker onPicked={() => setPickerOpen(false)} />
         </div>
       </BottomSheet>
-    </div>
+    </main>
   );
 }
 
@@ -312,14 +299,8 @@ function SavedSection({
 }) {
   if (!items.length) return null;
   return (
-    <>
-      <ListHeader
-        title={
-          <ListHeader.TitleParagraph fontWeight="bold">
-            {title}
-          </ListHeader.TitleParagraph>
-        }
-      />
+    <section className="flow-section">
+      <SectionHeader title={title} />
       {items.map((r) => (
         <RestAreaRow
           key={r.ra_node_id}
@@ -329,6 +310,6 @@ function SavedSection({
           onClick={() => onOpen(r.ra_node_id)}
         />
       ))}
-    </>
+    </section>
   );
 }

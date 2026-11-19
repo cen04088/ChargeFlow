@@ -1,17 +1,13 @@
 import { Notification } from "@apps-in-toss/web-framework";
 import {
   BottomSheet,
-  Border,
   Button,
   Chip,
   ChipItem,
   IconButton,
-  ListHeader,
   Paragraph,
   Skeleton,
-  Spacing,
   Tab,
-  Top,
   useToast,
 } from "@toss/tds-mobile";
 import { adaptive } from "@toss/tds-colors";
@@ -27,13 +23,12 @@ import type {
 } from "../api/types";
 import { ConnectorPicker } from "../components/ConnectorPicker";
 import { ErrorState } from "../components/ErrorState";
+import { PageHeading } from "../components/PageHeading";
 import { PatternChart } from "../components/PatternChart";
 import { RestAreaMap } from "../components/RestAreaMap";
-import {
-  StationRow,
-  StationSheet,
-  summary,
-} from "../components/StationRow";
+import { SectionHeader } from "../components/SectionHeader";
+import { SheetHeading } from "../components/SheetHeading";
+import { StationRow, StationSheet } from "../components/StationRow";
 import {
   availabilityText,
   directionLabel,
@@ -86,11 +81,18 @@ export default function RestAreaPage() {
   if (!valid) return <Navigate to="/" replace />;
   if (bypass.error && !bypass.data) {
     return (
-      <ErrorState error={bypass.error} onRetry={bypass.reload} />
+      <main className="page">
+        <ErrorState error={bypass.error} onRetry={bypass.reload} />
+      </main>
     );
   }
   if (!bypass.data)
-    return <Skeleton pattern="topList" repeatLastItemCount={4} />;
+    return (
+      <main className="page" aria-busy="true">
+        <PageHeading title="휴게소 충전 정보" />
+        <Skeleton pattern="listOnly" repeatLastItemCount={4} />
+      </main>
+    );
 
   return (
     <RestAreaView
@@ -270,24 +272,17 @@ function RestAreaView({
   const bestIC = best ? icOf(best) : undefined;
 
   return (
-    <div className="page">
-      <Top
-        subtitleTop={
-          <Top.SubtitleParagraph size={15}>
-            {ra.highway_name} ·{" "}
-            {directionLabel(highways, ra.highway_code, ra.direction)}
-          </Top.SubtitleParagraph>
-        }
-        title={
-          <Top.TitleParagraph size={22}>{shortName(ra.name)}</Top.TitleParagraph>
-        }
-        right={
+    <main className="page">
+      <PageHeading
+        context={`${ra.highway_name} · ${directionLabel(highways, ra.highway_code, ra.direction)}`}
+        title={shortName(ra.name)}
+        actions={
           <div className="top-actions">
             <IconButton
               name="icon-star-mono"
               variant="clear"
               iconSize={24}
-              color={favorite ? "var(--brand-primary)" : adaptive.grey400}
+              color={favorite ? "var(--brand-strong)" : adaptive.grey600}
               aria-label={favorite ? "즐겨찾기 해제" : "즐겨찾기"}
               aria-pressed={favorite}
               onClick={toggleFavorite}
@@ -303,23 +298,56 @@ function RestAreaView({
           </div>
         }
       />
+      <div className="rest-status">
+        <div className="rest-status__line">
+          <p className="rest-status__label">휴게소 충전기</p>
+          <p className="rest-status__value">
+            {known
+              ? `${congestion.label} · ${availabilityText(congestion)}`
+              : "상태 확인 불가"}
+          </p>
+        </div>
+        {known && congestion.checked_at && (
+          <span className="rest-status__time">
+            {timeAgo(congestion.checked_at)}
+          </span>
+        )}
+      </div>
 
       <div className="section-pad">
         {best ? (
-          <div className="best-card rise">
-            <p className="eyebrow" style={{ color: "rgba(255,255,255,0.8)" }}>
-              가장 빨리 다녀올 곳
-            </p>
-            <p className="best-card__name">{best.name}</p>
-            <p className="best-card__meta">{summary(best)}</p>
+          <section
+            className="best-card rise"
+            aria-labelledby="recommended-station"
+          >
+            <p className="eyebrow">가장 빨리 다녀올 곳</p>
+            <h2 className="best-card__name" id="recommended-station">
+              {best.name}
+            </h2>
             {bestIC && (
-              <span className="best-card__exit">{bestIC.name}에서 나가요</span>
+              <p className="best-card__route">{bestIC.name}에서 나가요</p>
             )}
+            <dl className="best-card__metrics">
+              <div>
+                <dt>더 걸리는 시간</dt>
+                <dd>
+                  {best.is_estimated ? "약 " : ""}
+                  {best.detour_extra_minutes}분
+                </dd>
+              </div>
+              <div>
+                <dt>충전기</dt>
+                <dd>
+                  {best.power_kw ? `${best.power_kw}kW` : "급속"}{" "}
+                  <span>{best.charger_count}대</span>
+                </dd>
+              </div>
+            </dl>
             <div className="best-card__actions">
               <Button
                 size="large"
-                color="light"
                 variant="weak"
+                color="dark"
                 onClick={() => {
                   logClick("best_detail");
                   openSheet(best);
@@ -329,9 +357,7 @@ function RestAreaView({
               </Button>
               <Button
                 size="large"
-                color="light"
                 display="full"
-                style={{ color: "var(--brand-deep)" }}
                 onClick={() => {
                   logClick("best_directions", { station_id: best.id });
                   void openDirections(best.name, best.latitude, best.longitude);
@@ -340,9 +366,9 @@ function RestAreaView({
                 길찾기
               </Button>
             </div>
-          </div>
+          </section>
         ) : (
-          <div className="best-card best-card--empty rise">
+          <div className="best-card rise">
             <Paragraph
               typography="t5"
               fontWeight="bold"
@@ -350,19 +376,17 @@ function RestAreaView({
             >
               IC 밖 {maxMinutes}분 안에는 맞는 충전소가 없어요
             </Paragraph>
-            <Spacing size={4} />
-            <Paragraph typography="t6" color={adaptive.grey700}>
+            <p className="nearby-message__desc">
               {filtering
                 ? "아래 조건을 풀거나 거리를 넓혀 보세요."
                 : "거리를 넓혀서 다시 찾아볼 수 있어요."}
-            </Paragraph>
+            </p>
             {maxMinutes < 30 && (
-              <>
-                <Spacing size={16} />
+              <div className="nearby-message__action">
                 <Button size="large" display="full" onClick={onWiden}>
                   30분 거리까지 찾아보기
                 </Button>
-              </>
+              </div>
             )}
           </div>
         )}
@@ -381,19 +405,16 @@ function RestAreaView({
           onSelectStation={(sid) => {
             const st = allStations.find((s) => s.id === sid);
             if (!st) return;
-            const inPrev = data.previous_ic?.stations.some(
-              (s) => s.id === sid,
-            );
+            const inPrev = data.previous_ic?.stations.some((s) => s.id === sid);
             setTab(inPrev ? "prev" : "next");
             openSheet(st);
           }}
         />
       )}
 
-      <Spacing size={16} />
-
       {activeIC ? (
-        <>
+        <section className="flow-section">
+          <SectionHeader title="IC 밖 대체 충전소" />
           <div className="sticky-bar">
             {ics.length > 1 && (
               <Tab
@@ -403,12 +424,18 @@ function RestAreaView({
                 }}
                 fluid
               >
-                <Tab.Item selected={tab === "prev"}>휴게소 전에 나가기</Tab.Item>
-                <Tab.Item selected={tab === "next"}>휴게소 지나서 나가기</Tab.Item>
+                <Tab.Item selected={tab === "prev"}>휴게소 전 IC</Tab.Item>
+                <Tab.Item selected={tab === "next"}>휴게소 후 IC</Tab.Item>
               </Tab>
             )}
             <div className="filter-row">
-              <Chip kind="select" size="medium" margin="none">
+              <Chip
+                kind="select"
+                size="medium"
+                margin="none"
+                wrap
+                className="touch-chips"
+              >
                 <ChipItem
                   selected={!!connector && !showAll}
                   onClick={() => {
@@ -447,7 +474,10 @@ function RestAreaView({
               </Paragraph>
             </div>
           </div>
-          <div key={`${tab}-${filters.fast}-${filters.allDay}-${showAll}`} className="rise">
+          <div
+            key={`${tab}-${filters.fast}-${filters.allDay}-${showAll}`}
+            className="rise"
+          >
             {visibleStations.length === 0 ? (
               <div className="section-pad">
                 <Paragraph typography="t6" color={adaptive.grey700}>
@@ -486,7 +516,7 @@ function RestAreaView({
               </>
             )}
           </div>
-        </>
+        </section>
       ) : (
         <div className="section-pad">
           <Paragraph typography="t6" color={adaptive.grey600}>
@@ -496,31 +526,21 @@ function RestAreaView({
       )}
 
       {pattern.data?.has_pattern && (
-        <>
-          <Border variant="height16" />
-          <ListHeader
-            title={
-              <ListHeader.TitleParagraph fontWeight="bold">
-                평소 {weekdayName((now.getDay() + 6) % 7)}요일 휴게소 혼잡도
-              </ListHeader.TitleParagraph>
-            }
+        <section className="flow-section">
+          <SectionHeader
+            title={`평소 ${weekdayName((now.getDay() + 6) % 7)}요일 휴게소 혼잡도`}
           />
           <div className="section-pad">
             <PatternChart pattern={pattern.data} nowHour={now.getHours()} />
           </div>
-        </>
+        </section>
       )}
 
       <div className="footnote">
         <Paragraph typography="t7" color={adaptive.grey600}>
-          {known
-            ? `휴게소 충전기 ${congestion.label} · ${availabilityText(congestion)} · ${timeAgo(congestion.checked_at)}. 공공데이터라 현장과 다를 수 있으니 참고만 해 주세요.`
-            : "휴게소 충전기 상태는 지금 받아오지 못했어요."}
-        </Paragraph>
-        <Spacing size={8} />
-        <Paragraph typography="t7" color={adaptive.grey600}>
-          시간 앞에 '약'이 붙으면 직선거리로 계산한 값이에요. 운영 시간과
-          요금은 충전소에서 한 번 더 확인해 주세요.
+          휴게소 충전기 상태는 공공데이터라 현장과 다를 수 있어요. 시간 앞에
+          ‘약’이 붙으면 직선거리로 계산한 값이에요. 운영 시간과 요금은
+          충전소에서 한 번 더 확인해 주세요.
         </Paragraph>
       </div>
 
@@ -533,7 +553,14 @@ function RestAreaView({
       <BottomSheet
         open={pickerOpen}
         onDimmerClick={() => setPickerOpen(false)}
-        header={<BottomSheet.Header>내 차 충전 규격</BottomSheet.Header>}
+        onClose={() => setPickerOpen(false)}
+        aria-label="내 차 충전 규격"
+        header={
+          <SheetHeading
+            title="내 차 충전 규격"
+            onClose={() => setPickerOpen(false)}
+          />
+        }
         headerDescription={
           <BottomSheet.HeaderDescription>
             고르면 맞는 충전소만 보여 드려요. 다음에도 기억해요.
@@ -544,6 +571,6 @@ function RestAreaView({
           <ConnectorPicker onPicked={() => setPickerOpen(false)} />
         </div>
       </BottomSheet>
-    </div>
+    </main>
   );
 }

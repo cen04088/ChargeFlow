@@ -14,7 +14,10 @@ export function ConnectorPicker({
   const { openToast } = useToast();
 
   const pick = async (value: Connector) => {
-    if (value === connector) return;
+    if (value === connector) {
+      onPicked?.(value);
+      return;
+    }
     logClick("connector_pick", { connector: value || "all" });
     try {
       await save(value);
@@ -25,7 +28,13 @@ export function ConnectorPicker({
   };
 
   return (
-    <Chip kind="select" size="medium" wrap margin="none">
+    <Chip
+      kind="select"
+      size="medium"
+      wrap
+      margin="none"
+      className="touch-chips"
+    >
       {CONNECTOR_OPTIONS.map((o) => (
         <ChipItem
           key={o.value || "all"}
