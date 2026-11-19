@@ -168,6 +168,7 @@ class ChargerState(models.Model):
     charging_since  = models.DateTimeField(null=True, blank=True)  # API nowTsdt (충전 중일 때)
     chger_type      = models.CharField(max_length=2, blank=True)   # API chgerType
     zcode           = models.CharField(max_length=2, blank=True)
+    output_kw       = models.PositiveSmallIntegerField(null=True, blank=True)  # API output (kW)
     synced_at       = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -177,6 +178,31 @@ class ChargerState(models.Model):
 
     def __str__(self):
         return f'{self.stat_id}/{self.charger_id} {self.get_stat_display()}'
+
+
+class PublicStation(models.Model):
+    """전국 급속(50kW 이상) 충전소 — statId 단위. 내 주변 빈 급속충전소 검색용."""
+
+    stat_id       = models.CharField(max_length=20, unique=True)
+    name          = models.CharField(max_length=100)
+    address       = models.CharField(max_length=200, blank=True)
+    latitude      = models.DecimalField(max_digits=9, decimal_places=6)
+    longitude     = models.DecimalField(max_digits=9, decimal_places=6)
+    operator      = models.CharField(max_length=50, blank=True)
+    open_hours    = models.CharField(max_length=50, blank=True)
+    connectors    = models.CharField(max_length=40, blank=True)  # "combo,chademo" 형식
+    power_kw      = models.PositiveSmallIntegerField()           # 최대 출력
+    charger_count = models.PositiveSmallIntegerField()           # 50kW 이상 대수
+    is_active     = models.BooleanField(default=True)
+    updated_at    = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name        = '전국 급속 충전소'
+        verbose_name_plural = '전국 급속 충전소 목록'
+        indexes             = [models.Index(fields=['latitude', 'longitude'])]
+
+    def __str__(self):
+        return f'{self.stat_id} {self.name}'
 
 
 class ChargerStatusLog(models.Model):

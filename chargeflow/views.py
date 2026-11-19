@@ -21,6 +21,7 @@ from .services.congestion import (
     weekly_pattern,
 )
 from .services.ev_api import KST
+from .services.nearby import haversine_km as _haversine_km, in_korea, search_nearby
 from .user_identity import UserScopedAPIView
 
 
@@ -45,17 +46,6 @@ def _decision(ra_id, congestion, now=None):
         'wait_minutes': wait,
         'prediction':   predict(ra_id, level, now),
     }
-
-
-def _haversine_km(lat1, lng1, lat2, lng2):
-    to_r  = math.pi / 180
-    d_lat = (lat2 - lat1) * to_r
-    d_lng = (lng2 - lng1) * to_r
-    a = (
-        math.sin(d_lat / 2) ** 2
-        + math.cos(lat1 * to_r) * math.cos(lat2 * to_r) * math.sin(d_lng / 2) ** 2
-    )
-    return 6371 * 2 * math.asin(math.sqrt(a))
 
 
 # ──────────────────────────────────────────────
@@ -230,6 +220,36 @@ class StationDetailView(APIView):
     def get(self, request, pk):
         station = get_object_or_404(ChargingStation, pk=pk)
         return Response(ChargingStationSerializer(station).data)
+
+
+# ──────────────────────────────────────────────
+# POST /api/v1/stations/nearby/
+# ──────────────────────────────────────────────
+def _to_coordinate(value):
+    """좌표를 float로 한 번만 변환한다. 숫자가 아니거나 bool·NaN·무한대·너무 큰 정수면 None.
+    bool은 int의 하위 타입이라 따로 거르고, 숫자 문자열은 받지 않는다."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        number = float(value)
+    except (OverflowError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+class NearbyStationsView(APIView):
+    """내 위치 주변 급속충전소 (좌표가 URL·로그에 남지 않도록 POST, 저장하지 않음)"""
+
+    def post(self, request):
+        body = request.data if isinstance(request.data, dict) else {}
+        lat = _to_coordinate(body.get('lat'))
+        lng = _to_coordinate(body.get('lng'))
+        if lat is None or lng is None or not in_korea(lat, lng):
+            return Response({'detail': '위치를 확인하지 못했어요.'}, status=status.HTTP_400_BAD_REQUEST)
+        connector = body.get('connector')
+        if connector not in ('combo', 'chademo', 'ac3', 'nacs'):
+            connector = ''
+        return Response(search_nearby(lat, lng, connector))
 
 
 # ──────────────────────────────────────────────

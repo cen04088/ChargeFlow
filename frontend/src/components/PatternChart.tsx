@@ -32,9 +32,13 @@ export function PatternChart({
               className={
                 "pattern-bar" +
                 (h.waiting_rate == null ? " pattern-bar--empty" : "") +
+                ((h.waiting_rate ?? 0) >= 50 ? " pattern-bar--busy" : "") +
                 (h.hour === nowHour ? " pattern-bar--now" : "")
               }
-              style={{ height: `${Math.max(4, h.waiting_rate ?? 4)}%` }}
+              style={{
+                height: `${Math.max(4, h.waiting_rate ?? 4)}%`,
+                animationDelay: `${h.hour * 12}ms`,
+              }}
             />
           </div>
         ))}
@@ -48,8 +52,8 @@ export function PatternChart({
       </div>
       {busiest && busiest.waiting_rate! >= 30 && (
         <Paragraph typography="t6" color={adaptive.grey700}>
-          평소 {busiest.hour}시쯤 가장 붐벼요 (혼잡 확률 {busiest.waiting_rate}
-          %)
+          평소 {busiest.hour}시쯤 가장 붐벼요. 이 시간대 혼잡 확률은{" "}
+          {busiest.waiting_rate}%예요.
         </Paragraph>
       )}
     </div>

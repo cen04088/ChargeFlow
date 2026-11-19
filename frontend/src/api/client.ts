@@ -1,3 +1,4 @@
+import { roundCoord } from "../lib/nearby";
 import { getAnonKey } from "../lib/toss";
 import type {
   BypassResponse,
@@ -5,6 +6,7 @@ import type {
   Direction,
   Highway,
   NearbyResponse,
+  NearbyStationsResponse,
   NodeListResponse,
   NotifySubscription,
   PatternResponse,
@@ -88,6 +90,13 @@ export const api = {
       `/nodes/nearest-ra/?lat=${lat}&lng=${lng}&limit=${limit}` +
         (heading == null ? "" : `&heading=${Math.round(heading)}`),
     ),
+
+  nearbyStations: (lat: number, lng: number, connector: Connector) =>
+    request<NearbyStationsResponse>("POST", "/stations/nearby/", {
+      lat: roundCoord(lat),
+      lng: roundCoord(lng),
+      connector,
+    }),
 
   pattern: (raId: number) =>
     request<PatternResponse>("GET", `/nodes/${raId}/pattern/`),

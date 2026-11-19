@@ -1,8 +1,10 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 from io import StringIO
 from unittest import mock
 
+from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import IntegrityError
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -10,9 +12,12 @@ from rest_framework.test import APIClient
 from chargeflow.management.commands import poll_charger_status as poller
 from chargeflow.models import (
     ChargerState, ChargerStatusLog, CongestionNotifySubscription, Highway, HighwayNode,
-    HighwayNodeCharger, PollerStatus, StationCongestion, UserRoute,
+    HighwayNodeCharger, PollerStatus, PublicStation, StationCongestion, UserRoute,
 )
+from chargeflow.services import ev_api
 from chargeflow.services.congestion import compute_level, recompute_all
+from chargeflow.services.nearby import PUBLIC_STALE, feed_is_stale, in_korea, search_nearby, station_status
+from chargeflow.services.public_catalog import deactivate_missing, freshness_report, is_public_fast, sync_items
 
 
 def item(stat_id, charger_id, stat, upd='20261003120000', zcode='41'):
@@ -73,6 +78,53 @@ class PollerTests(Fixture):
         up   = StationCongestion.objects.get(ra_node=self.ra_up)
         self.assertEqual((down.available, down.charging, down.level), (1, 1, 'normal'))
         self.assertEqual(up.level, 'normal')
+        self.assertEqual(StationCongestion.objects.get(ra_node=self.ra_far).level, 'unknown')
+
+    def test_public_station_is_updated_but_not_created_or_logged(self):
+        PublicStation.objects.create(stat_id='PUB00001', name='공영', latitude=37.25, longitude=127.07,
+                                     power_kw=100, charger_count=1)
+        ChargerState.objects.create(stat_id='PUB00001', charger_id='01', stat='2', output_kw=100)
+        items = [{'statId': 'PUB00001', 'chgerId': '01', 'stat': '3', 'statUpdDt': '20261119120000'},
+                 {'statId': 'PUB00001', 'chgerId': '99', 'stat': '2', 'statUpdDt': '20261119120000'}]
+        poller._apply_items(items, {'PUB00001'}, timezone.now(), create_for=set(), log_for=set())
+        self.assertEqual(ChargerState.objects.get(stat_id='PUB00001', charger_id='01').stat, '3')
+        self.assertFalse(ChargerState.objects.filter(charger_id='99').exists())
+        self.assertFalse(ChargerStatusLog.objects.filter(stat_id='PUB00001').exists())
+
+    def test_defaults_keep_existing_behaviour(self):
+        poller._apply_items([{'statId': 'NEW00001', 'chgerId': '01', 'stat': '2'}], {'NEW00001'}, timezone.now())
+        self.assertTrue(ChargerState.objects.filter(stat_id='NEW00001').exists())
+        self.assertEqual(ChargerStatusLog.objects.filter(stat_id='NEW00001').count(), 1)
+
+    def test_batching_does_not_change_results(self):
+        for cid in ('01', '02', '03'):
+            ChargerState.objects.create(stat_id='ST1', charger_id=cid, stat='2')
+        with mock.patch.object(poller, 'BULK_BATCH_SIZE', 1):
+            poller._apply_items([item('ST1', c, '3') for c in ('01', '02', '03')], {'ST1'}, timezone.now())
+        self.assertEqual(list(ChargerState.objects.filter(stat_id='ST1').values_list('stat', flat=True)), ['3'] * 3)
+
+    def test_apply_items_accepts_generator(self):
+        gen = (i for i in [item('ST1', '01', '2')])
+        poller._apply_items(gen, {'ST1'}, timezone.now())
+        self.assertTrue(ChargerState.objects.filter(stat_id='ST1', charger_id='01').exists())
+
+    def test_run_cycle_tracks_public_stations(self):
+        PublicStation.objects.create(stat_id='PUB00001', name='공영', latitude=37.25, longitude=127.07,
+                                     power_kw=100, charger_count=1)
+        ChargerState.objects.create(stat_id='PUB00001', charger_id='01', stat='2', output_kw=100)
+        self.run_poll(
+            baseline_items=[item('ST1', '01', '2'), item('ST1', '02', '3')],
+            status_items=[item('PUB00001', '01', '3', '20261119120000'),
+                          item('PUB00001', '99', '2', '20261119120000'),
+                          item('XX', '01', '2')],
+        )
+        self.assertEqual(ChargerState.objects.get(stat_id='PUB00001', charger_id='01').stat, '3')
+        self.assertFalse(ChargerState.objects.filter(stat_id='PUB00001', charger_id='99').exists())
+        self.assertFalse(ChargerState.objects.filter(stat_id='XX').exists())
+        self.assertFalse(ChargerStatusLog.objects.filter(stat_id='PUB00001').exists())
+        # 휴게소 혼잡도는 기존 테스트와 같은 결과
+        down = StationCongestion.objects.get(ra_node=self.ra_down)
+        self.assertEqual((down.available, down.charging, down.level), (1, 1, 'normal'))
         self.assertEqual(StationCongestion.objects.get(ra_node=self.ra_far).level, 'unknown')
 
     def test_baseline_fills_missing_stations_by_stat_id(self):
@@ -346,3 +398,418 @@ class ImprovementTests(Fixture):
         # 만석이 된 순간 1회만 — 2시간 안에 다시 풀린 건 알리지 않는다
         self.assertEqual(send.call_count, 1)
         self.assertEqual(send.call_args.args[2], '만석')
+
+
+class PublicStationModelTests(TestCase):
+    def test_stat_id_is_unique(self):
+        PublicStation.objects.create(stat_id='ME000001', name='A', latitude=37.25, longitude=127.07, power_kw=100, charger_count=2)
+        with self.assertRaises(IntegrityError):
+            PublicStation.objects.create(stat_id='ME000001', name='B', latitude=37.0, longitude=127.0, power_kw=50, charger_count=1)
+
+    def test_charger_state_output_kw_defaults_to_null(self):
+        row = ChargerState.objects.create(stat_id='ME000001', charger_id='01', stat='2')
+        self.assertIsNone(row.output_kw)
+
+
+NOW = datetime(2026, 11, 19, 12, 0, tzinfo=ev_api.KST)
+
+
+def _item(**over):
+    base = {
+        'statId': 'ME000001', 'chgerId': '01', 'statNm': '영통 공영주차장', 'addr': '경기 수원시',
+        'lat': '37.251', 'lng': '127.071', 'output': '100', 'chgerType': '04', 'stat': '2',
+        'statUpdDt': '20261119120000', 'busiNm': '환경부', 'useTime': '24시간 이용가능',
+        'kind': 'A0', 'kindDetail': 'A001', 'limitYn': 'N', 'delYn': 'N', 'zcode': '41',
+    }
+    base.update(over)
+    return base
+
+
+class PublicCatalogTests(TestCase):
+    def test_is_public_fast_rules(self):
+        self.assertTrue(is_public_fast(_item()))
+        for over in ({'output': '7'}, {'output': ''}, {'limitYn': 'Y'}, {'kind': 'H0'}, {'delYn': 'Y'},
+                     {'kindDetail': 'C001'}, {'statNm': '기흥휴게소(부산)'}, {'lat': '0'}, {'lat': 'abc'}):
+            self.assertFalse(is_public_fast(_item(**over)), over)
+
+    def test_sync_creates_station_and_fast_chargers_only(self):
+        seen = sync_items([_item(chgerId='01', output='100'), _item(chgerId='02', output='200', chgerType='01'),
+                           _item(chgerId='03', output='7', chgerType='02')], NOW)
+        st = PublicStation.objects.get(stat_id='ME000001')
+        self.assertEqual(seen, {'ME000001'})
+        self.assertEqual((st.power_kw, st.charger_count, st.connectors, st.is_active), (200, 2, 'combo,chademo', True))
+        self.assertEqual(set(ChargerState.objects.values_list('charger_id', 'output_kw')), {('01', 100), ('02', 200)})
+
+    def test_sync_fills_output_on_existing_slow_row_without_creating_new(self):
+        ChargerState.objects.create(stat_id='ME000001', charger_id='03', stat='2')
+        sync_items([_item(chgerId='01'), _item(chgerId='03', output='7')], NOW)
+        self.assertEqual(ChargerState.objects.get(charger_id='03').output_kw, 7)
+        self.assertEqual(ChargerState.objects.count(), 2)
+
+    def test_sync_is_idempotent_and_updates_status(self):
+        sync_items([_item(stat='2')], NOW)
+        sync_items([_item(stat='3', statUpdDt='20261119130000', nowTsdt='20261119125000')], NOW)
+        self.assertEqual(PublicStation.objects.count(), 1)
+        row = ChargerState.objects.get(charger_id='01')
+        self.assertEqual(row.stat, '3')
+        self.assertIsNotNone(row.charging_since)
+
+    def test_unknown_stat_becomes_9(self):
+        sync_items([_item(stat='0')], NOW)
+        self.assertEqual(ChargerState.objects.get(charger_id='01').stat, '9')
+
+    def test_sync_keeps_newer_status_but_updates_output(self):
+        ChargerState.objects.create(stat_id='ME000001', charger_id='01', stat='3',
+                                    stat_updated_at=NOW + timedelta(minutes=5),
+                                    charging_since=NOW, output_kw=50, zcode='41')
+        sync_items([_item(stat='2', output='200', statUpdDt=fmt(NOW))], NOW)
+        row = ChargerState.objects.get(charger_id='01')
+        self.assertEqual((row.stat, row.stat_updated_at, row.charging_since), ('3', NOW + timedelta(minutes=5), NOW))
+        self.assertEqual(row.output_kw, 200)
+
+    def test_sync_overwrites_older_status(self):
+        ChargerState.objects.create(stat_id='ME000001', charger_id='01', stat='3',
+                                    stat_updated_at=NOW - timedelta(minutes=5),
+                                    charging_since=NOW - timedelta(minutes=30), output_kw=50)
+        sync_items([_item(stat='2', output='200', statUpdDt=fmt(NOW))], NOW)
+        row = ChargerState.objects.get(charger_id='01')
+        self.assertEqual((row.stat, row.stat_updated_at, row.charging_since, row.output_kw), ('2', NOW, None, 200))
+
+    def test_sync_skips_items_missing_ids(self):
+        bad1 = _item(chgerId='02')
+        del bad1['statId']
+        bad2 = _item(chgerId='  ')
+        seen = sync_items([_item(chgerId='01'), bad1, bad2, _item(statId='ME000002')], NOW)
+        self.assertEqual(seen, {'ME000001', 'ME000002'})
+        self.assertEqual(set(ChargerState.objects.values_list('stat_id', 'charger_id')),
+                         {('ME000001', '01'), ('ME000002', '01')})
+
+    def test_deactivate_missing(self):
+        sync_items([_item(), _item(statId='ME000002')], NOW)
+        self.assertEqual(deactivate_missing({'ME000001'}), 1)
+        self.assertFalse(PublicStation.objects.get(stat_id='ME000002').is_active)
+
+    def test_deactivate_missing_handles_many_stations_in_chunks(self):
+        PublicStation.objects.bulk_create([
+            PublicStation(stat_id=f'BULK{i:05d}', name='n', latitude=37.0, longitude=127.0,
+                          power_kw=50, charger_count=1)
+            for i in range(1200)])
+        keep = {f'BULK{i:05d}' for i in range(100)}
+        self.assertEqual(deactivate_missing(keep), 1100)
+        self.assertEqual(PublicStation.objects.filter(is_active=True).count(), 100)
+
+
+def fmt(dt):
+    return dt.astimezone(ev_api.KST).strftime('%Y%m%d%H%M%S')
+
+
+class ZcodeConstantTests(TestCase):
+    def test_public_zcodes_include_jeju_and_zcodes_unchanged(self):
+        self.assertIn('50', ev_api.PUBLIC_ZCODES)
+        self.assertEqual(len(ev_api.ZCODES), 17)
+        self.assertNotIn('50', ev_api.ZCODES)
+
+
+@mock.patch.object(ev_api, 'PUBLIC_ZCODES', ['41', '11'])
+@mock.patch.object(ev_api, 'fetch_region_chargers')
+class SyncPublicStationsTests(TestCase):
+    def setUp(self):
+        patcher = mock.patch('chargeflow.management.commands.sync_public_stations.time.sleep')
+        self.sleep = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _old(self):
+        PublicStation.objects.create(stat_id='OLD00001', name='옛 충전소', latitude=37.0, longitude=127.0,
+                                     power_kw=50, charger_count=1)
+
+    def test_full_scan_deactivates_missing(self, fetch):
+        self._old()
+        fetch.side_effect = lambda key, z, **kw: [_item(zcode=z, statId=f'ME0000{z}')]
+        call_command('sync_public_stations', api_key='k', stdout=StringIO())
+        self.assertFalse(PublicStation.objects.get(stat_id='OLD00001').is_active)
+        self.assertEqual(PublicStation.objects.filter(is_active=True).count(), 2)
+
+    def test_failed_region_does_not_deactivate(self, fetch):
+        self._old()
+
+        def flaky(key, z, **kw):
+            if z == '11':
+                raise ev_api.EvApiError('504')
+            return [_item(zcode=z)]
+        fetch.side_effect = flaky
+        with self.assertRaises(CommandError) as cm:
+            call_command('sync_public_stations', api_key='k', stdout=StringIO())
+        self.assertIn('11', str(cm.exception))
+        self.assertTrue(PublicStation.objects.get(stat_id='OLD00001').is_active)
+        self.assertTrue(PublicStation.objects.filter(stat_id='ME000001').exists())
+
+    def test_always_failing_region_still_applies_others(self, fetch):
+        self._old()
+
+        def flaky(key, z, **kw):
+            if z == '41':
+                raise ev_api.EvApiError('504')
+            return [_item(zcode=z, statId='ME000011')]
+        fetch.side_effect = flaky
+        with self.assertRaises(CommandError) as cm:
+            call_command('sync_public_stations', api_key='k', stdout=StringIO())
+        self.assertIn('41', str(cm.exception))
+        self.assertTrue(PublicStation.objects.filter(stat_id='ME000011').exists())
+        self.assertTrue(PublicStation.objects.get(stat_id='OLD00001').is_active)
+        self.assertEqual(self.sleep.call_count, 2)  # 41 지역만 3회 시도 -> 대기 2번
+
+    def test_region_failing_once_is_retried(self, fetch):
+        self._old()
+        calls = {'41': 0}
+
+        def flaky(key, z, **kw):
+            if z == '41':
+                calls['41'] += 1
+                if calls['41'] == 1:
+                    raise ev_api.EvApiError('504')
+            return [_item(zcode=z, statId=f'ME0000{z}')]
+        fetch.side_effect = flaky
+        call_command('sync_public_stations', api_key='k', stdout=StringIO())
+        self.assertEqual(self.sleep.call_count, 1)
+        self.assertFalse(PublicStation.objects.get(stat_id='OLD00001').is_active)
+
+    def test_guard_blocks_deactivation_on_tiny_scan(self, fetch):
+        PublicStation.objects.bulk_create([
+            PublicStation(stat_id=f'G{i:05d}', name='n', latitude=37.0, longitude=127.0,
+                          power_kw=50, charger_count=1) for i in range(200)])
+        fetch.side_effect = lambda key, z, **kw: [_item(zcode=z)] if z == '41' else []
+        out = StringIO()
+        with self.assertRaises(CommandError):
+            call_command('sync_public_stations', api_key='k', stdout=out)
+        self.assertEqual(PublicStation.objects.filter(is_active=True, stat_id__startswith='G').count(), 200)
+        self.assertIn('안전장치', out.getvalue())
+
+    def _region_stations(self, zcode, count, prefix):
+        PublicStation.objects.bulk_create([
+            PublicStation(stat_id=f'{prefix}{i:05d}', name='n', latitude=37.0, longitude=127.0,
+                          power_kw=100, charger_count=1) for i in range(count)])
+        ChargerState.objects.bulk_create([
+            ChargerState(stat_id=f'{prefix}{i:05d}', charger_id='01', stat='2', zcode=zcode, output_kw=100)
+            for i in range(count)])
+
+    def test_region_vanishing_without_error_blocks_deactivation(self, fetch):
+        self._region_stations('41', 60, 'GG')
+        self._region_stations('11', 140, 'SE')
+        self._old()
+
+        def scan(key, z, **kw):
+            if z == '41':
+                return []  # 오류 없이 0건
+            return [_item(zcode=z, statId=f'SE{i:05d}') for i in range(140)]
+        fetch.side_effect = scan
+        out = StringIO()
+        with self.assertRaises(CommandError) as cm:
+            call_command('sync_public_stations', api_key='k', stdout=out)
+        self.assertIn('41', str(cm.exception))
+        self.assertNotIn('11', str(cm.exception))
+        self.assertIn('41', out.getvalue())
+        self.assertEqual(PublicStation.objects.filter(is_active=False).count(), 0)
+
+    def test_normal_scan_with_large_regions_deactivates_missing(self, fetch):
+        self._region_stations('41', 60, 'GG')
+        self._region_stations('11', 60, 'SE')
+        fetch.side_effect = lambda key, z, **kw: [
+            _item(zcode=z, statId=f'{"GG" if z == "41" else "SE"}{i:05d}') for i in range(60)
+            if not (z == '41' and i == 7)]
+        call_command('sync_public_stations', api_key='k', stdout=StringIO())
+        self.assertEqual(list(PublicStation.objects.filter(is_active=False).values_list('stat_id', flat=True)),
+                         ['GG00007'])
+
+    def test_partial_zcodes_never_deactivate(self, fetch):
+        self._old()
+        fetch.side_effect = lambda key, z, **kw: [_item(zcode=z)]
+        call_command('sync_public_stations', api_key='k', zcodes=['41'], stdout=StringIO())
+        self.assertTrue(PublicStation.objects.get(stat_id='OLD00001').is_active)
+
+    def test_report_only_does_not_call_api(self, fetch):
+        out = StringIO()
+        call_command('sync_public_stations', report_only=True, stdout=out)
+        fetch.assert_not_called()
+        self.assertIn('stations', out.getvalue())
+
+    def test_freshness_report_ratios(self, fetch):
+        sync_items([_item(chgerId='01', statUpdDt=fmt(NOW - timedelta(minutes=10))),
+                    _item(chgerId='02', statUpdDt=fmt(NOW - timedelta(hours=1))),
+                    _item(chgerId='03', statUpdDt=fmt(NOW - timedelta(hours=5))),
+                    _item(chgerId='04', statUpdDt=fmt(NOW - timedelta(hours=20)))], NOW)
+        r = freshness_report(NOW)
+        self.assertEqual((r['stations'], r['chargers']), (1, 4))
+        self.assertEqual((r['within_30m'], r['within_2h'], r['within_12h']), (0.25, 0.5, 0.75))
+
+    def test_freshness_report_empty(self, fetch):
+        r = freshness_report(NOW)
+        self.assertEqual((r['stations'], r['chargers'], r['within_2h']), (0, 0, 0.0))
+
+
+def _station(stat_id, lat, lng, chargers, connectors='combo'):
+    """chargers: (stat, age_minutes, output_kw) 목록."""
+    st = PublicStation.objects.create(
+        stat_id=stat_id, name=f'충전소 {stat_id}', address='주소', latitude=lat, longitude=lng,
+        connectors=connectors, power_kw=100, charger_count=len(chargers),
+    )
+    for i, (stat, age, kw) in enumerate(chargers):
+        ChargerState.objects.create(
+            stat_id=stat_id, charger_id=f'{i:02}', stat=stat,
+            stat_updated_at=NOW - timedelta(minutes=age), output_kw=kw,
+        )
+    return st
+
+
+class NearbyServiceTests(TestCase):
+    def test_status_counts_and_states(self):
+        fresh = NOW - timedelta(minutes=5)
+        self.assertEqual(station_status([('2', fresh), ('3', fresh), ('5', fresh)], NOW)['state'], 'available')
+        s = station_status([('3', fresh), ('1', fresh)], NOW)
+        self.assertEqual((s['available'], s['charging'], s['offline'], s['total'], s['state']), (0, 1, 1, 2, 'full'))
+        self.assertEqual(station_status([('4', fresh), ('5', fresh)], NOW)['state'], 'unavailable')
+
+    def test_stale_available_is_not_counted(self):
+        fresh, old = NOW - timedelta(minutes=5), NOW - PUBLIC_STALE - timedelta(minutes=1)
+        s = station_status([('2', old), ('3', fresh)], NOW)
+        self.assertEqual((s['available'], s['state']), (0, 'full'))
+        self.assertIsNone(station_status([('2', old), ('2', None)], NOW))
+        self.assertIsNone(station_status([], NOW))
+
+    def test_only_fast_chargers_are_counted(self):
+        _station('A', 37.2590, 127.07, [('3', 5, 100), ('2', 5, 7), ('2', 5, None)])
+        st = search_nearby(37.25, 127.07, now=NOW)['stations'][0]
+        self.assertEqual((st['available'], st['total'], st['state']), (0, 1, 'full'))
+
+    def test_radius_stops_at_first_with_three_available(self):
+        for i, km in enumerate((1, 2, 3)):
+            _station(f'N{i}', 37.25 + 0.009 * km, 127.07, [('2', 5, 100)])
+        _station('FAR', 37.25 + 0.009 * 8, 127.07, [('2', 5, 100)])
+        r = search_nearby(37.25, 127.07, now=NOW)
+        self.assertEqual(r['radius_km'], 5)
+        self.assertEqual([s['stat_id'] for s in r['stations']], ['N0', 'N1', 'N2'])
+
+    def test_radius_expands_when_not_enough(self):
+        _station('N0', 37.25 + 0.009 * 1, 127.07, [('2', 5, 100)])
+        _station('MID', 37.25 + 0.009 * 8, 127.07, [('2', 5, 100)])
+        _station('FAR', 37.25 + 0.009 * 15, 127.07, [('2', 5, 100)])
+        self.assertEqual(search_nearby(37.25, 127.07, now=NOW)['radius_km'], 20)
+
+    def test_falls_back_to_30km_with_full_stations(self):
+        _station('FULL', 37.25 + 0.009 * 12, 127.07, [('3', 5, 100)])
+        r = search_nearby(37.25, 127.07, now=NOW)
+        self.assertEqual((r['radius_km'], r['stations'][0]['state']), (30, 'full'))
+
+    def test_excludes_inactive_unknown_and_beyond_30km(self):
+        _station('OFF', 37.259, 127.07, [('2', 5, 100)])
+        PublicStation.objects.filter(stat_id='OFF').update(is_active=False)
+        _station('UNK', 37.259, 127.07, [('9', 5, 100)])
+        _station('OUT', 37.25 + 0.009 * 40, 127.07, [('2', 5, 100)])
+        self.assertEqual(search_nearby(37.25, 127.07, now=NOW)['stations'], [])
+
+    def test_connector_filter_keeps_matching_and_unknown(self):
+        _station('C', 37.259, 127.07, [('2', 5, 100)], connectors='combo')
+        _station('D', 37.260, 127.07, [('2', 5, 100)], connectors='chademo')
+        _station('E', 37.261, 127.07, [('2', 5, 100)], connectors='')
+        ids = [s['stat_id'] for s in search_nearby(37.25, 127.07, connector='combo', now=NOW)['stations']]
+        self.assertEqual(ids, ['C', 'E'])
+
+    def test_result_cap_keeps_available_first(self):
+        for i in range(25):
+            _station(f'F{i:02}', 37.25 + 0.0005 * (i + 1), 127.07, [('3', 5, 100)])
+        for i in range(22):
+            _station(f'A{i:02}', 37.25 + 0.02 + 0.0005 * i, 127.07, [('2', 5, 100)])
+        st = search_nearby(37.25, 127.07, now=NOW)['stations']
+        self.assertEqual(len(st), 30)
+        self.assertEqual(sum(s['state'] == 'available' for s in st), 20)
+        self.assertEqual(st, sorted(st, key=lambda s: s['distance_km']))
+
+    def test_feed_stale_false_with_results_and_no_extra_queries(self):
+        _station('A', 37.259, 127.07, [('2', 5, 100)])
+        with mock.patch('chargeflow.services.nearby.feed_is_stale') as check:
+            r = search_nearby(37.25, 127.07, now=NOW)
+        check.assert_not_called()
+        self.assertIs(r['feed_stale'], False)
+        self.assertEqual(len(r['stations']), 1)
+
+    def _stale_case(self, station_age=None, poller_age=None):
+        if station_age is not None:
+            _station('FAR', 37.25 + 0.009 * 40, 127.07, [('2', 5, 100)])  # 30km 밖이라 결과는 비어 있다
+            PublicStation.objects.update(updated_at=NOW - station_age)
+        if poller_age is not None:
+            PollerStatus.objects.create(key='charger', last_status_at=NOW - poller_age)
+        r = search_nearby(37.25, 127.07, now=NOW)
+        self.assertEqual(r['stations'], [])
+        return r['feed_stale']
+
+    def test_feed_stale_when_catalog_empty(self):
+        self.assertIs(self._stale_case(), True)
+
+    def test_feed_stale_when_scan_old_and_no_poller(self):
+        self.assertIs(self._stale_case(station_age=timedelta(days=2)), True)
+
+    def test_feed_not_stale_when_poller_recent(self):
+        self.assertIs(self._stale_case(station_age=timedelta(days=2), poller_age=timedelta(minutes=10)), False)
+
+    def test_feed_not_stale_when_scan_recent(self):
+        self.assertIs(self._stale_case(station_age=timedelta(hours=1)), False)
+
+    def test_feed_stale_when_only_inactive_stations(self):
+        _station('OFF', 37.259, 127.07, [('2', 5, 100)])
+        PublicStation.objects.update(is_active=False, updated_at=NOW - timedelta(minutes=5))
+        self.assertIs(feed_is_stale(NOW), True)
+
+    def test_in_korea(self):
+        self.assertTrue(in_korea(37.5, 127.0))
+        self.assertTrue(in_korea(33.4, 126.5))
+        for lat, lng in ((0, 0), (35.6, 139.7), (40.0, 127.0)):
+            self.assertFalse(in_korea(lat, lng))
+
+
+@mock.patch('django.utils.timezone.now', return_value=NOW)  # 서비스가 읽는 현재 시각을 NOW로 고정
+class NearbyApiTests(TestCase):
+    URL = '/api/v1/stations/nearby/'
+
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_returns_nearby_stations(self, _now):
+        _station('A', 37.259, 127.07, [('2', 5, 100)])
+        res = self.client.post(self.URL, {'lat': 37.25, 'lng': 127.07}, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(set(res.data), {'radius_km', 'fetched_at', 'stations', 'feed_stale'})
+        self.assertEqual(res.data['stations'][0]['stat_id'], 'A')
+
+    def test_rejects_bad_coordinates(self, _now):
+        for body in ({}, {'lat': 37.25}, {'lat': 'abc', 'lng': 127.07}, {'lat': 0, 'lng': 0},
+                     {'lat': 35.6, 'lng': 139.7}, {'lat': True, 'lng': 127.07}, {'lat': None, 'lng': 127.07}):
+            res = self.client.post(self.URL, body, format='json')
+            self.assertEqual(res.status_code, 400, body)
+            self.assertEqual(res.data, {'detail': '위치를 확인하지 못했어요.'})
+        res = self.client.post(self.URL, data='[1, 2]', content_type='application/json')
+        self.assertEqual(res.status_code, 400)
+        res = self.client.post(self.URL, data='{"lat": 1e999, "lng": 127.07}', content_type='application/json')
+        self.assertEqual(res.status_code, 400)
+
+    def test_rejects_huge_integer_coordinates(self, _now):
+        huge = '1' + '0' * 400
+        for raw in ('{"lat": %s, "lng": 127.07}' % huge, '{"lat": 37.25, "lng": %s}' % huge):
+            res = self.client.post(self.URL, data=raw, content_type='application/json')
+            self.assertEqual(res.status_code, 400, raw[:30])
+            self.assertEqual(res.data, {'detail': '위치를 확인하지 못했어요.'})
+
+    def test_valid_connector_filters(self, _now):
+        _station('C', 37.259, 127.07, [('2', 5, 100)], connectors='combo')
+        _station('D', 37.260, 127.07, [('2', 5, 100)], connectors='chademo')
+        res = self.client.post(self.URL, {'lat': 37.25, 'lng': 127.07, 'connector': 'chademo'}, format='json')
+        self.assertEqual([s['stat_id'] for s in res.data['stations']], ['D'])
+
+    def test_unknown_connector_is_ignored(self, _now):
+        _station('A', 37.259, 127.07, [('2', 5, 100)], connectors='chademo')
+        res = self.client.post(self.URL, {'lat': 37.25, 'lng': 127.07, 'connector': 'zzz'}, format='json')
+        self.assertEqual(len(res.data['stations']), 1)
+
+    def test_get_is_not_allowed(self, _now):
+        self.assertEqual(self.client.get(self.URL + '?lat=37.25&lng=127.07').status_code, 405)
+
+    def test_station_detail_route_still_works(self, _now):
+        self.assertEqual(self.client.get('/api/v1/stations/999999/').status_code, 404)

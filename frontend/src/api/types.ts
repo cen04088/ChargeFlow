@@ -174,3 +174,33 @@ export interface NotifySubscription {
   rest_area?: string;
   deliverable?: boolean;
 }
+
+export type NearbyState = "available" | "full" | "unavailable";
+
+export interface NearbyStation {
+  id: number;
+  stat_id: string;
+  name: string;
+  address: string;
+  latitude: string;
+  longitude: string;
+  distance_km: number;
+  power_kw: number;
+  operator: string;
+  open_hours: string;
+  connectors: Exclude<Connector, "">[];
+  available: number;
+  charging: number;
+  offline: number;
+  total: number;
+  state: NearbyState;
+  checked_at: string | null;
+}
+
+export interface NearbyStationsResponse {
+  radius_km: number;
+  fetched_at: string;
+  stations: NearbyStation[];
+  /** 결과가 비었을 때만 의미: 서버가 충전 상태 정보를 받지 못하고 있다 */
+  feed_stale: boolean;
+}

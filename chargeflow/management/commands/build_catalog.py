@@ -44,8 +44,7 @@ IC_CSV     = DATA_DIR / 'ETC_AI_05_02_623950.csv'
 RA_CSV     = DATA_DIR / '전국휴게소정보표준데이터.csv'
 CACHE_FILE = Path(settings.BASE_DIR) / '.cache' / 'chargers.json'
 
-# 2026년 기준: 광주(29)·전남(46)은 통합 코드 12로 조회된다 (옛 코드는 0건)
-ZCODES = ['11', '12', '26', '27', '28', '29', '30', '31', '36', '41', '43', '44', '46', '47', '48', '51', '52']
+ZCODES = ev_api.ZCODES  # 정의는 ev_api (전국 스캔 명령과 공유)
 
 # 방향 = 기점(start) 쪽이 DOWN, 종점(end) 쪽이 UP — 기존 3개 노선과 같은 규칙
 NEW_HIGHWAYS = [

@@ -31,6 +31,11 @@ urlpatterns = [
          views.BypassStationView.as_view(),
          name='bypass-stations'),
 
+    # 내 주변 급속충전소 (좌표 보호를 위해 POST)
+    path('stations/nearby/',
+         views.NearbyStationsView.as_view(),
+         name='stations-nearby'),
+
     # 충전소 상세
     path('stations/<int:pk>/',
          views.StationDetailView.as_view(),
