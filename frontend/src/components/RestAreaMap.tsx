@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { BypassIC, BypassStation } from "../api/types";
 import { loadKakaoMaps } from "../lib/kakao";
+import { logClick } from "../lib/toss";
 
 interface Point {
   lat: number;
@@ -15,6 +16,9 @@ interface Props {
   focusId: number | null;
   onSelectStation: (id: number) => void;
 }
+
+/** 지도 카드 높이 전환(스프링) 시간 — index.css의 --spring-time과 맞춘다 */
+const RESIZE_MS = 480;
 
 /** DB에서 온 이름이 HTML로 해석되지 않도록 DOM으로 만든다 */
 function label(
@@ -43,7 +47,9 @@ export function RestAreaMap({
   /* eslint-disable @typescript-eslint/no-explicit-any */
   const map = useRef<any>(null);
   const overlays = useRef<Map<number, any>>(new Map());
+  const boundsRef = useRef<any>(null);
   const [failed, setFailed] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   // 1분마다 새로 받아도 같은 충전소 구성이면 지도를 다시 그리지 않는다
   const signature = [
@@ -104,7 +110,10 @@ export function RestAreaMap({
         );
       });
       overlays.current = created;
-      if (!bounds.isEmpty()) map.current.setBounds(bounds, 32, 32, 32, 32);
+      if (!bounds.isEmpty()) {
+        map.current.setBounds(bounds, 48, 32, 56, 32);
+        boundsRef.current = bounds;
+      }
     });
 
     return () => {
@@ -128,8 +137,36 @@ export function RestAreaMap({
     });
   }, [focusId, stations]);
 
+  // 카드 높이가 바뀐 뒤 지도 크기를 다시 재고 모든 지점이 보이게 맞춘다
+  useEffect(() => {
+    if (!map.current) return;
+    const t = setTimeout(() => {
+      map.current?.relayout();
+      if (boundsRef.current)
+        map.current?.setBounds(boundsRef.current, 48, 32, 56, 32);
+    }, RESIZE_MS);
+    return () => clearTimeout(t);
+  }, [expanded]);
+
   if (failed) return null;
   return (
-    <div ref={box} className="map" aria-label="휴게소와 대체 충전소 지도" />
+    <div className={"map-card" + (expanded ? " map-card--expanded" : "")}>
+      <div ref={box} className="map" aria-label="휴게소와 대체 충전소 지도" />
+      <span className="map-legend glass" aria-hidden="true">
+        <span className="map-legend__dot" />
+        IC에서 걸리는 시간
+      </span>
+      <button
+        type="button"
+        className="map-toggle glass press"
+        aria-expanded={expanded}
+        onClick={() => {
+          logClick("rest_area_map", { expand: expanded ? 0 : 1 });
+          setExpanded((v) => !v);
+        }}
+      >
+        {expanded ? "작게 보기" : "크게 보기"}
+      </button>
+    </div>
   );
 }

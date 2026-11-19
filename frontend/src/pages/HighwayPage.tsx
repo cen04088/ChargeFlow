@@ -104,8 +104,8 @@ export default function HighwayPage() {
         contents={
           <ListRow.Texts
             type="2RowTypeA"
-            top="구간 정하고 미리 보기"
-            bottom="출발·도착을 고르면 지날 휴게소를 순서대로"
+            top="구간 미리 보기"
+            bottom="출발과 도착을 고르면 지날 휴게소를 순서대로 보여 드려요"
           />
         }
         arrowType="right"

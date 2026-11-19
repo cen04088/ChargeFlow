@@ -155,7 +155,7 @@ export function StationSheet({ station: s, icName, onClose }: SheetProps) {
           />
           <Detail
             label="더 걸리는 시간"
-            value={`${approx}${s.detour_extra_minutes}분 (IC 왕복과 진출입 포함)`}
+            value={`${approx}${s.detour_extra_minutes}분, IC 진출입과 왕복 포함`}
           />
           <Detail
             label="충전기"
@@ -171,7 +171,7 @@ export function StationSheet({ station: s, icName, onClose }: SheetProps) {
           {s.realtime && (
             <Detail
               label="빈 충전기"
-              value={`${s.realtime.available}/${s.realtime.total}대 (참고 · ${timeAgo(s.realtime.checked_at)})`}
+              value={`${s.realtime.available}/${s.realtime.total}대 · ${timeAgo(s.realtime.checked_at)}, 참고용`}
             />
           )}
           {s.route_memo && <Detail label="메모" value={s.route_memo} />}

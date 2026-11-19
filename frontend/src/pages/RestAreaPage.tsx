@@ -7,7 +7,6 @@ import {
   ChipItem,
   IconButton,
   ListHeader,
-  ListRow,
   Paragraph,
   Skeleton,
   Spacing,
@@ -165,7 +164,6 @@ function RestAreaView({
   const [expanded, setExpanded] = useState(false);
   const [sheet, setSheet] = useState<BypassStation | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [mapOpen, setMapOpen] = useState(false);
   const pattern = useAsync(() => api.pattern(ra.id), [ra.id]);
 
   const ics = [data.previous_ic, data.next_ic].filter(Boolean) as BypassIC[];
@@ -308,31 +306,19 @@ function RestAreaView({
 
       <div className="section-pad">
         {best ? (
-          <div className="best-card">
-            <Paragraph typography="t7" color="var(--brand-strong)">
+          <div className="best-card rise">
+            <p className="eyebrow" style={{ color: "rgba(255,255,255,0.8)" }}>
               가장 빨리 다녀올 곳
-            </Paragraph>
-            <Spacing size={4} />
-            <Paragraph
-              typography="t4"
-              fontWeight="bold"
-              color={adaptive.grey900}
-            >
-              {best.name}
-            </Paragraph>
-            <Spacing size={4} />
-            <Paragraph typography="t6" color={adaptive.grey700}>
-              {summary(best)}
-            </Paragraph>
+            </p>
+            <p className="best-card__name">{best.name}</p>
+            <p className="best-card__meta">{summary(best)}</p>
             {bestIC && (
-              <Paragraph typography="t7" color={adaptive.grey600}>
-                {bestIC.name}에서 나가요
-              </Paragraph>
+              <span className="best-card__exit">{bestIC.name}에서 나가요</span>
             )}
-            <Spacing size={16} />
             <div className="best-card__actions">
               <Button
                 size="large"
+                color="light"
                 variant="weak"
                 onClick={() => {
                   logClick("best_detail");
@@ -343,7 +329,9 @@ function RestAreaView({
               </Button>
               <Button
                 size="large"
+                color="light"
                 display="full"
+                style={{ color: "var(--brand-deep)" }}
                 onClick={() => {
                   logClick("best_directions", { station_id: best.id });
                   void openDirections(best.name, best.latitude, best.longitude);
@@ -354,7 +342,7 @@ function RestAreaView({
             </div>
           </div>
         ) : (
-          <div className="best-card">
+          <div className="best-card best-card--empty rise">
             <Paragraph
               typography="t5"
               fontWeight="bold"
@@ -380,98 +368,124 @@ function RestAreaView({
         )}
       </div>
 
-      <Border variant="height16" />
-
-      {ics.length > 1 && (
-        <Tab
-          onChange={(i) => {
-            setTab(i === 0 ? "prev" : "next");
-            setExpanded(false);
+      {ics.length > 0 && candidates.length > 0 && (
+        <RestAreaMap
+          restArea={{
+            lat: +ra.latitude,
+            lng: +ra.longitude,
+            name: shortName(ra.name),
           }}
-          fluid
-        >
-          <Tab.Item selected={tab === "prev"}>휴게소 전에 나가기</Tab.Item>
-          <Tab.Item selected={tab === "next"}>휴게소 지나서 나가기</Tab.Item>
-        </Tab>
+          ics={ics}
+          stations={candidates}
+          focusId={focusId}
+          onSelectStation={(sid) => {
+            const st = allStations.find((s) => s.id === sid);
+            if (!st) return;
+            const inPrev = data.previous_ic?.stations.some(
+              (s) => s.id === sid,
+            );
+            setTab(inPrev ? "prev" : "next");
+            openSheet(st);
+          }}
+        />
       )}
+
+      <Spacing size={16} />
 
       {activeIC ? (
         <>
-          <div className="section-pad section-pad--tight">
-            <Chip kind="select" size="medium" margin="none">
-              <ChipItem
-                selected={!!connector && !showAll}
-                onClick={() => {
-                  if (!connector) {
-                    logClick("station_filter", { filter: "connector_pick" });
-                    setPickerOpen(true);
-                    return;
-                  }
-                  logClick("station_filter", {
-                    filter: "connector",
-                    on: showAll ? 1 : 0,
-                  });
-                  setShowAll((v) => !v);
+          <div className="sticky-bar">
+            {ics.length > 1 && (
+              <Tab
+                onChange={(i) => {
+                  setTab(i === 0 ? "prev" : "next");
                   setExpanded(false);
                 }}
+                fluid
               >
-                {connector ? connectorName(connector) : "충전 규격"}
-              </ChipItem>
-              <ChipItem
-                selected={filters.fast}
-                onClick={() => toggleFilter("fast")}
-              >
-                {`${FAST_KW}kW 이상`}
-              </ChipItem>
-              <ChipItem
-                selected={filters.allDay}
-                onClick={() => toggleFilter("allDay")}
-              >
-                24시간
-              </ChipItem>
-            </Chip>
-            <Spacing size={8} />
-            <Paragraph typography="t7" color={adaptive.grey600}>
-              {activeIC.name}에서 나가요 · 더 걸리는 시간이 짧은 순
-            </Paragraph>
-          </div>
-          {visibleStations.length === 0 ? (
-            <div className="section-pad">
-              <Paragraph typography="t6" color={adaptive.grey700}>
-                {filtering || (connector && !showAll)
-                  ? "조건에 맞는 충전소가 이 IC 근처엔 없어요."
-                  : "이 IC 근처엔 충전소가 없어요."}
+                <Tab.Item selected={tab === "prev"}>휴게소 전에 나가기</Tab.Item>
+                <Tab.Item selected={tab === "next"}>휴게소 지나서 나가기</Tab.Item>
+              </Tab>
+            )}
+            <div className="filter-row">
+              <Chip kind="select" size="medium" margin="none">
+                <ChipItem
+                  selected={!!connector && !showAll}
+                  onClick={() => {
+                    if (!connector) {
+                      logClick("station_filter", { filter: "connector_pick" });
+                      setPickerOpen(true);
+                      return;
+                    }
+                    logClick("station_filter", {
+                      filter: "connector",
+                      on: showAll ? 1 : 0,
+                    });
+                    setShowAll((v) => !v);
+                    setExpanded(false);
+                  }}
+                >
+                  {connector ? connectorName(connector) : "충전 규격"}
+                </ChipItem>
+                <ChipItem
+                  selected={filters.fast}
+                  onClick={() => toggleFilter("fast")}
+                >
+                  {`${FAST_KW}kW 이상`}
+                </ChipItem>
+                <ChipItem
+                  selected={filters.allDay}
+                  onClick={() => toggleFilter("allDay")}
+                >
+                  24시간
+                </ChipItem>
+              </Chip>
+            </div>
+            <div className="filter-caption">
+              <Paragraph typography="t7" color={adaptive.grey600}>
+                {activeIC.name}에서 나가요 · 더 걸리는 시간이 짧은 순
               </Paragraph>
             </div>
-          ) : (
-            <>
-              {shownStations.map((s) => (
-                <StationRow
-                  key={s.id}
-                  station={s}
-                  best={s.id === best?.id}
-                  focused={focusId === s.id}
-                  connector={connector}
-                  onOpen={openSheet}
-                />
-              ))}
-              {visibleStations.length > shownStations.length && (
-                <div className="section-pad section-pad--tight">
-                  <Button
-                    size="large"
-                    variant="weak"
-                    display="full"
-                    onClick={() => {
-                      logClick("station_more");
-                      setExpanded(true);
-                    }}
-                  >
-                    {`${visibleStations.length - shownStations.length}곳 더 보기`}
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
+          </div>
+          <div key={`${tab}-${filters.fast}-${filters.allDay}-${showAll}`} className="rise">
+            {visibleStations.length === 0 ? (
+              <div className="section-pad">
+                <Paragraph typography="t6" color={adaptive.grey700}>
+                  {filtering || (connector && !showAll)
+                    ? "이 IC 근처에는 조건에 맞는 충전소가 없어요."
+                    : "이 IC 근처에는 충전소가 없어요."}
+                </Paragraph>
+              </div>
+            ) : (
+              <>
+                {shownStations.map((s) => (
+                  <StationRow
+                    key={s.id}
+                    station={s}
+                    best={s.id === best?.id}
+                    focused={focusId === s.id}
+                    connector={connector}
+                    onOpen={openSheet}
+                  />
+                ))}
+                {visibleStations.length > shownStations.length && (
+                  <div className="section-pad section-pad--tight">
+                    <Button
+                      size="large"
+                      variant="weak"
+                      display="full"
+                      onClick={() => {
+                        logClick("station_more");
+                        setExpanded(true);
+                      }}
+                    >
+                      {`${visibleStations.length - shownStations.length}곳 더 보기`}
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </>
       ) : (
         <div className="section-pad">
@@ -479,45 +493,6 @@ function RestAreaView({
             이 휴게소 근처 IC 정보가 아직 없어요.
           </Paragraph>
         </div>
-      )}
-
-      {ics.length > 0 && (
-        <>
-          <ListRow
-            contents={
-              <ListRow.Texts
-                type="1RowTypeA"
-                top={mapOpen ? "지도 접기" : "지도로 보기"}
-              />
-            }
-            arrowType={mapOpen ? "up" : "down"}
-            onClick={() => {
-              logClick("rest_area_map", { open: mapOpen ? 0 : 1 });
-              setMapOpen((v) => !v);
-            }}
-          />
-          {mapOpen && (
-            <RestAreaMap
-              restArea={{
-                lat: +ra.latitude,
-                lng: +ra.longitude,
-                name: shortName(ra.name),
-              }}
-              ics={ics}
-              stations={candidates}
-              focusId={focusId}
-              onSelectStation={(sid) => {
-                const st = allStations.find((s) => s.id === sid);
-                if (!st) return;
-                const inPrev = data.previous_ic?.stations.some(
-                  (s) => s.id === sid,
-                );
-                setTab(inPrev ? "prev" : "next");
-                openSheet(st);
-              }}
-            />
-          )}
-        </>
       )}
 
       {pattern.data?.has_pattern && (
@@ -539,13 +514,13 @@ function RestAreaView({
       <div className="footnote">
         <Paragraph typography="t7" color={adaptive.grey600}>
           {known
-            ? `휴게소 충전기: ${congestion.label} · ${availabilityText(congestion)} · ${timeAgo(congestion.checked_at)} (공공데이터 기준이라 참고만 해 주세요)`
+            ? `휴게소 충전기 ${congestion.label} · ${availabilityText(congestion)} · ${timeAgo(congestion.checked_at)}. 공공데이터라 현장과 다를 수 있으니 참고만 해 주세요.`
             : "휴게소 충전기 상태는 지금 받아오지 못했어요."}
         </Paragraph>
         <Spacing size={8} />
         <Paragraph typography="t7" color={adaptive.grey600}>
-          ‘약’이 붙은 시간은 직선거리로 계산했어요. 운영 시간과 요금은
-          충전소에서 한 번 더 확인해 주세요.
+          시간 앞에 '약'이 붙으면 직선거리로 계산한 값이에요. 운영 시간과
+          요금은 충전소에서 한 번 더 확인해 주세요.
         </Paragraph>
       </div>
 
