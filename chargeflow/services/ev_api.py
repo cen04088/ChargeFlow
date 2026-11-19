@@ -32,6 +32,9 @@ RETRY_BACKOFF_SEC = 5  # 5초, 10초
 
 KIND_HIGHWAY_REST_AREA = 'C001'  # 고속도로 휴게소 (전국 약 2천 대, 1페이지)
 
+# 2026년 기준: 광주(29)·전남(46)은 통합 코드 12로 조회된다 (옛 코드는 0건)
+ZCODES = ['11', '12', '26', '27', '28', '29', '30', '31', '36', '41', '43', '44', '46', '47', '48', '51', '52']
+
 
 class EvApiError(Exception):
     pass
@@ -107,6 +110,11 @@ def fetch_status_changes(api_key, period, max_pages=5):
 def fetch_rest_area_chargers(api_key, max_pages=3):
     """전국 고속도로 휴게소 충전기 정보 (현재 상태 포함)"""
     return _paginate('getChargerInfo', api_key, {'kindDetail': KIND_HIGHWAY_REST_AREA}, max_pages)
+
+
+def fetch_region_chargers(api_key, zcode, max_pages=40):
+    """시도(zcode) 하나의 전체 충전기 정보 (현재 상태 포함)"""
+    return _paginate('getChargerInfo', api_key, {'zcode': zcode}, max_pages)
 
 
 def fetch_station(api_key, stat_id):

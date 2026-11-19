@@ -8,7 +8,9 @@ import math
 from collections import defaultdict
 from itertools import islice
 
-from django.db import transaction
+from datetime import timedelta
+
+from django.db import connection, transaction
 
 from chargeflow.models import ChargerState, PublicStation
 from chargeflow.services import ev_api
@@ -126,4 +128,37 @@ def _fill_slow_outputs(slow):
 
 
 def deactivate_missing(seen):
-    return PublicStation.objects.filter(is_active=True).exclude(stat_id__in=seen).update(is_active=False)
+    """seen에 없는 활성 충전소를 비활성화한다. 전국 규모에서 NOT IN 파라미터 한도를
+    넘지 않도록 파이썬에서 차집합을 구해 500개씩 갱신한다."""
+    missing = set(PublicStation.objects.filter(is_active=True).values_list('stat_id', flat=True)) - set(seen)
+    count = 0
+    for chunk in _chunks(sorted(missing), 500):
+        count += PublicStation.objects.filter(stat_id__in=chunk, is_active=True).update(is_active=False)
+    return count
+
+
+def freshness_report(now):
+    """활성 급속 충전소의 상태 신선도 (실측 보고용)."""
+    active = PublicStation.objects.filter(is_active=True)
+    chargers = ChargerState.objects.filter(
+        stat_id__in=active.values('stat_id'), output_kw__gte=FAST_KW)
+    total = chargers.count()
+
+    def within(delta):
+        if not total:
+            return 0.0
+        return chargers.filter(stat_updated_at__gte=now - delta).count() / total
+
+    db_mb = None
+    if connection.vendor == 'postgresql':
+        with connection.cursor() as cur:
+            cur.execute('SELECT pg_database_size(current_database())')
+            db_mb = round(cur.fetchone()[0] / 1024 / 1024, 1)
+    return {
+        'stations': active.count(),
+        'chargers': total,
+        'within_30m': within(timedelta(minutes=30)),
+        'within_2h': within(timedelta(hours=2)),
+        'within_12h': within(timedelta(hours=12)),
+        'db_mb': db_mb,
+    }

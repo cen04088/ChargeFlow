@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from io import StringIO
 from unittest import mock
 
+from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import IntegrityError
 from django.test import TestCase, override_settings
@@ -15,7 +16,7 @@ from chargeflow.models import (
 )
 from chargeflow.services import ev_api
 from chargeflow.services.congestion import compute_level, recompute_all
-from chargeflow.services.public_catalog import deactivate_missing, is_public_fast, sync_items
+from chargeflow.services.public_catalog import deactivate_missing, freshness_report, is_public_fast, sync_items
 
 
 def item(stat_id, charger_id, stat, upd='20261003120000', zcode='41'):
@@ -413,3 +414,69 @@ class PublicCatalogTests(TestCase):
         sync_items([_item(), _item(statId='ME000002')], NOW)
         self.assertEqual(deactivate_missing({'ME000001'}), 1)
         self.assertFalse(PublicStation.objects.get(stat_id='ME000002').is_active)
+
+    def test_deactivate_missing_handles_many_stations_in_chunks(self):
+        PublicStation.objects.bulk_create([
+            PublicStation(stat_id=f'BULK{i:05d}', name='n', latitude=37.0, longitude=127.0,
+                          power_kw=50, charger_count=1)
+            for i in range(1200)])
+        keep = {f'BULK{i:05d}' for i in range(100)}
+        self.assertEqual(deactivate_missing(keep), 1100)
+        self.assertEqual(PublicStation.objects.filter(is_active=True).count(), 100)
+
+
+def fmt(dt):
+    return dt.astimezone(ev_api.KST).strftime('%Y%m%d%H%M%S')
+
+
+@mock.patch.object(ev_api, 'ZCODES', ['41', '11'])
+@mock.patch.object(ev_api, 'fetch_region_chargers')
+class SyncPublicStationsTests(TestCase):
+    def _old(self):
+        PublicStation.objects.create(stat_id='OLD00001', name='옛 충전소', latitude=37.0, longitude=127.0,
+                                     power_kw=50, charger_count=1)
+
+    def test_full_scan_deactivates_missing(self, fetch):
+        self._old()
+        fetch.side_effect = lambda key, z, **kw: [_item(zcode=z, statId=f'ME0000{z}')]
+        call_command('sync_public_stations', api_key='k', stdout=StringIO())
+        self.assertFalse(PublicStation.objects.get(stat_id='OLD00001').is_active)
+        self.assertEqual(PublicStation.objects.filter(is_active=True).count(), 2)
+
+    def test_failed_region_does_not_deactivate(self, fetch):
+        self._old()
+
+        def flaky(key, z, **kw):
+            if z == '11':
+                raise ev_api.EvApiError('504')
+            return [_item(zcode=z)]
+        fetch.side_effect = flaky
+        with self.assertRaises(CommandError):
+            call_command('sync_public_stations', api_key='k', stdout=StringIO())
+        self.assertTrue(PublicStation.objects.get(stat_id='OLD00001').is_active)
+        self.assertTrue(PublicStation.objects.filter(stat_id='ME000001').exists())
+
+    def test_partial_zcodes_never_deactivate(self, fetch):
+        self._old()
+        fetch.side_effect = lambda key, z, **kw: [_item(zcode=z)]
+        call_command('sync_public_stations', api_key='k', zcodes=['41'], stdout=StringIO())
+        self.assertTrue(PublicStation.objects.get(stat_id='OLD00001').is_active)
+
+    def test_report_only_does_not_call_api(self, fetch):
+        out = StringIO()
+        call_command('sync_public_stations', report_only=True, stdout=out)
+        fetch.assert_not_called()
+        self.assertIn('stations', out.getvalue())
+
+    def test_freshness_report_ratios(self, fetch):
+        sync_items([_item(chgerId='01', statUpdDt=fmt(NOW - timedelta(minutes=10))),
+                    _item(chgerId='02', statUpdDt=fmt(NOW - timedelta(hours=1))),
+                    _item(chgerId='03', statUpdDt=fmt(NOW - timedelta(hours=5))),
+                    _item(chgerId='04', statUpdDt=fmt(NOW - timedelta(hours=20)))], NOW)
+        r = freshness_report(NOW)
+        self.assertEqual((r['stations'], r['chargers']), (1, 4))
+        self.assertEqual((r['within_30m'], r['within_2h'], r['within_12h']), (0.25, 0.5, 0.75))
+
+    def test_freshness_report_empty(self, fetch):
+        r = freshness_report(NOW)
+        self.assertEqual((r['stations'], r['chargers'], r['within_2h']), (0, 0, 0.0))
