@@ -33,7 +33,7 @@ from django.utils import timezone
 
 from chargeflow.models import (
     ChargerState, ChargerStatusLog, ChargingStation, CongestionNotifySubscription,
-    HighwayNodeCharger, PollerStatus, StationCongestion, UserRoute,
+    HighwayNodeCharger, PollerStatus, PublicStation, StationCongestion, UserRoute,
 )
 from chargeflow.services import ev_api, toss_notify
 from chargeflow.services.congestion import record_samples, recompute_all
@@ -47,11 +47,19 @@ SUBSCRIPTION_TTL    = timedelta(hours=6)  # 이동 중 한 번의 충전을 위�
 VALID_STATS         = {'1', '2', '3', '4', '5', '9'}
 
 
-def _apply_items(items, tracked, now):
-    """API 항목 → ChargerState 반영. 바뀐 충전기 수를 돌려준다."""
+def _apply_items(items, tracked, now, *, create_for=None, log_for=None):
+    """API 항목 → ChargerState 반영. 남긴 로그 수를 돌려준다.
+
+    create_for: 새 ChargerState 줄을 만들어도 되는 statId (기본: tracked 전체)
+    log_for:    ChargerStatusLog를 남기는 statId (기본: tracked 전체)
+    둘에 없는 tracked 충전소(전국 급속)는 이미 있는 줄만 갱신한다."""
+    items = list(items)
+    create_for = tracked if create_for is None else create_for
+    log_for    = tracked if log_for is None else log_for
+    seen = {str(i.get('statId') or '').strip() for i in items} & set(tracked)
     existing = {
         (s.stat_id, s.charger_id): s
-        for s in ChargerState.objects.filter(stat_id__in=tracked)
+        for s in ChargerState.objects.filter(stat_id__in=seen)
     }
     to_create, logs = [], []
     to_update = {}
@@ -74,12 +82,15 @@ def _apply_items(items, tracked, now):
 
         row = existing.get((stat_id, charger_id))
         if row is None:
+            if stat_id not in create_for:
+                continue
             row = ChargerState(stat_id=stat_id, charger_id=charger_id, stat=stat,
                                stat_updated_at=updated_at, charging_since=since,
                                chger_type=chger_type, zcode=zcode)
             existing[(stat_id, charger_id)] = row
             to_create.append(row)
-            logs.append(ChargerStatusLog(stat_id=stat_id, charger_id=charger_id, stat=stat))
+            if stat_id in log_for:
+                logs.append(ChargerStatusLog(stat_id=stat_id, charger_id=charger_id, stat=stat))
             continue
 
         # 같은 충전기의 더 오래된 이벤트가 늦게 와도 최신 상태를 덮지 않는다
@@ -89,7 +100,7 @@ def _apply_items(items, tracked, now):
             row.zcode = zcode
         if chger_type:
             row.chger_type = chger_type
-        if row.stat != stat:
+        if row.stat != stat and stat_id in log_for:
             logs.append(ChargerStatusLog(stat_id=stat_id, charger_id=charger_id, stat=stat))
         row.stat            = stat
         row.stat_updated_at = updated_at or row.stat_updated_at
@@ -108,6 +119,11 @@ def _apply_items(items, tracked, now):
     return len(logs)
 
 
+def _public_ids():
+    """전국 급속 충전소(PublicStation) 중 활성 statId"""
+    return set(PublicStation.objects.filter(is_active=True).values_list('stat_id', flat=True))
+
+
 def _tracked_ids():
     """(휴게소 충전소 statId, 우회 충전소 statId) — 우회 충전소는 IC 매핑된 곳만"""
     rest = set(HighwayNodeCharger.objects.values_list('stat_id', flat=True))
@@ -120,7 +136,7 @@ def _tracked_ids():
     return rest, bypass - rest
 
 
-def _sync_baseline(api_key, rest_ids, tracked, now):
+def _sync_baseline(api_key, rest_ids, tracked, now, create_for=None, log_for=None):
     """휴게소 분류로 한 번에 받고, 빠진 휴게소 충전소만 statId로 보충한다.
     우회 충전소(800여 곳)는 개별 조회하면 한도를 넘으므로 증분 피드와
     build_catalog 명령의 일괄 동기화로 채운다."""
@@ -129,7 +145,7 @@ def _sync_baseline(api_key, rest_ids, tracked, now):
     missing = sorted(rest_ids - seen)
     for stat_id in missing:
         items.extend(ev_api.fetch_station(api_key, stat_id))
-    changed = _apply_items(items, tracked, now)
+    changed = _apply_items(items, tracked, now, create_for=create_for, log_for=log_for)
     return changed, len(missing)
 
 
@@ -208,7 +224,9 @@ def run_cycle(api_key, stdout, force_baseline=False, interval_sec=300, period=No
     _skip_query_stats()
     now = timezone.now()
     rest_ids, bypass_ids = _tracked_ids()
-    tracked = rest_ids | bypass_ids
+    public_ids = _public_ids() - rest_ids - bypass_ids
+    tracked = rest_ids | bypass_ids | public_ids
+    own_ids = rest_ids | bypass_ids  # 새 줄·로그는 휴게소/우회 충전소만, 전국 급속은 갱신만
     if not rest_ids:
         stdout.write('추적 중인 휴게소 충전소(HighwayNodeCharger)가 없어요. loaddata를 먼저 실행하세요.')
         return
@@ -229,15 +247,17 @@ def run_cycle(api_key, stdout, force_baseline=False, interval_sec=300, period=No
 
     try:
         if need_full:
-            changed, extra = _sync_baseline(api_key, rest_ids, tracked, now)
+            changed, extra = _sync_baseline(api_key, rest_ids, tracked, now, create_for=own_ids, log_for=own_ids)
             status.last_baseline_at = now
             stdout.write(f'  📥 전체 기준선 동기화: 개별 조회 {extra}곳, 상태 변화 {changed}건')
         elif need_light:
-            changed = _apply_items(list(ev_api.fetch_rest_area_chargers(api_key)), tracked, now)
+            changed = _apply_items(list(ev_api.fetch_rest_area_chargers(api_key)), tracked, now,
+                                  create_for=own_ids, log_for=own_ids)
             stdout.write(f'  📥 휴게소 상태 다시 맞춤(공백 {gap.total_seconds() / 60:.0f}분): 변화 {changed}건'
                          if gap else f'  📥 휴게소 상태 다시 맞춤: 변화 {changed}건')
 
-        changed = _apply_items(ev_api.fetch_status_changes(api_key, period=period), tracked, now)
+        changed = _apply_items(ev_api.fetch_status_changes(api_key, period=period), tracked, now,
+                               create_for=own_ids, log_for=own_ids)
         status.last_status_at = now
         status.last_error     = ''
     except ev_api.EvApiError as e:
@@ -266,7 +286,7 @@ def run_cycle(api_key, stdout, force_baseline=False, interval_sec=300, period=No
     known_bypass = ChargerState.objects.filter(stat_id__in=bypass_ids).values('stat_id').distinct().count()
     stdout.write(
         f'✅ {now.astimezone(ev_api.KST):%H:%M} 증분 변화 {changed}건 · 휴게소 충전기 {known_rest}대 · '
-        f'우회 충전소 {known_bypass}/{len(bypass_ids)}곳 상태 보유 · 혼잡도 {levels}'
+        f'우회 충전소 {known_bypass}/{len(bypass_ids)}곳 상태 보유 · 혼잡도 {levels} · 전국 급속 {len(public_ids)}곳 추적'
     )
 
 

@@ -79,6 +79,46 @@ class PollerTests(Fixture):
         self.assertEqual(up.level, 'normal')
         self.assertEqual(StationCongestion.objects.get(ra_node=self.ra_far).level, 'unknown')
 
+    def test_public_station_is_updated_but_not_created_or_logged(self):
+        PublicStation.objects.create(stat_id='PUB00001', name='공영', latitude=37.25, longitude=127.07,
+                                     power_kw=100, charger_count=1)
+        ChargerState.objects.create(stat_id='PUB00001', charger_id='01', stat='2', output_kw=100)
+        items = [{'statId': 'PUB00001', 'chgerId': '01', 'stat': '3', 'statUpdDt': '20261119120000'},
+                 {'statId': 'PUB00001', 'chgerId': '99', 'stat': '2', 'statUpdDt': '20261119120000'}]
+        poller._apply_items(items, {'PUB00001'}, timezone.now(), create_for=set(), log_for=set())
+        self.assertEqual(ChargerState.objects.get(stat_id='PUB00001', charger_id='01').stat, '3')
+        self.assertFalse(ChargerState.objects.filter(charger_id='99').exists())
+        self.assertFalse(ChargerStatusLog.objects.filter(stat_id='PUB00001').exists())
+
+    def test_defaults_keep_existing_behaviour(self):
+        poller._apply_items([{'statId': 'NEW00001', 'chgerId': '01', 'stat': '2'}], {'NEW00001'}, timezone.now())
+        self.assertTrue(ChargerState.objects.filter(stat_id='NEW00001').exists())
+        self.assertEqual(ChargerStatusLog.objects.filter(stat_id='NEW00001').count(), 1)
+
+    def test_apply_items_accepts_generator(self):
+        gen = (i for i in [item('ST1', '01', '2')])
+        poller._apply_items(gen, {'ST1'}, timezone.now())
+        self.assertTrue(ChargerState.objects.filter(stat_id='ST1', charger_id='01').exists())
+
+    def test_run_cycle_tracks_public_stations(self):
+        PublicStation.objects.create(stat_id='PUB00001', name='공영', latitude=37.25, longitude=127.07,
+                                     power_kw=100, charger_count=1)
+        ChargerState.objects.create(stat_id='PUB00001', charger_id='01', stat='2', output_kw=100)
+        self.run_poll(
+            baseline_items=[item('ST1', '01', '2'), item('ST1', '02', '3')],
+            status_items=[item('PUB00001', '01', '3', '20261119120000'),
+                          item('PUB00001', '99', '2', '20261119120000'),
+                          item('XX', '01', '2')],
+        )
+        self.assertEqual(ChargerState.objects.get(stat_id='PUB00001', charger_id='01').stat, '3')
+        self.assertFalse(ChargerState.objects.filter(stat_id='PUB00001', charger_id='99').exists())
+        self.assertFalse(ChargerState.objects.filter(stat_id='XX').exists())
+        self.assertFalse(ChargerStatusLog.objects.filter(stat_id='PUB00001').exists())
+        # 휴게소 혼잡도는 기존 테스트와 같은 결과
+        down = StationCongestion.objects.get(ra_node=self.ra_down)
+        self.assertEqual((down.available, down.charging, down.level), (1, 1, 'normal'))
+        self.assertEqual(StationCongestion.objects.get(ra_node=self.ra_far).level, 'unknown')
+
     def test_baseline_fills_missing_stations_by_stat_id(self):
         station = self.run_poll(
             baseline_items=[item('ST1', '01', '2')],
