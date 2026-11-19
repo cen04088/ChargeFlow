@@ -4,6 +4,7 @@ import type { Congestion, HighwayNode, NearbyRestArea } from "../api/types";
 import {
   aheadText,
   highwayPeek,
+  nearestRestArea,
   nextRestArea,
   pickStart,
 } from "./highwayState";
@@ -157,7 +158,7 @@ test("nextRestArea: 10km 이상은 정수로", () => {
 });
 
 test("highwayPeek: 불러오는 중", () => {
-  expect(highwayPeek({ nodes: [], next: null, directionLabel: "부산 방향", loading: true })).toEqual({
+  expect(highwayPeek({ nodes: [], next: null, near: null, travel: true, directionLabel: "부산 방향", loading: true })).toEqual({
     kind: "message",
     title: "휴게소를 불러오고 있어요",
   });
@@ -165,7 +166,7 @@ test("highwayPeek: 불러오는 중", () => {
 
 test("highwayPeek: 휴게소 0곳", () => {
   expect(
-    highwayPeek({ nodes: [], next: null, directionLabel: "부산 방향", loading: false }),
+    highwayPeek({ nodes: [], next: null, near: null, travel: true, directionLabel: "부산 방향", loading: false }),
   ).toEqual({ kind: "message", title: "이 방향에 충전소가 있는 휴게소가 없어요" });
 });
 
@@ -174,6 +175,8 @@ test("highwayPeek: 다음 휴게소", () => {
     highwayPeek({
       nodes: ROUTE,
       next: { id: 2, aheadKm: 12 },
+      near: null,
+      travel: true,
       directionLabel: "부산 방향",
       loading: false,
     }),
@@ -188,7 +191,7 @@ test("highwayPeek: 다음 휴게소", () => {
 
 test("highwayPeek: 위치가 노선 위가 아니면 첫 휴게소", () => {
   expect(
-    highwayPeek({ nodes: ROUTE, next: null, directionLabel: "부산 방향", loading: false }),
+    highwayPeek({ nodes: ROUTE, next: null, near: null, travel: true, directionLabel: "부산 방향", loading: false }),
   ).toEqual({
     kind: "first",
     label: "부산 방향 첫 휴게소",
@@ -198,17 +201,19 @@ test("highwayPeek: 위치가 노선 위가 아니면 첫 휴게소", () => {
   });
   // 다음 휴게소가 이 목록에 없으면(노선을 바꾼 직후 등) 첫 휴게소로
   expect(
-    highwayPeek({ nodes: ROUTE, next: { id: 99, aheadKm: 3 }, directionLabel: "부산 방향", loading: false })
+    highwayPeek({ nodes: ROUTE, next: { id: 99, aheadKm: 3 }, near: null, travel: true, directionLabel: "부산 방향", loading: false })
       .kind,
   ).toBe("first");
 });
 
 test("highwayPeek: 한 곳뿐이면 more 0", () => {
-  const p = highwayPeek({ nodes: [ROUTE[0]], next: null, directionLabel: "서울 방향", loading: false });
+  const p = highwayPeek({ nodes: [ROUTE[0]], next: null, near: null, travel: true, directionLabel: "서울 방향", loading: false });
   expect(p).toMatchObject({ kind: "first", label: "서울 방향 첫 휴게소", more: 0 });
   const q = highwayPeek({
     nodes: ROUTE,
     next: { id: 4, aheadKm: 3.4 },
+    near: null,
+    travel: true,
     directionLabel: "서울 방향",
     loading: false,
   });
@@ -220,4 +225,57 @@ test("aheadText: 내 위치(기점부터 km)를 알면 '약 Nkm 앞', 모르면 
   expect(aheadText(ROUTE[1], 28.75)).toBe("약 3.3km 앞");
   expect(aheadText(ROUTE[1], 40)).toBe("약 0km 앞");
   expect(aheadText(ROUTE[2], null)).toBe("기점에서 54km");
+});
+
+test("highwayPeek: 가는 방향이 아니면(방향을 바꿨거나 정차 중 자동 선택) '다음'이라고 하지 않는다", () => {
+  // 위치상 다음 휴게소가 있어도 travel이 false면 next를 쓰지 않는다 — 가까운 휴게소로
+  expect(
+    highwayPeek({
+      nodes: ROUTE,
+      next: { id: 2, aheadKm: 3 },
+      near: { id: 2, km: 3 },
+      travel: false,
+      directionLabel: "서울 방향",
+      loading: false,
+    }),
+  ).toEqual({
+    kind: "near",
+    label: "서울 방향 가까운 휴게소",
+    node: ROUTE[1],
+    more: 3,
+    moreLabel: "휴게소 4곳 보기",
+  });
+  // 노선에서 멀면(near 없음) 첫 휴게소
+  expect(
+    highwayPeek({
+      nodes: ROUTE,
+      next: { id: 2, aheadKm: 3 },
+      near: null,
+      travel: false,
+      directionLabel: "서울 방향",
+      loading: false,
+    }),
+  ).toMatchObject({ kind: "first", label: "서울 방향 첫 휴게소", node: ROUTE[0] });
+});
+
+test("highwayPeek: 가는 방향인데 다음 휴게소가 없으면(종점 지남) 가까운 휴게소 또는 첫 휴게소", () => {
+  expect(
+    highwayPeek({
+      nodes: ROUTE,
+      next: null,
+      near: { id: 4, km: 11 },
+      travel: true,
+      directionLabel: "부산 방향",
+      loading: false,
+    }),
+  ).toMatchObject({ kind: "near", label: "부산 방향 가까운 휴게소", node: ROUTE[3] });
+});
+
+test("nearestRestArea: 20km 안의 가장 가까운 휴게소(앞뒤 상관없이)", () => {
+  expect(nearestRestArea({ nodes: ROUTE, me: { lat: 36.62, lng: 127.0 } })).toEqual({ id: 3, km: 2.2 });
+  // 마지막 휴게소를 지났어도 가까운 곳은 있다
+  expect(nearestRestArea({ nodes: ROUTE, me: { lat: 36.3, lng: 127.0 } })?.id).toBe(4);
+  expect(nearestRestArea({ nodes: ROUTE, me: { lat: 36.9, lng: 127.4 } })).toBeNull();
+  expect(nearestRestArea({ nodes: ROUTE, me: null })).toBeNull();
+  expect(nearestRestArea({ nodes: [], me: { lat: 37, lng: 127 } })).toBeNull();
 });

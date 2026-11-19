@@ -6,7 +6,9 @@ import {
   hasChargers,
   listedRestAreas,
   loadLastHighway,
+  raAriaLabel,
   raPin,
+  raStatus,
   saveLastHighway,
   stationPin,
 } from "./highway";
@@ -173,4 +175,29 @@ test("last highway: 잘못된 값은 null", () => {
   expect(loadLastHighway()).toBeNull();
   store["highway:last"] = "null";
   expect(loadLastHighway()).toBeNull();
+});
+
+test("raStatus: 상태 단어 + 빈 대수, 색은 핀과 같은 상태", () => {
+  expect(raStatus(cg({ level: "busy", label: "혼잡", available: 1 }))).toEqual({ text: "혼잡 · 1대", kind: "full" });
+  expect(raStatus(cg({ level: "normal", label: "보통", available: 1 }))).toEqual({ text: "보통 · 1대", kind: "available" });
+  expect(raStatus(cg({ level: "smooth", label: "여유", available: 3 }))).toEqual({ text: "여유 · 3대", kind: "available" });
+  expect(raStatus(cg({ level: "smooth", label: "여유", available: null }))).toEqual({ text: "여유", kind: "available" });
+  expect(raStatus(cg({ level: "jammed", label: "만석", available: 0 }))).toEqual({ text: "만석", kind: "full" });
+  expect(raStatus(cg({ level: "unavailable", label: "이용 불가" }))).toEqual({ text: "이용 불가", kind: "unavailable" });
+  expect(raStatus(cg({ level: "unknown", label: "정보 없음" }))).toEqual({ text: "정보 없음", kind: "unavailable" });
+  expect(raStatus(undefined)).toEqual({ text: "정보 없음", kind: "unavailable" });
+});
+
+test("raAriaLabel: 이름 + 상태 단어 + 빈 대수 문구", () => {
+  expect(raAriaLabel("기흥휴게소", cg({ level: "busy", label: "혼잡", available: 1 }))).toBe(
+    "기흥휴게소 혼잡 빈 충전기 1대",
+  );
+  expect(raAriaLabel("양산휴게소", cg({ level: "jammed", label: "만석", available: 0 }))).toBe(
+    "양산휴게소 만석 빈 충전기 0대",
+  );
+  expect(raAriaLabel("안성휴게소", cg({ level: "unavailable", label: "이용 불가", available: 0 }))).toBe(
+    "안성휴게소 이용 불가",
+  );
+  expect(raAriaLabel("망향휴게소", cg({ level: "unknown", label: "정보 없음" }))).toBe("망향휴게소 정보 없음");
+  expect(raAriaLabel("망향휴게소", undefined)).toBe("망향휴게소 정보 없음");
 });

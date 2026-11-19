@@ -81,6 +81,22 @@ export default function RestAreaPage() {
     [id, maxMinutes],
   );
 
+  // 넓혀 찾기: 누를 때마다 실제로 받는다(이미 30분이면 다시 받기). 실패하면 알리고 버튼은 그대로 둔다
+  const { openToast } = useToast();
+  const widenPending = useRef(false);
+  const onWiden = () => {
+    logClick("rest_area_widen_range");
+    widenPending.current = true;
+    if (maxMinutes === 30) bypass.reload();
+    else setMaxMinutes(30);
+  };
+  const { loading, error } = bypass;
+  useEffect(() => {
+    if (loading || !widenPending.current) return;
+    widenPending.current = false;
+    if (error) openToast("넓혀서 찾지 못했어요. 잠시 후 다시 시도해 주세요");
+  }, [loading, error, openToast]);
+
   useEffect(() => {
     if (!valid) return;
     logScreen("rest_area", { rest_area_id: id });
@@ -95,6 +111,7 @@ export default function RestAreaPage() {
   if (bypass.error && !bypass.data) {
     return (
       <main className="page">
+        <h1 className="sr-only">휴게소 충전 정보</h1>
         <ErrorState error={bypass.error} onRetry={bypass.reload} />
       </main>
     );
@@ -117,11 +134,8 @@ export default function RestAreaPage() {
       key={id}
       data={bypass.data.d}
       maxMinutes={bypass.data.m}
-      widening={bypass.loading && bypass.data.m !== maxMinutes}
-      onWiden={() => {
-        logClick("rest_area_widen_range");
-        setMaxMinutes(30);
-      }}
+      widening={bypass.loading && widenPending.current}
+      onWiden={onWiden}
     />
   );
 }
@@ -644,8 +658,11 @@ function RestAreaView({
   });
 
   const verdictBox = (
-    <div className={`verdict verdict--${raLabel.kind}`} role="status">
-      <p className="verdict__text">{peek.verdict}</p>
+    <div className={`verdict verdict--${raLabel.kind}`}>
+      {/* 판정 문장이 바뀔 때만 읽힌다(60초 갱신마다 다시 읽지 않게, 갱신 시각 줄은 영역 밖) */}
+      <p className="verdict__text" aria-live="polite">
+        {peek.verdict}
+      </p>
       {statusDetail && <p className="verdict__detail">{statusDetail}</p>}
     </div>
   );

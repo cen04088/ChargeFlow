@@ -28,7 +28,9 @@ import { directionLabel, shortAvailability, shortName } from "../lib/format";
 import {
   listedRestAreas,
   loadLastHighway,
+  raAriaLabel,
   raPin,
+  raStatus,
   saveLastHighway,
 } from "../lib/highway";
 import { findHighwayStart } from "../lib/highwayLocate";
@@ -36,7 +38,12 @@ import { loadHighways, useHighways } from "../lib/store";
 import { getLocation, logClick, logScreen } from "../lib/toss";
 import { useAsync } from "../lib/useAsync";
 import { useElementHeight } from "../lib/useElementHeight";
-import { aheadText, highwayPeek, nextRestArea } from "./highwayState";
+import {
+  aheadText,
+  highwayPeek,
+  nearestRestArea,
+  nextRestArea,
+} from "./highwayState";
 import {
   LOCATE_TIMEOUT_MS,
   canUseMapLayout,
@@ -56,6 +63,39 @@ const FOOTNOTE =
 
 type From = "pin" | "peek" | "list";
 
+/** 고속도로 화면으로 넘기는 router state */
+interface NavState {
+  /** 이미 받은 내 위치 */
+  me?: Point;
+  /** 이 노선·방향이 이용자가 가는 방향이다(위치로 고를 때 direction_matched) */
+  travel?: { code: string; dir: Direction };
+  /** 홈에서 왔다 — "주변 충전소"는 새로 쌓지 않고 뒤로 간다 */
+  from?: "home";
+}
+
+function navState(state: unknown): NavState {
+  return (state as NavState | null) ?? {};
+}
+
+/** 홈으로: 홈에서 왔으면 뒤로(기록이 쌓이지 않게), 아니면 새로 연다 */
+function HomeLink({ from }: { from?: "home" }) {
+  const navigate = useNavigate();
+  return (
+    <Link
+      to="/"
+      state={{ from: "highway" }}
+      className="nearby-ctrl nearby-ctrl--highway press"
+      onClick={(e) => {
+        if (from !== "home") return;
+        e.preventDefault();
+        navigate(-1);
+      }}
+    >
+      주변 충전소
+    </Link>
+  );
+}
+
 /** /highways(노선 정하기)와 /highway/:code(노선 지도)가 같은 화면을 쓴다 */
 export default function HighwayPage() {
   const { code } = useParams();
@@ -65,6 +105,7 @@ export default function HighwayPage() {
 /** 노선 고르기 시트와 그 동작(노선 바꾸기, 내 위치로 찾기, 즐겨찾기·최근 열기) */
 function usePicker(current?: { code: string; dir: Direction }) {
   const navigate = useNavigate();
+  const from = navState(useLocation().state).from;
   const highways = useHighways();
   const { openToast } = useToast();
   const [open, setOpen] = useState(false);
@@ -82,14 +123,17 @@ function usePicker(current?: { code: string; dir: Direction }) {
     dir: Direction,
     by: "auto" | "sheet",
     me?: Point | null,
+    matched = false,
   ) => {
     logClick("highway_pick", { highway: code, by });
     setOpen(false);
-    // 노선·방향 바꾸기는 뒤로가기 기록을 쌓지 않는다
-    navigate(`/highway/${code}?dir=${dir}`, {
-      replace: true,
-      state: me ? { me } : undefined,
-    });
+    // 노선·방향 바꾸기는 뒤로가기 기록을 쌓지 않는다. 직접 고르면 가는 방향(travel)이 아니다
+    const state: NavState = {
+      me: me ?? undefined,
+      travel: matched ? { code, dir } : undefined,
+      from,
+    };
+    navigate(`/highway/${code}?dir=${dir}`, { replace: true, state });
   };
 
   const pickHighway = (code: string) => {
@@ -109,19 +153,28 @@ function usePicker(current?: { code: string; dir: Direction }) {
     logClick("home_find_nearby");
     locatingRef.current = true;
     setLocating(true);
+    const signal = alive.current.signal;
     let codes: string[] = [];
     try {
       codes = (await loadHighways()).map((h) => h.code);
     } catch {
-      /* 노선 목록이 없으면 고를 수 없다 — 아래에서 안내 */
+      /* 아래에서 안내 */
     }
-    const signal = alive.current.signal;
+    if (signal.aborted) return;
+    if (codes.length === 0) {
+      // 노선 목록을 아직 못 받았다 — 위치로 고를 수 없다
+      locatingRef.current = false;
+      setLocating(false);
+      openToast("잠시 후 다시 시도해 주세요");
+      return;
+    }
     const r = await findHighwayStart({ last: null, codes, signal });
     if (signal.aborted) return;
     locatingRef.current = false;
     setLocating(false);
+    if (r.me) logClick("home_nearby_result", { matched: r.matched ? 1 : 0 });
     if (r.start.by === "auto") {
-      go(r.start.code, r.start.dir, "auto", r.me);
+      go(r.start.code, r.start.dir, "auto", r.me, r.matched);
       return;
     }
     openToast(
@@ -153,13 +206,16 @@ function usePicker(current?: { code: string; dir: Direction }) {
       locating={locating}
     />
   );
-  return { open, setOpen, sheet, go, highways };
+  return { open, setOpen, sheet, go, highways, from };
 }
 
 /** /highways: 위치(20km) → 마지막 노선 → 노선 고르기 시트 순서로 노선을 정한다 */
 function StartView() {
   const picker = usePicker();
   const [phase, setPhase] = useState<"deciding" | "sheet">("deciding");
+  /** 위치를 못 받은 이유 — 노선 고르기 안내에 한 줄 붙인다 */
+  const [failure, setFailure] = useState<"denied" | "failed" | null>(null);
+  const from = picker.from;
   const openRef = useRef(picker.open);
   openRef.current = picker.open;
   const goRef = useRef(picker.go);
@@ -190,6 +246,7 @@ function StartView() {
         signal: c.signal,
       });
       if (c.signal.aborted) return;
+      setFailure(r.failure ?? null);
       // 기다리는 사이 이용자가 직접 노선 고르기를 열었으면 그쪽을 따른다
       if (openRef.current) {
         setPhase("sheet");
@@ -197,17 +254,18 @@ function StartView() {
       }
       if (r.start.by === "sheet") return toSheet();
       if (r.start.by === "auto") {
-        goRef.current(r.start.code, r.start.dir, "auto", r.me);
+        goRef.current(r.start.code, r.start.dir, "auto", r.me, r.matched);
         return;
       }
       logClick("highway_pick", { highway: r.start.code, by: "last" });
+      const state: NavState = { me: r.me ?? undefined, from };
       navigate(`/highway/${r.start.code}?dir=${r.start.dir}`, {
         replace: true,
-        state: r.me ? { me: r.me } : undefined,
+        state,
       });
     })();
     return () => c.abort();
-  }, [navigate, setOpen]);
+  }, [navigate, setOpen, from]);
 
   return (
     <main className="page">
@@ -225,12 +283,7 @@ function StartView() {
           >
             고속도로 고르기
           </Button>
-          <Link
-            to="/"
-            className="nearby-ctrl nearby-ctrl--highway press"
-          >
-            주변 충전소
-          </Link>
+          <HomeLink from={from} />
         </div>
       </div>
       <div className="nearby-body">
@@ -244,6 +297,13 @@ function StartView() {
         ) : (
           <section className="highway-start" aria-labelledby="highway-start-title">
             <h2 id="highway-start-title">어느 고속도로로 가세요?</h2>
+            {failure && (
+              <p>
+                {failure === "denied"
+                  ? "위치 권한이 없어도 고속도로를 골라 찾을 수 있어요"
+                  : "현재 위치를 찾지 못했어요. 고속도로를 골라 주세요"}
+              </p>
+            )}
             <p>
               고속도로를 고르면 지도에 휴게소와 빈 충전기 수를 보여 드려요.
             </p>
@@ -291,13 +351,17 @@ function SwapIcon() {
 function RouteView({ code }: { code: string }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const navMe = (location.state as { me?: Point } | null)?.me ?? null;
+  const nav = navState(location.state);
+  const navMe = nav.me ?? null;
   const [params, setParams] = useSearchParams();
   const dir: Direction = params.get("dir") === "UP" ? "UP" : "DOWN";
   const picker = usePicker({ code, dir });
   const highways = picker.highways;
   const hw = highways.data?.find((h) => h.code === code);
   const dirLabel = directionLabel(highways.data, code, dir);
+  /** 이 노선·방향이 이용자가 가는 방향인지 — 위치로 고른 방향(direction_matched)일 때만.
+   *  방향을 바꾸거나 직접 고르거나 마지막 노선으로 왔으면 false("다음 휴게소 · 앞"이라고 하지 않는다) */
+  const travel = nav.travel?.code === code && nav.travel.dir === dir;
   const otherDir: Direction = dir === "DOWN" ? "UP" : "DOWN";
   const { openToast } = useToast();
   const toastRef = useRef(openToast);
@@ -400,8 +464,12 @@ function RouteView({ code }: { code: string }) {
   }, []);
 
   const ras = useMemo(() => listedRestAreas(current?.nodes ?? []), [current]);
-  const next = useMemo(() => nextRestArea({ nodes: ras, me }), [ras, me]);
+  const geoNext = useMemo(() => nextRestArea({ nodes: ras, me }), [ras, me]);
+  /** 가는 방향일 때만 "다음 휴게소" */
+  const next = travel ? geoNext : null;
   const nextIdx = next ? ras.findIndex((n) => n.id === next.id) : -1;
+  const near = useMemo(() => nearestRestArea({ nodes: ras, me }), [ras, me]);
+  const nearIdx = near ? ras.findIndex((n) => n.id === near.id) : -1;
   /** 내 위치를 기점부터 거리로(다음 휴게소까지 직선거리를 뺀 값) */
   const meKm =
     nextIdx >= 0 && next
@@ -431,14 +499,19 @@ function RouteView({ code }: { code: string }) {
 
   const switchDirection = () => {
     logClick("highway_direction", { direction: otherDir });
-    setParams({ dir: otherDir }, { replace: true, state: location.state });
+    // 방향을 바꾸면 가는 방향이 아니다(travel을 뺀다)
+    const state: NavState = { me: me ?? undefined, from: nav.from };
+    setParams({ dir: otherDir }, { replace: true, state });
   };
 
   const indexOf = (n: HighwayNode) => ras.indexOf(n);
+  /** "약 Nkm 앞"은 가는 방향일 때만(meKm은 next가 있을 때만 있다), 아니면 기점부터 거리 */
   const caption = (n: HighwayNode) => {
     const i = indexOf(n);
     const ahead = aheadText(n, meKm != null && i >= nextIdx ? meKm : null);
-    return i === nextIdx ? `다음 휴게소 · ${ahead}` : ahead;
+    if (i === nextIdx) return `다음 휴게소 · ${ahead}`;
+    if (nextIdx < 0 && i === nearIdx) return `가까운 휴게소 · ${ahead}`;
+    return ahead;
   };
   const pinOf = (n: HighwayNode) =>
     n.congestion
@@ -446,7 +519,8 @@ function RouteView({ code }: { code: string }) {
       : { text: "정보 없음", kind: "unavailable" as const };
 
   const row = (n: HighwayNode, from: From) => {
-    const p = pinOf(n);
+    // 상태 단어 + 빈 대수("혼잡 · 1대") — 색만으로 상태를 가르지 않는다
+    const p = raStatus(n.congestion);
     return (
       <ListRow
         as="div"
@@ -570,12 +644,7 @@ function RouteView({ code }: { code: string }) {
             <SwapIcon />
           </span>
         </Button>
-        <Link
-          to="/"
-          className="nearby-ctrl nearby-ctrl--highway press"
-        >
-          주변 충전소
-        </Link>
+        <HomeLink from={nav.from} />
       </div>
     </div>
   );
@@ -603,7 +672,14 @@ function RouteView({ code }: { code: string }) {
     );
   }
 
-  const peek = highwayPeek({ nodes: ras, next, directionLabel: dirLabel, loading });
+  const peek = highwayPeek({
+    nodes: ras,
+    next: geoNext,
+    near,
+    travel,
+    directionLabel: dirLabel,
+    loading,
+  });
   const peekContent =
     peek.kind === "message" ? (
       <div className="nearby-peek">
@@ -630,35 +706,46 @@ function RouteView({ code }: { code: string }) {
       </div>
     );
 
+  /** 강조할 휴게소: 다음 휴게소, 없으면(가는 방향을 모름) 가까운 휴게소 */
+  const focusIdx = nextIdx >= 0 ? nextIdx : nearIdx;
   const pins: RoutePin[] = ras.map((n, i) => {
     const p = pinOf(n);
-    const isNext = i === nextIdx;
+    const role =
+      i === nextIdx ? ", 다음 휴게소" : i === focusIdx ? ", 가까운 휴게소" : "";
     return {
       id: n.id,
       lat: +n.latitude,
       lng: +n.longitude,
       text: p.text,
       kind: p.kind,
-      ariaLabel: `${shortName(n.name)} ${p.text}${isNext ? ", 다음 휴게소" : ""}`,
-      // 다음 휴게소 > 그 뒤 가는 순서 > 지나온 곳(가까운 순)
+      ariaLabel: raAriaLabel(shortName(n.name), n.congestion) + role,
+      // 다음 휴게소 > 그 뒤 가는 순서 > 지나온 곳. 가는 방향을 모르면 가까운 휴게소에서 가까운 순
       priority:
-        nextIdx < 0 ? i : i >= nextIdx ? i - nextIdx : 1000 + (nextIdx - i),
-      emphasized: isNext,
+        nextIdx >= 0
+          ? i >= nextIdx
+            ? i - nextIdx
+            : 1000 + (nextIdx - i)
+          : nearIdx >= 0
+            ? Math.abs(i - nearIdx)
+            : i,
+      emphasized: i === focusIdx,
     };
   });
-  const path = (current?.nodes ?? []).map((n) => ({
+  const at = (n: { latitude: string; longitude: string }) => ({
     lat: +n.latitude,
     lng: +n.longitude,
-  }));
+  });
+  const path = (current?.nodes ?? []).map(at);
+  // 가는 방향: 내 위치 + 다음 휴게소 두 곳. 노선 가까이: 내 위치 + 가까운 휴게소.
+  // 아니면 노선 전체(+ "내 위치"를 눌렀으면 내 위치도 화면에 들어오게)
   const fit =
-    next && me
-      ? [
-          me,
-          ...ras
-            .slice(nextIdx, nextIdx + 2)
-            .map((n) => ({ lat: +n.latitude, lng: +n.longitude })),
-        ]
-      : path;
+    me && nextIdx >= 0
+      ? [me, ...ras.slice(nextIdx, nextIdx + 2).map(at)]
+      : me && nearIdx >= 0
+        ? [me, at(ras[nearIdx])]
+        : me && fitNonce > 0 && path.length > 0
+          ? [...path, me]
+          : path;
 
   const { showMe } = floatButtons({
     space: floatSpace,
@@ -678,7 +765,7 @@ function RouteView({ code }: { code: string }) {
           me={me}
           fit={fit}
           fitKey={`${key}|${fitNonce}`}
-          softFitKey={next ? "me" : "route"}
+          softFitKey={nextIdx >= 0 ? "next" : nearIdx >= 0 ? "near" : "route"}
           focusId={null}
           topInset={0}
           bottomInset={peekH}

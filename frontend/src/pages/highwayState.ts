@@ -74,24 +74,50 @@ export function nextRestArea(input: {
   return { id: nodes[pick].id, aheadKm: roundKm(d[pick]) };
 }
 
+/** 가는 방향과 상관없이 가장 가까운 휴게소(20km 안). 노선에서 멀면 null */
+export function nearestRestArea(input: {
+  nodes: HighwayNode[];
+  me: Point | null;
+}): { id: number; km: number } | null {
+  const { nodes, me } = input;
+  if (!me || nodes.length === 0) return null;
+  let best: { id: number; km: number } | null = null;
+  for (const n of nodes) {
+    const km = distanceKm(me, at(n));
+    if (!best || km < best.km) best = { id: n.id, km };
+  }
+  if (!best || best.km > AUTO_PICK_KM) return null;
+  return { id: best.id, km: roundKm(best.km) };
+}
+
 export type HighwayPeek =
   | { kind: "next"; label: string; node: HighwayNode; more: number; moreLabel: string }
+  | { kind: "near"; label: string; node: HighwayNode; more: number; moreLabel: string }
   | { kind: "first"; label: string; node: HighwayNode; more: number; moreLabel: string }
   | { kind: "message"; title: string };
 
-/** 고속도로 화면의 접힌 시트: 다음 휴게소(노선 위일 때) 또는 이 방향 첫 휴게소, 아니면 안내 한 줄 */
+/**
+ * 고속도로 화면의 접힌 시트.
+ * - 이 방향이 이용자가 가는 방향(travel)이고 다음 휴게소가 있으면 "다음 휴게소 · 약 Nkm 앞"
+ * - 아니면(방향을 바꿨거나, 정차 중 자동 선택, 마지막 노선 등) 노선 가까이 있을 때 "{방향} 가까운 휴게소"
+ *   — 앞뒤를 모르므로 "앞"이라고 하지 않는다
+ * - 위치가 없거나 노선에서 멀면 "{방향} 첫 휴게소"
+ */
 export function highwayPeek(input: {
   nodes: HighwayNode[];
   next: { id: number; aheadKm: number } | null;
+  near: { id: number; km: number } | null;
+  travel: boolean;
   directionLabel: string;
   loading: boolean;
 }): HighwayPeek {
-  const { nodes, next, directionLabel, loading } = input;
+  const { nodes, next, near, travel, directionLabel, loading } = input;
   if (loading) return { kind: "message", title: "휴게소를 불러오고 있어요" };
   if (nodes.length === 0) {
     return { kind: "message", title: "이 방향에 충전소가 있는 휴게소가 없어요" };
   }
-  const k = next ? nodes.findIndex((n) => n.id === next.id) : -1;
+  const all = { more: nodes.length - 1, moreLabel: `휴게소 ${nodes.length}곳 보기` };
+  const k = travel && next ? nodes.findIndex((n) => n.id === next.id) : -1;
   if (next && k >= 0) {
     const more = nodes.length - k - 1;
     return {
@@ -102,13 +128,11 @@ export function highwayPeek(input: {
       moreLabel: `이후 휴게소 ${more}곳 보기`,
     };
   }
-  return {
-    kind: "first",
-    label: `${directionLabel} 첫 휴게소`,
-    node: nodes[0],
-    more: nodes.length - 1,
-    moreLabel: `휴게소 ${nodes.length}곳 보기`,
-  };
+  const nearNode = near ? nodes.find((n) => n.id === near.id) : undefined;
+  if (nearNode) {
+    return { kind: "near", label: `${directionLabel} 가까운 휴게소`, node: nearNode, ...all };
+  }
+  return { kind: "first", label: `${directionLabel} 첫 휴게소`, node: nodes[0], ...all };
 }
 
 /**

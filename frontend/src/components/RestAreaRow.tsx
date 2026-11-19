@@ -1,7 +1,7 @@
 import { ListRow } from "@toss/tds-mobile";
 
 import type { Congestion } from "../api/types";
-import { CongestionNote } from "./Congestion";
+import { raStatus } from "../lib/highway";
 
 interface Props {
   name: string;
@@ -11,7 +11,9 @@ interface Props {
   onClick: () => void;
 }
 
+/** 휴게소 한 줄: 오른쪽에 상태 단어 + 빈 대수("혼잡 · 1대"), 색은 지도 핀과 같은 상태색 */
 export function RestAreaRow({ name, caption, congestion, onClick }: Props) {
+  const status = raStatus(congestion);
   return (
     <ListRow
       contents={
@@ -21,7 +23,11 @@ export function RestAreaRow({ name, caption, congestion, onClick }: Props) {
           <ListRow.Texts type="1RowTypeA" top={name} />
         )
       }
-      right={<CongestionNote congestion={congestion} />}
+      right={
+        <span className={`nearby-row__count nearby-row__count--${status.kind}`}>
+          {status.text}
+        </span>
+      }
       arrowType="right"
       onClick={onClick}
     />

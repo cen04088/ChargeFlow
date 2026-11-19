@@ -7,7 +7,7 @@ import {
   useToast,
 } from "@toss/tds-mobile";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { ApiError, api } from "../api/client";
 import type { NearbyStation, NearbyStationsResponse } from "../api/types";
@@ -68,6 +68,9 @@ export default function NearbyPage() {
   const toastRef = useRef(openToast);
   toastRef.current = openToast;
   const [connector] = useConnector();
+  const navigate = useNavigate();
+  const cameFromHighway =
+    (useLocation().state as { from?: string } | null)?.from === "highway";
 
   /** 지도 중심 — 내 위치를 받았거나 지역을 골랐을 때만 바뀐다 */
   const [center, setCenter] = useState<Point | null>(null);
@@ -649,9 +652,17 @@ export default function NearbyPage() {
           </Button>
           <Link
             to="/highways"
+            state={{ from: "home" }}
             className="nearby-ctrl nearby-ctrl--highway press"
             aria-label="고속도로 휴게소"
-            onClick={() => logClick("nearby_open_highway")}
+            onClick={(e) => {
+              logClick("nearby_open_highway");
+              // 고속도로 화면에서 "주변 충전소"로 왔으면 뒤로 간다(홈 ↔ 고속도로 기록이 쌓이지 않게)
+              if (cameFromHighway) {
+                e.preventDefault();
+                navigate(-1);
+              }
+            }}
           >
             고속도로
           </Link>

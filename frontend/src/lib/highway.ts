@@ -36,6 +36,39 @@ export function raPin(c: Congestion): { text: string; kind: PinKind } {
   }
 }
 
+/**
+ * 목록 줄 오른쪽 글자: 상태 단어 + 빈 대수("혼잡 · 1대", "여유 · 3대", "만석", "이용 불가", "정보 없음").
+ * 색만으로 상태를 가르지 않도록 단어를 함께 쓴다. 색(kind)은 핀과 같다.
+ */
+export function raStatus(c: Congestion | undefined): { text: string; kind: PinKind } {
+  if (!c) return { text: "정보 없음", kind: "unavailable" };
+  const { kind } = raPin(c);
+  switch (c.level) {
+    case "smooth":
+    case "normal":
+    case "busy":
+      return {
+        text: c.available == null ? c.label : `${c.label} · ${c.available}대`,
+        kind,
+      };
+    case "jammed":
+      return { text: "만석", kind };
+    case "unavailable":
+      return { text: "이용 불가", kind };
+    default:
+      return { text: "정보 없음", kind };
+  }
+}
+
+/** 휴게소 핀·줄의 화면낭독기 이름: "{이름} {상태 단어} {빈 대수 문구}" */
+export function raAriaLabel(name: string, c: Congestion | undefined): string {
+  if (!c || c.level === "unknown") return `${name} 정보 없음`;
+  if (c.level === "unavailable") return `${name} ${c.label}`;
+  return c.available == null
+    ? `${name} ${c.label}`
+    : `${name} ${c.label} 빈 충전기 ${c.available}대`;
+}
+
 /** 충전기가 있는 휴게소인지: 충전기 수를 알거나 상태를 안다 */
 export function hasChargers(c: Congestion | undefined): boolean {
   if (!c) return false;

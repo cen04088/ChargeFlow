@@ -8,7 +8,6 @@ import { ErrorState } from "./ErrorState";
 import { RestAreaRow } from "./RestAreaRow";
 import { SheetHeading } from "./SheetHeading";
 
-const MAX_FAVORITES = 5;
 const MAX_RECENT = 3;
 
 interface Props {
@@ -58,7 +57,8 @@ export function HighwayPickerSheet({
       alive = false;
     };
   }, [open]);
-  const favorites = (data?.favorites ?? []).slice(0, MAX_FAVORITES);
+  // 즐겨찾기는 모두(시트가 스크롤된다), 최근은 3곳까지
+  const favorites = data?.favorites ?? [];
   const favoriteIds = new Set((data?.favorites ?? []).map((r) => r.ra_node_id));
   const recent = (data?.recent ?? [])
     .filter((r) => !favoriteIds.has(r.ra_node_id))
