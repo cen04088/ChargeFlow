@@ -19,7 +19,6 @@ import {
 } from "../components/NearbyListSheet";
 import { NearbyMap } from "../components/NearbyMap";
 import { NearbySheet } from "../components/NearbySheet";
-import { PageHeading } from "../components/PageHeading";
 import { SheetHeading } from "../components/SheetHeading";
 import {
   REGIONS,
@@ -618,10 +617,8 @@ export default function NearbyPage() {
   return (
     <main className={mapLayout ? "page page--map" : "page"}>
       <div className="nearby-intro">
-        <PageHeading
-          title="주변 급속충전소"
-          description="지금 비어 있는 충전기를 찾아요."
-        />
+        {/* 제목은 화면낭독기에만 — 보이는 상단은 버튼 줄 하나다 */}
+        <h1 className="sr-only">주변 급속충전소</h1>
         <div
           className="nearby-controls"
           aria-label="충전소 검색 설정"

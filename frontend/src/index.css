@@ -89,6 +89,19 @@ body {
   padding-bottom: 0;
 }
 
+/* 보이지 않지만 화면낭독기는 읽는다 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .tf {
   font-family: "Tossface";
   font-style: normal;
@@ -962,12 +975,9 @@ html body {
 }
 
 /* ── 내 주변 충전소 홈 ─────────────────────────────────── */
+/* 상단은 버튼 줄 하나. 위 여백은 플랫폼 상단 바 아래 기준(safe area가 있으면 그만큼 더) */
 .nearby-intro {
-  padding-bottom: 20px;
-}
-
-.nearby-intro .page-heading {
-  padding-bottom: 16px;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 0 12px;
 }
 
 .nearby-controls {
