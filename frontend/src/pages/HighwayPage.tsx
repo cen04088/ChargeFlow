@@ -224,7 +224,7 @@ function usePicker(current?: { code: string; dir: Direction }) {
   return { open, setOpen, sheet, go, highways, from };
 }
 
-/** /highways: 위치(20km) → 마지막 노선 → 노선 고르기 시트 순서로 노선을 정한다 */
+/** /highways: 위치(20km 안의 휴게소)로 노선을 정하고, 못 정하면 노선 고르기 시트를 연다 */
 function StartView() {
   const picker = usePicker();
   const [phase, setPhase] = useState<"deciding" | "sheet">("deciding");
@@ -256,7 +256,8 @@ function StartView() {
       };
       if (codes.length === 0) return toSheet();
       const r = await findHighwayStart({
-        last: loadLastHighway(),
+        // 지난번에 본 노선으로 바로 들어가지 않는다 — 위치로 못 정하면 이용자가 직접 고른다
+        last: null,
         codes,
         signal: c.signal,
       });

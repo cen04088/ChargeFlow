@@ -187,6 +187,7 @@ body {
 .best-card__actions button,
 .nearby-regions__locate button,
 .nearby-message__action button,
+.charge-settings__done button,
 .section-pad--tight button {
   border-radius: 12px;
 }
@@ -944,6 +945,22 @@ html body {
     width: 44px;
     height: 44px;
   }
+}
+
+/* 충전 설정 시트: 규격 + 속도 */
+.charge-settings__title {
+  margin: 0 0 10px;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.charge-settings__title:not(:first-child) {
+  margin-top: 24px;
+}
+
+.charge-settings__done {
+  margin-top: 28px;
 }
 
 /* 주소·장소 검색 */

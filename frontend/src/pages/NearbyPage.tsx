@@ -1,8 +1,9 @@
 import {
   BottomSheet,
   Button,
+  Chip,
+  ChipItem,
   ListRow,
-  SegmentedControl,
   Skeleton,
   useToast,
 } from "@toss/tds-mobile";
@@ -29,11 +30,15 @@ import {
   rowCaption,
   saveLastLocation,
   summaryText,
-  type PinMode,
   type Region,
 } from "../lib/nearby";
 import type { Place } from "../lib/placeSearch";
-import { connectorName, useConnector } from "../lib/store";
+import {
+  MIN_POWER_OPTIONS,
+  connectorName,
+  useConnector,
+  useMinPower,
+} from "../lib/store";
 import { useElementHeight } from "../lib/useElementHeight";
 import { getLocation, logClick, logScreen } from "../lib/toss";
 import {
@@ -72,6 +77,7 @@ export default function NearbyPage() {
   const toastRef = useRef(openToast);
   toastRef.current = openToast;
   const [connector] = useConnector();
+  const [minKw] = useMinPower();
   const navigate = useNavigate();
   const location = useLocation();
   const cameFromHighway =
@@ -101,7 +107,6 @@ export default function NearbyPage() {
   const [listOpen, setListOpen] = useState(false);
   /** 접힌 목록 시트 높이 — 지도 위 버튼과 범위 맞춤 여백을 그만큼 올린다 */
   const [peekH, setPeekH] = useState(0);
-  const [pinMode, setPinMode] = useState<PinMode>("count");
   /** 웹뷰 높이 — 낮으면(가로 화면 등) 지도 시트 대신 쌓인 배치 */
   const [viewportH, setViewportH] = useState(() => window.innerHeight);
   const handleRef = useRef<HTMLButtonElement>(null);
@@ -117,6 +122,8 @@ export default function NearbyPage() {
   const originRef = useRef<Point | null>(null);
   const connectorRef = useRef(connector);
   connectorRef.current = connector;
+  const minKwRef = useRef(minKw);
+  minKwRef.current = minKw;
   const hasResult = useRef(false);
   const searchSeq = useRef(0);
   const locSeq = useRef(0);
@@ -135,8 +142,18 @@ export default function NearbyPage() {
       setError(null);
     }
     try {
-      const r = await api.nearbyStations(p.lat, p.lng, connectorRef.current);
+      const kw = minKwRef.current;
+      const raw = await api.nearbyStations(
+        p.lat,
+        p.lng,
+        connectorRef.current,
+        kw,
+      );
       if (id !== searchSeq.current) return;
+      // 서버가 출력 조건을 모르는 버전이어도 화면에는 조건에 맞는 곳만 보인다
+      const r = kw
+        ? { ...raw, stations: raw.stations.filter((s) => s.power_kw >= kw) }
+        : raw;
       hasResult.current = true;
       setResult(r);
       setError(null);
@@ -246,17 +263,18 @@ export default function NearbyPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 충전 규격이 바뀌면 같은 기준점으로 다시 찾는다
-  const prevConnector = useRef(connector);
+  // 충전 규격이나 최소 출력이 바뀌면 같은 기준점으로 다시 찾는다
+  const prevFilter = useRef(`${connector}|${minKw}`);
   useEffect(() => {
-    if (prevConnector.current === connector) return;
-    prevConnector.current = connector;
+    const key = `${connector}|${minKw}`;
+    if (prevFilter.current === key) return;
+    prevFilter.current = key;
     const p = originRef.current;
     if (p) {
       setExpanded(false);
       void search(p);
     }
-  }, [connector, search]);
+  }, [connector, minKw, search]);
 
   // 화면이 보이는 동안 60초마다 조용히 새로 받는다
   useEffect(() => {
@@ -338,12 +356,6 @@ export default function NearbyPage() {
     logClick("nearby_more");
     toggleList(true, "button");
     requestAnimationFrame(() => handleRef.current?.focus({ preventScroll: true }));
-  };
-
-  const changePinMode = (v: string) => {
-    const mode: PinMode = v === "power" ? "power" : "count";
-    logClick("nearby_pin_mode", { mode });
-    setPinMode(mode);
   };
 
   // 화면 높이(회전·주소창)를 따라간다
@@ -682,9 +694,18 @@ export default function NearbyPage() {
           </button>
           <button
             type="button"
-            className={connector ? "icon-btn icon-btn--on press" : "icon-btn press"}
+            className={
+              connector || minKw ? "icon-btn icon-btn--on press" : "icon-btn press"
+            }
             aria-label={
-              connector ? `충전 규격: ${connectorName(connector)}` : "충전 규격 고르기"
+              connector || minKw
+                ? `충전 설정: ${[
+                    connector ? connectorName(connector) : "",
+                    minKw ? `${minKw}kW 이상` : "",
+                  ]
+                    .filter(Boolean)
+                    .join(", ")}`
+                : "충전 규격과 속도 고르기"
             }
             aria-haspopup="dialog"
             onClick={openPicker}
@@ -716,7 +737,7 @@ export default function NearbyPage() {
             me={me}
             stations={stations}
             focusId={liveSheet?.id ?? null}
-            mode={mapLayout ? pinMode : "count"}
+            mode="count"
             bottomInset={mapLayout ? peekH : 0}
             layoutKey={mapLayout ? "sheet" : "stacked"}
             topInset={mapLayout && topRowH > 0 ? MAP_EDGE + topRowH : 0}
@@ -740,26 +761,6 @@ export default function NearbyPage() {
                 {view.kind === "list" && (
                   <p className="nearby-chip glass">{summaryText(stations)}</p>
                 )}
-                <div
-                  className="nearby-mode"
-                  role="group"
-                  aria-label="지도 핀에 보일 정보"
-                >
-                  <SegmentedControl
-                    className="nearby-mode__control"
-                    size="large"
-                    alignment="fixed"
-                    value={pinMode}
-                    onChange={changePinMode}
-                  >
-                    <SegmentedControl.Item value="count">
-                      빈 대수
-                    </SegmentedControl.Item>
-                    <SegmentedControl.Item value="power">
-                      출력
-                    </SegmentedControl.Item>
-                  </SegmentedControl>
-                </div>
               </div>
 
               {/* 위쪽 줄과 접힌 시트 사이에 오른쪽으로 쌓는다. 자리가 모자라면 "내 위치"부터 숨긴다
@@ -924,21 +925,49 @@ function BottomSheetPicker({
   open: boolean;
   onClose: () => void;
 }) {
+  const [minKw, saveMinKw] = useMinPower();
   return (
     <BottomSheet
       open={open}
       onDimmerClick={onClose}
       onClose={onClose}
-      aria-label="내 차 충전 규격"
-      header={<SheetHeading title="내 차 충전 규격" onClose={onClose} />}
+      aria-label="내 차 충전 설정"
+      header={<SheetHeading title="내 차 충전 설정" onClose={onClose} />}
       headerDescription={
         <BottomSheet.HeaderDescription>
           고르면 맞는 충전소만 보여 드려요. 다음에도 기억해요.
         </BottomSheet.HeaderDescription>
       }
     >
-      <div className="sheet-body">
-        <ConnectorPicker onPicked={onClose} />
+      <div className="sheet-body charge-settings">
+        <h3 className="charge-settings__title">충전 규격</h3>
+        <ConnectorPicker />
+        <h3 className="charge-settings__title">충전 속도</h3>
+        <Chip
+          kind="select"
+          size="medium"
+          wrap
+          margin="none"
+          className="touch-chips"
+        >
+          {MIN_POWER_OPTIONS.map((o) => (
+            <ChipItem
+              key={o.value}
+              selected={o.value === minKw}
+              onClick={() => {
+                logClick("min_power_pick", { kw: o.value });
+                saveMinKw(o.value);
+              }}
+            >
+              {o.label}
+            </ChipItem>
+          ))}
+        </Chip>
+        <div className="charge-settings__done">
+          <Button size="large" display="full" onClick={onClose}>
+            확인
+          </Button>
+        </div>
       </div>
     </BottomSheet>
   );

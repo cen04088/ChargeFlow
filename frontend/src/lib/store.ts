@@ -99,3 +99,50 @@ export const CONNECTOR_OPTIONS: { value: Connector; label: string }[] = [
 export function connectorName(c: Connector | string) {
   return CONNECTOR_OPTIONS.find((o) => o.value === c)?.label ?? c;
 }
+
+// ── 최소 충전 출력(이 기기에만 저장) ─────────────────
+export type MinPower = 0 | 100 | 200;
+
+export const MIN_POWER_OPTIONS: { value: MinPower; label: string }[] = [
+  { value: 0, label: "전체" },
+  { value: 100, label: "100kW 이상" },
+  { value: 200, label: "200kW 이상 초급속" },
+];
+
+const MIN_POWER_KEY = "nearby:minKw";
+
+/** 저장된 값을 읽는다. 없거나 깨졌으면 0(전체) */
+export function parseMinPower(raw: string | null): MinPower {
+  return raw === "100" ? 100 : raw === "200" ? 200 : 0;
+}
+
+function readMinPower(): MinPower {
+  try {
+    return parseMinPower(localStorage.getItem(MIN_POWER_KEY));
+  } catch {
+    return 0;
+  }
+}
+
+let minPower: MinPower = readMinPower();
+const minPowerListeners = new Set<() => void>();
+
+export function useMinPower(): [MinPower, (v: MinPower) => void] {
+  const value = useSyncExternalStore(
+    (l) => {
+      minPowerListeners.add(l);
+      return () => minPowerListeners.delete(l);
+    },
+    () => minPower,
+  );
+  const save = (next: MinPower) => {
+    minPower = next;
+    try {
+      localStorage.setItem(MIN_POWER_KEY, String(next));
+    } catch {
+      // 저장 실패는 무시 — 이번 화면에서는 그대로 쓴다
+    }
+    minPowerListeners.forEach((l) => l());
+  };
+  return [value, save];
+}

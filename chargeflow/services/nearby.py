@@ -88,7 +88,7 @@ def _fetch_states(stat_ids, cache):
             cache[stat_id] = found.get(stat_id, [])
 
 
-def _candidates(lat, lng, radius, connector):
+def _candidates(lat, lng, radius, connector, min_kw=0):
     d_lat = radius / KM_PER_DEG_LAT
     d_lng = radius / (KM_PER_DEG_LAT * max(math.cos(math.radians(lat)), 1e-6))
     qs = PublicStation.objects.filter(
@@ -96,6 +96,8 @@ def _candidates(lat, lng, radius, connector):
         latitude__gte=lat - d_lat, latitude__lte=lat + d_lat,
         longitude__gte=lng - d_lng, longitude__lte=lng + d_lng,
     )
+    if min_kw:
+        qs = qs.filter(power_kw__gte=min_kw)
     found = []
     for st in qs:
         if connector:
@@ -108,8 +110,8 @@ def _candidates(lat, lng, radius, connector):
     return found
 
 
-def _scan(lat, lng, radius, connector, now, cache):
-    cands = _candidates(lat, lng, radius, connector)
+def _scan(lat, lng, radius, connector, now, cache, min_kw=0):
+    cands = _candidates(lat, lng, radius, connector, min_kw)
     _fetch_states([st.stat_id for _, st in cands], cache)
     result = []
     for dist, st in cands:
@@ -136,13 +138,13 @@ def _to_dict(dist, st, status):
     }
 
 
-def search_nearby(lat, lng, connector='', now=None):
+def search_nearby(lat, lng, connector='', now=None, min_kw=0):
     now = now or timezone.now()
     cache = {}
     found = []
     radius = RADII_KM[-1]
     for radius in RADII_KM:
-        found = _scan(lat, lng, radius, connector, now, cache)
+        found = _scan(lat, lng, radius, connector, now, cache, min_kw)
         if sum(1 for _, _, s in found if s['state'] == 'available') >= MIN_AVAILABLE_STATIONS:
             break
     found.sort(key=lambda t: t[0])

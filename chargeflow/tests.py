@@ -680,6 +680,20 @@ class NearbyServiceTests(TestCase):
         st = search_nearby(37.25, 127.07, now=NOW)['stations'][0]
         self.assertEqual((st['available'], st['total'], st['state']), (0, 1, 'full'))
 
+    def test_min_kw_keeps_only_faster_stations(self):
+        slow = _station('SLOW', 37.2590, 127.07, [('2', 5, 50)])
+        slow.power_kw = 50
+        slow.save()
+        fast = _station('FAST', 37.2600, 127.07, [('2', 5, 200)])
+        fast.power_kw = 200
+        fast.save()
+
+        def ids(**kw):
+            return [s['stat_id'] for s in search_nearby(37.25, 127.07, now=NOW, **kw)['stations']]
+
+        self.assertEqual(ids(), ['SLOW', 'FAST'])
+        self.assertEqual(ids(min_kw=100), ['FAST'])
+
     def test_radius_stops_at_first_with_three_available(self):
         for i, km in enumerate((1, 2, 3)):
             _station(f'N{i}', 37.25 + 0.009 * km, 127.07, [('2', 5, 100)])

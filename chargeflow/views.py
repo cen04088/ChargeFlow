@@ -249,7 +249,11 @@ class NearbyStationsView(APIView):
         connector = body.get('connector')
         if connector not in ('combo', 'chademo', 'ac3', 'nacs'):
             connector = ''
-        return Response(search_nearby(lat, lng, connector))
+        # 최소 출력(kW): 화면이 주는 값만 받는다. 그 밖의 값은 조건 없음
+        min_kw = body.get('min_kw')
+        if type(min_kw) is not int or min_kw not in (100, 200):
+            min_kw = 0
+        return Response(search_nearby(lat, lng, connector, min_kw=min_kw))
 
 
 # ──────────────────────────────────────────────
