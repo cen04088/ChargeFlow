@@ -25,6 +25,8 @@ interface NearbyListSheetProps {
   onPeekHeight: (px: number) => void;
   /** 손잡이 버튼 — 버튼으로 펼친 뒤 포커스를 옮길 곳 */
   handleRef?: Ref<HTMLButtonElement>;
+  /** 시트 영역 이름(화면낭독기) */
+  label?: string;
 }
 
 /** 펼친 높이: 지도 영역의 85%와 화면 높이의 70% 중 작은 값 */
@@ -56,6 +58,7 @@ export function NearbyListSheet({
   children,
   onPeekHeight,
   handleRef,
+  label = "주변 급속충전소 목록",
 }: NearbyListSheetProps) {
   const sheetRef = useRef<HTMLElement>(null);
   const headRef = useRef<HTMLDivElement>(null);
@@ -229,7 +232,7 @@ export function NearbyListSheet({
     <section
       ref={sheetRef}
       className={`nearby-sheet${dragging ? " nearby-sheet--dragging" : ""}`}
-      aria-label="주변 급속충전소 목록"
+      aria-label={label}
       style={{
         height: height || undefined,
         transform: `translate3d(0, ${y}px, 0)`,
