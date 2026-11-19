@@ -46,7 +46,7 @@ export default function HomePage() {
   const [connector] = useConnector();
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  useEffect(() => logScreen("home"), []);
+  useEffect(() => logScreen("highways"), []);
 
   const findNearby = async () => {
     logClick("home_find_nearby");

@@ -691,3 +691,275 @@ body {
     border: 1px solid #4e5968;
   }
 }
+
+/* ── 내 주변 충전소 홈 ─────────────────────────────────── */
+.nearby-page {
+  display: flex;
+  flex-direction: column;
+}
+
+.nearby-map-wrap {
+  position: relative;
+}
+
+/* 지도 위 요약 칩 (누르는 것이 아니라 읽는 것) */
+.nearby-chip {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  z-index: 2;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--ink);
+  pointer-events: none;
+}
+
+/* 지도 위 버튼: 탭 영역 44px 이상, 글씨 15px */
+.nearby-map-btn {
+  position: absolute;
+  z-index: 2;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+.nearby-map-btn:focus-visible {
+  outline: 2px solid var(--brand-strong);
+  outline-offset: 2px;
+}
+
+.nearby-map-btn--connector {
+  right: 12px;
+  top: 12px;
+}
+
+.nearby-map-btn--me {
+  right: 12px;
+  bottom: 12px;
+  color: var(--sky-strong);
+}
+
+/* "이 위치에서 찾기"는 아래 가운데. 감싼 띠는 지도 조작을 막지 않는다 */
+.nearby-here {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.nearby-map-btn--here {
+  position: static;
+  pointer-events: auto;
+  border: 0;
+  color: #fff;
+  background: var(--brand-strong);
+  box-shadow: 0 4px 16px -6px rgba(0, 23, 51, 0.4);
+}
+
+.nearby-body {
+  padding-top: 8px;
+}
+
+.nearby-list {
+  transition: opacity 200ms ease;
+}
+
+/* 새 기준점으로 찾는 동안 이전 결과를 흐리게 */
+.nearby-list--busy {
+  opacity: 0.5;
+}
+
+.nearby-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nearby-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 14px 24px;
+  border: 0;
+  text-align: left;
+  font: inherit;
+  color: var(--ink);
+  background: none;
+  cursor: pointer;
+}
+
+.nearby-rows li + li .nearby-row {
+  box-shadow: inset 0 1px 0 #eef0f2;
+}
+
+.nearby-row:active {
+  background: var(--canvas);
+}
+
+.nearby-row:focus-visible {
+  outline: 2px solid var(--brand-strong);
+  outline-offset: -2px;
+}
+
+.nearby-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.nearby-row__name {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.nearby-row__caption {
+  font-size: 15px;
+  line-height: 1.45;
+  color: #4e5968;
+}
+
+.nearby-row__count {
+  flex-shrink: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.nearby-message {
+  padding: 12px 24px 8px;
+}
+
+.nearby-message__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.nearby-message__desc {
+  margin: 4px 0 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #4e5968;
+}
+
+/* 지난번 위치로 보여 줄 때 목록 위 작은 안내 */
+.nearby-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin: 8px 24px 4px;
+  padding: 8px 8px 8px 16px;
+  border-radius: 16px;
+  background: var(--canvas);
+}
+
+.nearby-notice__text {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #4e5968;
+}
+
+.nearby-notice__action {
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--brand-strong);
+  background: none;
+  cursor: pointer;
+}
+
+.nearby-time {
+  margin: 0;
+  padding: 12px 24px 8px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #6b7684;
+}
+
+.nearby-regions__head {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 24px 8px;
+}
+
+.nearby-regions__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+
+/* 맨 아래 한 줄: 고속도로 화면으로 (고정하지 않는다) */
+.nearby-bottom {
+  margin-top: auto;
+  padding: 16px 24px calc(34px + env(safe-area-inset-bottom));
+}
+
+.nearby-highway {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 16px 12px 20px;
+  border: 0;
+  border-radius: 16px;
+  text-align: left;
+  font: inherit;
+  color: var(--ink);
+  background: var(--canvas);
+}
+
+.nearby-highway__label {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.nearby-highway__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--brand-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nearby-list {
+    transition: none;
+  }
+}
