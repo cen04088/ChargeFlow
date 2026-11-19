@@ -150,5 +150,5 @@ export function detourSummary(s: BypassStation) {
   const speed = s.power_kw
     ? `${s.power_kw}kW 충전기 ${s.charger_count}대`
     : `급속 충전기 ${s.charger_count}대`;
-  return `우회하면 ${approx}${s.detour_extra_minutes}분 더 걸려요 · ${speed}`;
+  return `우회 ${approx}+${s.detour_extra_minutes}분 · ${speed}`;
 }

@@ -344,17 +344,41 @@ function RestAreaView({
   );
 
   /** 휴게소 충전기 상태 한 줄(빈 대수 / 전체 · 갱신 시각) */
-  const statusDetail = known
-    ? (congestion.total != null && congestion.level !== "unavailable"
-        ? `급속 충전기 ${congestion.total}대 중 ${congestion.available ?? 0}대가 비어 있어요`
-        : availabilityText(congestion)) +
-      (congestion.checked_at ? ` · ${timeAgo(congestion.checked_at)}` : "")
-    : null;
+  /** 펼친 시트 맨 위: 이 휴게소의 충전기 상태 카드(큰 숫자 + 전체 대수 + 확인 시각) */
+  const counted =
+    known && congestion.total != null && congestion.level !== "unavailable";
+  const statusCard = (
+    <div className={`rest-status rest-status--${raLabel.kind}`}>
+      <div className="rest-status__main">
+        <span className="rest-status__label">이 휴게소 급속 충전기</span>
+        <span className="rest-status__value">
+          {counted ? (
+            <>
+              빈 충전기 {congestion.available ?? 0}대
+              <span className="rest-status__total">
+                {" "}
+                / 전체 {congestion.total}대
+              </span>
+            </>
+          ) : known ? (
+            availabilityText(congestion)
+          ) : (
+            "상태를 받지 못했어요"
+          )}
+        </span>
+      </div>
+      {known && congestion.checked_at && (
+        <span className="rest-status__time">
+          {timeAgo(congestion.checked_at)}
+        </span>
+      )}
+    </div>
+  );
 
   /** IC 앞/뒤 탭 → 필터 → 충전소 줄 → 더 보기 (지도 시트의 펼친 본문, 쌓인 배치의 목록) */
   const stationsSection = activeIC ? (
     <section className="flow-section rest-stations">
-      <SectionHeader title="IC 밖 대체 충전소" />
+      <SectionHeader title="IC 밖 충전소" />
       <div className="sticky-bar">
         {ics.length > 1 && (
           <Tab
@@ -364,8 +388,12 @@ function RestAreaView({
             }}
             fluid
           >
-            <Tab.Item selected={tab === "prev"}>휴게소 전 IC</Tab.Item>
-            <Tab.Item selected={tab === "next"}>휴게소 후 IC</Tab.Item>
+            <Tab.Item selected={tab === "prev"}>
+              {data.previous_ic ? `${data.previous_ic.name} (전)` : "휴게소 전 IC"}
+            </Tab.Item>
+            <Tab.Item selected={tab === "next"}>
+              {data.next_ic ? `${data.next_ic.name} (후)` : "휴게소 후 IC"}
+            </Tab.Item>
           </Tab>
         )}
         <div className="filter-row">
@@ -409,8 +437,8 @@ function RestAreaView({
           </Chip>
         </div>
         <div className="filter-caption">
-          <Paragraph typography="t7" color={adaptive.grey600}>
-            {activeIC.name}에서 나가요 · 더 걸리는 시간이 짧은 순
+          <Paragraph typography="t6" color={adaptive.grey600}>
+            {activeIC.name}에서 나가요 · 우회 시간이 짧은 순
           </Paragraph>
         </div>
       </div>
@@ -838,7 +866,7 @@ function RestAreaView({
             setCollapsed(v);
           }}
         >
-          {statusDetail && <p className="rest-body-detail">{statusDetail}</p>}
+          {statusCard}
           {stationsSection}
           {tail}
         </NearbyListSheet>

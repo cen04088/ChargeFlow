@@ -1892,12 +1892,84 @@ html body {
   padding-top: 6px;
 }
 
-.rest-body-detail {
-  margin: 0;
-  padding: 4px var(--gutter) 12px;
+/* 펼친 시트 맨 위의 휴게소 상태 카드 */
+.rest-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 2px var(--gutter) 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #eef0f3;
+}
+
+.rest-status--available {
+  background: #e7f5ee;
+}
+
+.rest-status--full {
+  background: #fff2e3;
+}
+
+.rest-status__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rest-status__label {
   color: var(--muted);
   font-size: 15px;
-  line-height: 1.5;
+  line-height: 1.4;
+}
+
+.rest-status__value {
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.rest-status--available .rest-status__value {
+  color: var(--state-available-strong);
+}
+
+.rest-status--full .rest-status__value {
+  color: var(--state-full-strong);
+}
+
+.rest-status__total {
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.rest-status__time {
+  flex: none;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* 목록 줄: 이름은 굵게 */
+.station-title__name {
+  font-weight: 700;
+}
+
+/* 목록 줄 오른쪽: 실시간 상태를 모르는 충전소 */
+.station-unknown {
+  flex: none;
+  padding: 3px 9px;
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: nowrap;
+  background: #ffd84d;
 }
 
 .rest-peek__label {
