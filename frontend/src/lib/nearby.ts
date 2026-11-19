@@ -186,7 +186,7 @@ export function listRows(
 
 export function summaryText(stations: NearbyStation[]): string {
   const n = stations.filter((s) => s.state === "available").length;
-  return n > 0 ? `급속 · 빈 곳 ${n}곳` : "급속 · 빈 곳 없음";
+  return n > 0 ? `빈 곳 ${n}곳` : "빈 곳 없음";
 }
 
 export interface Region {
