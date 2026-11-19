@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 from io import StringIO
 from unittest import mock
 
@@ -13,7 +13,9 @@ from chargeflow.models import (
     ChargerState, ChargerStatusLog, CongestionNotifySubscription, Highway, HighwayNode,
     HighwayNodeCharger, PollerStatus, PublicStation, StationCongestion, UserRoute,
 )
+from chargeflow.services import ev_api
 from chargeflow.services.congestion import compute_level, recompute_all
+from chargeflow.services.public_catalog import deactivate_missing, is_public_fast, sync_items
 
 
 def item(stat_id, charger_id, stat, upd='20261003120000', zcode='41'):
@@ -358,3 +360,56 @@ class PublicStationModelTests(TestCase):
     def test_charger_state_output_kw_defaults_to_null(self):
         row = ChargerState.objects.create(stat_id='ME000001', charger_id='01', stat='2')
         self.assertIsNone(row.output_kw)
+
+
+NOW = datetime(2026, 11, 19, 12, 0, tzinfo=ev_api.KST)
+
+
+def _item(**over):
+    base = {
+        'statId': 'ME000001', 'chgerId': '01', 'statNm': '영통 공영주차장', 'addr': '경기 수원시',
+        'lat': '37.251', 'lng': '127.071', 'output': '100', 'chgerType': '04', 'stat': '2',
+        'statUpdDt': '20261119120000', 'busiNm': '환경부', 'useTime': '24시간 이용가능',
+        'kind': 'A0', 'kindDetail': 'A001', 'limitYn': 'N', 'delYn': 'N', 'zcode': '41',
+    }
+    base.update(over)
+    return base
+
+
+class PublicCatalogTests(TestCase):
+    def test_is_public_fast_rules(self):
+        self.assertTrue(is_public_fast(_item()))
+        for over in ({'output': '7'}, {'output': ''}, {'limitYn': 'Y'}, {'kind': 'H0'}, {'delYn': 'Y'},
+                     {'kindDetail': 'C001'}, {'statNm': '기흥휴게소(부산)'}, {'lat': '0'}, {'lat': 'abc'}):
+            self.assertFalse(is_public_fast(_item(**over)), over)
+
+    def test_sync_creates_station_and_fast_chargers_only(self):
+        seen = sync_items([_item(chgerId='01', output='100'), _item(chgerId='02', output='200', chgerType='01'),
+                           _item(chgerId='03', output='7', chgerType='02')], NOW)
+        st = PublicStation.objects.get(stat_id='ME000001')
+        self.assertEqual(seen, {'ME000001'})
+        self.assertEqual((st.power_kw, st.charger_count, st.connectors, st.is_active), (200, 2, 'combo,chademo', True))
+        self.assertEqual(set(ChargerState.objects.values_list('charger_id', 'output_kw')), {('01', 100), ('02', 200)})
+
+    def test_sync_fills_output_on_existing_slow_row_without_creating_new(self):
+        ChargerState.objects.create(stat_id='ME000001', charger_id='03', stat='2')
+        sync_items([_item(chgerId='01'), _item(chgerId='03', output='7')], NOW)
+        self.assertEqual(ChargerState.objects.get(charger_id='03').output_kw, 7)
+        self.assertEqual(ChargerState.objects.count(), 2)
+
+    def test_sync_is_idempotent_and_updates_status(self):
+        sync_items([_item(stat='2')], NOW)
+        sync_items([_item(stat='3', statUpdDt='20261119130000', nowTsdt='20261119125000')], NOW)
+        self.assertEqual(PublicStation.objects.count(), 1)
+        row = ChargerState.objects.get(charger_id='01')
+        self.assertEqual(row.stat, '3')
+        self.assertIsNotNone(row.charging_since)
+
+    def test_unknown_stat_becomes_9(self):
+        sync_items([_item(stat='0')], NOW)
+        self.assertEqual(ChargerState.objects.get(charger_id='01').stat, '9')
+
+    def test_deactivate_missing(self):
+        sync_items([_item(), _item(statId='ME000002')], NOW)
+        self.assertEqual(deactivate_missing({'ME000001'}), 1)
+        self.assertFalse(PublicStation.objects.get(stat_id='ME000002').is_active)
