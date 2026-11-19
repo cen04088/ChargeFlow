@@ -1003,28 +1003,248 @@ html body {
 }
 
 .nearby-map-btn--me {
-  right: 12px;
-  bottom: 16px;
   color: var(--brand-deep);
   background: #fff;
 }
 
-.nearby-here {
-  position: absolute;
-  inset: 12px 0 auto;
-  z-index: 2;
-  display: flex;
-  justify-content: center;
-  pointer-events: none;
-}
-
 .nearby-map-btn--here {
-  position: static;
-  pointer-events: auto;
   border: 0;
   color: #fff;
   background: var(--brand-strong);
   box-shadow: 0 4px 16px -6px rgba(0, 23, 51, 0.4);
+}
+
+/* ── 홈 지도 화면: 머리말 아래를 지도가 채우고, 목록은 지도 위 시트 ──
+   페이지는 스크롤하지 않는다. 하단 여백(--bottom-space)은 시트가 안쪽에 둔다 */
+.page--map {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+.page--map .nearby-intro {
+  flex: none;
+}
+
+.nearby-map-wrap--full {
+  flex: 1 1 auto;
+  min-height: 260px;
+  margin: 0;
+  border-radius: 0;
+}
+
+.nearby-map-wrap--full .nearby-map-card {
+  position: absolute;
+  inset: 0;
+  height: auto;
+}
+
+/* 지도 위 왼쪽 위 요약 칩, 오른쪽 위 핀 글자 토글.
+   좁아서 한 줄에 못 들어가면 토글이 다음 줄 오른쪽으로 내려간다 */
+.nearby-map-top {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.nearby-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.nearby-mode {
+  width: 184px;
+  margin-inline-start: auto;
+  padding: 2px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 4px 16px -6px rgba(0, 23, 51, 0.24);
+  pointer-events: auto;
+}
+
+/* TDS SegmentedControl의 기본 좌우 여백(24px)을 없애고 칸 높이를 44px로 */
+.nearby-mode .nearby-mode__control {
+  padding: 0;
+}
+
+.nearby-mode .nearby-mode__control [aria-selected] {
+  min-height: 44px;
+}
+
+/* 지도 아래쪽 떠 있는 버튼: 접힌 시트 바로 위(bottom은 시트 높이로 정한다) */
+.nearby-map-float {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: end;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.nearby-map-float .nearby-map-btn {
+  position: static;
+  pointer-events: auto;
+}
+
+.nearby-map-float .nearby-map-btn--here {
+  grid-column: 2;
+}
+
+.nearby-map-float .nearby-map-btn--me {
+  grid-column: 3;
+  justify-self: end;
+}
+
+/* 목록 시트(비모달). 높이는 펼친 높이로 고정하고 transform으로 접는다 */
+.nearby-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px 20px 0 0;
+  background: #fff;
+  box-shadow: 0 -6px 24px -8px rgba(0, 23, 51, 0.28);
+  transition: transform var(--spring-time) var(--spring);
+  will-change: transform;
+}
+
+.nearby-sheet--dragging {
+  transition: none;
+}
+
+.nearby-sheet__head {
+  flex: none;
+}
+
+.nearby-sheet__handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 20px 20px 0 0;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.nearby-sheet--dragging .nearby-sheet__handle {
+  cursor: grabbing;
+}
+
+.nearby-sheet__handle:focus-visible {
+  outline-offset: -4px;
+}
+
+.nearby-sheet__bar {
+  width: 40px;
+  height: 5px;
+  border-radius: 999px;
+  background: #c5ccd3;
+}
+
+.nearby-sheet__peek {
+  padding-bottom: var(--bottom-space);
+}
+
+.nearby-sheet__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: var(--bottom-space);
+  visibility: visible;
+}
+
+/* 접힌 뒤에는 읽히지도 포커스되지도 않게. 접히는 움직임이 끝난 뒤에 숨긴다 */
+.nearby-sheet__body--hidden {
+  visibility: hidden;
+  transition: visibility 0s linear var(--spring-time);
+}
+
+.nearby-sheet__body .nearby-results-heading {
+  padding-top: 4px;
+}
+
+.nearby-peek__label,
+.nearby-peek__title {
+  margin: 0;
+  padding: 0 var(--gutter);
+}
+
+.nearby-peek__label {
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.nearby-peek__title {
+  padding-top: 4px;
+  padding-bottom: 4px;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.nearby-peek__row .nearby-row {
+  width: 100%;
+  min-height: 72px;
+  text-align: left;
+}
+
+.nearby-peek__row .nearby-row:focus-visible {
+  outline: 2px solid var(--brand-strong);
+  outline-offset: -3px;
+}
+
+.nearby-peek__action {
+  padding: 8px var(--gutter) 0;
+}
+
+.nearby-peek__action button {
+  border-radius: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nearby-sheet,
+  .nearby-sheet__body--hidden {
+    transition: none;
+  }
 }
 
 .nearby-map-btn[aria-disabled="true"],
