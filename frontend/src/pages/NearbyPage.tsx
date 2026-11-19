@@ -361,6 +361,8 @@ export default function NearbyPage() {
             me={me}
             stations={stations}
             focusId={liveSheet?.id ?? null}
+            mode="count"
+            bottomInset={0}
             onSelect={(id) => {
               const s = stations.find((x) => x.id === id);
               if (s) openStation(s, "pin");

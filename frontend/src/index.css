@@ -26,6 +26,15 @@
   --spring-bounce-time: 380ms;
 
   --radius-card: 20px;
+
+  /* 충전소 상태색 — 브랜드색과 따로 둔다. 흰 글자 대비: 5.34 / 4.72 / 7.11 : 1.
+     -strong은 강조(누른 핀)용으로 한 단계 진하게: 7.62 / 6.73 / 11.0 : 1 */
+  --state-available: #0b7a55;
+  --state-available-strong: #08603f;
+  --state-full: #b35c00;
+  --state-full-strong: #8f4900;
+  --state-unavailable: #4e5968;
+  --state-unavailable-strong: #333d4b;
 }
 
 * {
@@ -507,11 +516,14 @@ body {
   inset: 0;
 }
 
-/* 핀: 빈 곳 있으면 브랜드색, 아니면 회색. 터치 영역 44px 이상, 글씨 15px 이상 */
+/* 핀: 상태를 색 + 글자로(빈 곳 초록 "N대", 충전 중 주황, 이용 불가 회색).
+   터치 영역 44px 이상, 글씨 15px 이상 */
 .nearby-pin {
+  --pin-color: var(--state-available);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   min-width: 44px;
   min-height: 44px;
   padding: 0 14px;
@@ -522,7 +534,7 @@ body {
   white-space: nowrap;
   word-break: keep-all;
   color: #fff;
-  background-color: var(--brand-strong);
+  background-color: var(--pin-color);
   box-shadow: 0 0 0 3px #fff, 0 4px 12px -2px rgba(0, 23, 51, 0.4);
   cursor: pointer;
   transition: transform var(--spring-bounce-time) var(--spring-bounce),
@@ -530,24 +542,70 @@ body {
 }
 
 .nearby-pin:focus-visible {
-  outline: 2px solid var(--brand-deep);
+  outline: 2px solid var(--ink);
   outline-offset: 4px;
 }
 
-.nearby-pin--off {
+.nearby-pin--full,
+.nearby-pin--unavailable {
   padding: 0 12px;
   font-size: 15px;
   font-weight: 600;
-  background-color: #4e5968;
+}
+
+.nearby-pin--full {
+  --pin-color: var(--state-full);
+}
+
+.nearby-pin--unavailable {
+  --pin-color: var(--state-unavailable);
+}
+
+.nearby-pin__bolt {
+  flex: none;
+  width: 12px;
+  height: 16px;
 }
 
 .nearby-pin--focus {
-  background-color: var(--brand-deep);
+  --pin-color: var(--state-available-strong);
   transform: scale(1.15);
 }
 
-.nearby-pin--off.nearby-pin--focus {
-  background-color: #191f28;
+.nearby-pin--full.nearby-pin--focus {
+  --pin-color: var(--state-full-strong);
+}
+
+.nearby-pin--unavailable.nearby-pin--focus {
+  --pin-color: var(--state-unavailable-strong);
+}
+
+/* 축소했을 때: 지름 18px 색 점. 투명한 44px 영역이 그대로 터치를 받는다.
+   핀(yAnchor 1.1)의 아래 끝 대신 점의 가운데가 충전소 자리에 오도록 내린다 */
+.nearby-pin--dot {
+  padding: 0;
+  width: 44px;
+  height: 44px;
+  background-color: transparent;
+  box-shadow: none;
+  transform: translateY(60%);
+}
+
+.nearby-pin--dot > * {
+  display: none;
+}
+
+.nearby-pin--dot::before {
+  content: "";
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background-color: var(--pin-color);
+  box-shadow: 0 0 0 2px #fff, 0 2px 6px -1px rgba(0, 23, 51, 0.4);
+}
+
+.nearby-pin--dot.nearby-pin--focus {
+  transform: translateY(60%) scale(1.15);
 }
 
 /* 내 위치 파란 점 */
@@ -566,6 +624,10 @@ body {
   }
   .nearby-pin--focus {
     transform: none;
+  }
+  .nearby-pin--dot,
+  .nearby-pin--dot.nearby-pin--focus {
+    transform: translateY(60%);
   }
 }
 
@@ -1072,12 +1134,16 @@ html body {
 }
 
 .nearby-row__count--available {
-  color: var(--brand-strong);
-  font-size: 18px;
+  color: var(--state-available);
+  font-size: 20px;
+}
+
+.nearby-row__count--full {
+  color: var(--state-full);
 }
 
 .nearby-row__count--unavailable {
-  color: #963c38;
+  color: var(--state-unavailable);
 }
 
 .nearby-message__title {

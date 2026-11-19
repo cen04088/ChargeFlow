@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from "react";
 
 import type { NearbyStation } from "../api/types";
 import { loadKakaoMaps } from "../lib/kakao";
-import { pinText } from "../lib/nearby";
+import {
+  isDotLevel,
+  isUltraFast,
+  pinLabel,
+  pinText,
+  type PinMode,
+} from "../lib/nearby";
 
 interface Point {
   lat: number;
@@ -14,9 +20,15 @@ interface NearbyMapProps {
   me: Point | null;
   stations: NearbyStation[];
   focusId: number | null;
+  /** 핀 글자: 빈 대수·상태 또는 최대 출력 */
+  mode: PinMode;
+  /** 지도 아래쪽을 가리는 시트 높이(px) — 다음 범위 맞춤의 아래 여백에 더한다 */
+  bottomInset: number;
   onSelect: (id: number) => void;
   onMoved: (center: Point) => void;
   onFailed: () => void;
+  /** 지도 빈 곳을 눌렀다(핀을 누른 것은 제외) */
+  onMapTap?: () => void;
 }
 
 const MAX_PINS = 30;
@@ -24,17 +36,52 @@ const MAX_PINS = 30;
 const FIT_COUNT = 5;
 /** 지도 가장자리 여백(위·오른쪽·아래·왼쪽) — 핀이 잘리지 않게 */
 const PAD = [44, 40, 60, 40] as const;
+/** 범위 맞춤 때 시트 여백을 더해도 핀이 들어갈 세로 공간은 이만큼 남긴다(px) */
+const MIN_FIT_SPACE = 120;
+/** 핀을 누른 직후에 오는 지도 click은 무시한다(ms) */
+const PIN_TAP_GUARD_MS = 400;
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** 초급속 번개 — 글자색(currentColor)을 따른다 */
+function boltIcon() {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("class", "nearby-pin__bolt");
+  svg.setAttribute("viewBox", "0 0 12 16");
+  svg.setAttribute("width", "12");
+  svg.setAttribute("height", "16");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  const path = document.createElementNS(SVG_NS, "path");
+  path.setAttribute("d", "M7.2 0 0 9.2h4.6L3.8 16 12 6.2H7.1L7.2 0Z");
+  path.setAttribute("fill", "currentColor");
+  svg.appendChild(path);
+  return svg;
+}
 
 /** DB에서 온 이름이 HTML로 해석되지 않도록 DOM으로 만든다 */
-function pinElement(s: NearbyStation, focused: boolean, onClick: () => void) {
+function pinElement(
+  s: NearbyStation,
+  opts: { focused: boolean; mode: PinMode; dot: boolean },
+  onClick: () => void,
+) {
   const el = document.createElement("div");
   el.className =
-    "nearby-pin" +
-    (s.state === "available" ? "" : " nearby-pin--off") +
-    (focused ? " nearby-pin--focus" : "");
-  el.textContent = pinText(s);
+    `nearby-pin nearby-pin--${s.state}` +
+    (opts.focused ? " nearby-pin--focus" : "") +
+    (opts.dot ? " nearby-pin--dot" : "");
+  const ultra = isUltraFast(s);
+  if (ultra) el.appendChild(boltIcon());
+  const text = document.createElement("span");
+  text.className = "nearby-pin__text";
+  text.textContent = pinLabel(s, opts.mode);
+  el.appendChild(text);
   el.setAttribute("role", "button");
-  el.setAttribute("aria-label", `${s.name} ${pinText(s)}`);
+  // 글자 모드와 상관없이 빈 대수 기준으로 읽는다
+  el.setAttribute(
+    "aria-label",
+    `${s.name} ${pinText(s)}${ultra ? " 초급속" : ""}`,
+  );
   el.tabIndex = 0;
   el.addEventListener("click", onClick);
   el.addEventListener("keydown", (e) => {
@@ -51,9 +98,12 @@ export function NearbyMap({
   me,
   stations,
   focusId,
+  mode,
+  bottomInset,
   onSelect,
   onMoved,
   onFailed,
+  onMapTap,
 }: NearbyMapProps) {
   const box = useRef<HTMLDivElement>(null);
   /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -71,6 +121,10 @@ export function NearbyMap({
   /** 코드가 바꾼 확대 수준(setBounds)은 이용자 조작으로 치지 않는다 */
   const programmatic = useRef(false);
   const failedCalled = useRef(false);
+  /** 지금 핀을 점으로 줄여 보이는 중(축소 레벨) — 이용자 조작 판정과 별개 */
+  const dot = useRef(false);
+  /** 마지막으로 핀을 누른 시각 — 그 직후의 지도 click은 빈 곳 누르기가 아니다 */
+  const pinTapAt = useRef(0);
 
   // 콜백·최신 값은 ref로 들고 있어 효과가 다시 돌지 않게 한다
   const selectRef = useRef(onSelect);
@@ -79,18 +133,25 @@ export function NearbyMap({
   movedRef.current = onMoved;
   const failedRef = useRef(onFailed);
   failedRef.current = onFailed;
+  const mapTapRef = useRef(onMapTap);
+  mapTapRef.current = onMapTap;
   const centerRef = useRef(center);
   centerRef.current = center;
   const stationsRef = useRef(stations);
   stationsRef.current = stations;
   const focusRef = useRef(focusId);
   focusRef.current = focusId;
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const insetRef = useRef(bottomInset);
+  insetRef.current = bottomInset;
 
   // 같은 구성이면 다시 그리지 않는다(1분마다 새로 받아도 깜박이지 않게)
   const signature = stations
     .slice(0, MAX_PINS)
     .map(
-      (s) => `${s.id}:${s.state}:${s.available}:${s.latitude}:${s.longitude}`,
+      (s) =>
+        `${s.id}:${s.state}:${s.available}:${s.power_kw}:${s.latitude}:${s.longitude}`,
     )
     .join("|");
 
@@ -121,16 +182,42 @@ export function NearbyMap({
         const c = m.getCenter();
         movedRef.current({ lat: c.getLat(), lng: c.getLng() });
       };
-      // 확대·축소는 화면 맞춤만 멈춘다("이 위치에서 찾기"는 끌었을 때만)
+      // 확대·축소는 화면 맞춤만 멈춘다("이 위치에서 찾기"는 끌었을 때만).
+      // 점 표시 전환은 누가 바꿨든 레벨만 보고 정한다
       const onZoom = () => {
         if (!programmatic.current) userMoved.current = true;
+        const next = isDotLevel(m.getLevel());
+        if (next === dot.current) return;
+        dot.current = next;
+        pinMap.forEach((o) =>
+          (o.getContent() as HTMLElement).classList.toggle(
+            "nearby-pin--dot",
+            next,
+          ),
+        );
+      };
+      // 지도 빈 곳 누르기. 핀은 clickable 오버레이라 보통 여기까지 오지 않지만,
+      // 혹시 오더라도 핀을 누른 직후면 무시한다
+      const onClick = () => {
+        if (Date.now() - pinTapAt.current < PIN_TAP_GUARD_MS) return;
+        mapTapRef.current?.();
       };
       maps.event.addListener(m, "dragend", onDragEnd);
       maps.event.addListener(m, "zoom_changed", onZoom);
+      maps.event.addListener(m, "click", onClick);
+      // 화면 크기가 바뀌면(주소창·회전) 지도가 새 크기를 알게 한다
+      const ro =
+        typeof ResizeObserver === "undefined"
+          ? null
+          : new ResizeObserver(() => m.relayout());
+      ro?.observe(box.current);
       removeListeners = () => {
         maps.event.removeListener(m, "dragend", onDragEnd);
         maps.event.removeListener(m, "zoom_changed", onZoom);
+        maps.event.removeListener(m, "click", onClick);
+        ro?.disconnect();
       };
+      dot.current = isDotLevel(m.getLevel());
       map.current = m;
       setReady(true);
     });
@@ -169,13 +256,21 @@ export function NearbyMap({
 
     const shown = stations.slice(0, MAX_PINS);
     shown.forEach((s) => {
+      const focused = s.id === focusRef.current;
       const o = new maps.CustomOverlay({
         position: new maps.LatLng(+s.latitude, +s.longitude),
-        content: pinElement(s, s.id === focusRef.current, () =>
-          selectRef.current(s.id),
+        content: pinElement(
+          s,
+          { focused, mode: modeRef.current, dot: dot.current },
+          () => {
+            pinTapAt.current = Date.now();
+            selectRef.current(s.id);
+          },
         ),
         yAnchor: 1.1,
-        zIndex: s.id === focusRef.current ? 3 : 1,
+        zIndex: focused ? 3 : 1,
+        // 핀을 눌러도 지도 click(빈 곳 누르기)이 일어나지 않게
+        clickable: true,
       });
       o.setMap(map.current);
       pins.current.set(s.id, o);
@@ -199,7 +294,14 @@ export function NearbyMap({
     // zoom_changed가 호출 중에 바로 오든 조금 뒤에 오든 이 맞춤은 이용자 조작으로 치지 않는다
     programmatic.current = true;
     try {
-      map.current.setBounds(bounds, ...PAD);
+      // 아래 여백은 그 순간 지도를 가리는 시트 높이만큼 더 둔다.
+      // 지도가 낮으면 핀이 들어갈 자리(MIN_FIT_SPACE)는 남긴다
+      const h = box.current?.clientHeight ?? 0;
+      const bottom = Math.min(
+        PAD[2] + Math.max(0, insetRef.current),
+        Math.max(PAD[2], h - PAD[0] - MIN_FIT_SPACE),
+      );
+      map.current.setBounds(bounds, PAD[0], PAD[1], bottom, PAD[3]);
     } finally {
       setTimeout(() => {
         programmatic.current = false;
@@ -208,6 +310,18 @@ export function NearbyMap({
     // signature가 stations의 구성을 대표한다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, signature]);
+
+  // 글자 모드가 바뀌면 핀 글자만 바꾼다(다시 그리거나 지도를 옮기지 않는다)
+  useEffect(() => {
+    if (!ready) return;
+    pins.current.forEach((o, id) => {
+      const s = stationsRef.current.find((x) => x.id === id);
+      const text = (o.getContent() as HTMLElement).querySelector(
+        ".nearby-pin__text",
+      );
+      if (s && text) text.textContent = pinLabel(s, mode);
+    });
+  }, [ready, mode]);
 
   // 내 위치 점
   useEffect(() => {
