@@ -10,6 +10,8 @@ API 키는 --api-key 또는 환경 변수 PUBLIC_DATA_API_KEY.
 동작:
   1) 증분 동기화 — getChargerStatus(period=주기+1분)로 최근 상태를 보고한 전국
      충전기를 받아, 우리가 추적하는 statId(HighwayNodeCharger)만 반영한다.
+     전국 급속 충전소(PublicStation)는 이미 있는 ChargerState 줄만 갱신하고
+     새로 만들거나 ChargerStatusLog를 남기지 않는다.
      주기당 보통 1회(1만 건 이하) 호출.
   2) 기준선 동기화 — 하루 1회(처음 실행 포함) getChargerInfo(kindDetail=C001,
      고속도로 휴게소) 1회 + 그 분류에 없는 충전소만 statId로 개별 조회해 전체
@@ -44,6 +46,7 @@ BASELINE_MAX_AGE    = timedelta(hours=24)
 API_OUTAGE_ALERT    = timedelta(hours=1)  # 공공데이터 API 장애가 이보다 길면 크론을 실패로 끝내 알린다
 LOG_RETENTION       = timedelta(hours=2)
 SUBSCRIPTION_TTL    = timedelta(hours=6)  # 이동 중 한 번의 충전을 위한 구독이므로 짧게 둔다
+BULK_BATCH_SIZE    = 500  # bulk_create/bulk_update 한 쿼리당 행 수 (거대한 쿼리 방지)
 VALID_STATS         = {'1', '2', '3', '4', '5', '9'}
 
 
@@ -110,12 +113,13 @@ def _apply_items(items, tracked, now, *, create_for=None, log_for=None):
             to_update[row.pk] = row
 
     with transaction.atomic():
-        ChargerState.objects.bulk_create(to_create, ignore_conflicts=True)
+        ChargerState.objects.bulk_create(to_create, ignore_conflicts=True, batch_size=BULK_BATCH_SIZE)
         ChargerState.objects.bulk_update(
             list(to_update.values()),
             ['stat', 'stat_updated_at', 'charging_since', 'chger_type', 'zcode', 'synced_at'],
+            batch_size=BULK_BATCH_SIZE,
         )
-        ChargerStatusLog.objects.bulk_create(logs)
+        ChargerStatusLog.objects.bulk_create(logs, batch_size=BULK_BATCH_SIZE)
     return len(logs)
 
 
@@ -291,7 +295,7 @@ def run_cycle(api_key, stdout, force_baseline=False, interval_sec=300, period=No
 
 
 class Command(BaseCommand):
-    help = '휴게소 충전기 상태 폴링 → 혼잡도 계산 → 혼잡 해소 알림'
+    help = '휴게소 충전기 상태 폴링 → 혼잡도 계산 → 혼잡 해소 알림 (전국 급속 충전기는 갱신만, 생성 안 함)'
 
     def add_arguments(self, parser):
         parser.add_argument('--api-key', default=None, help='미지정 시 PUBLIC_DATA_API_KEY')

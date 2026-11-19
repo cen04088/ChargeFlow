@@ -95,6 +95,13 @@ class PollerTests(Fixture):
         self.assertTrue(ChargerState.objects.filter(stat_id='NEW00001').exists())
         self.assertEqual(ChargerStatusLog.objects.filter(stat_id='NEW00001').count(), 1)
 
+    def test_batching_does_not_change_results(self):
+        for cid in ('01', '02', '03'):
+            ChargerState.objects.create(stat_id='ST1', charger_id=cid, stat='2')
+        with mock.patch.object(poller, 'BULK_BATCH_SIZE', 1):
+            poller._apply_items([item('ST1', c, '3') for c in ('01', '02', '03')], {'ST1'}, timezone.now())
+        self.assertEqual(list(ChargerState.objects.filter(stat_id='ST1').values_list('stat', flat=True)), ['3'] * 3)
+
     def test_apply_items_accepts_generator(self):
         gen = (i for i in [item('ST1', '01', '2')])
         poller._apply_items(gen, {'ST1'}, timezone.now())
