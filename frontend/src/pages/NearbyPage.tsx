@@ -30,6 +30,7 @@ import {
   fetchedText,
   nearbyView,
   nextCenter,
+  noneDesc,
   type LocFailure,
   type OriginSource,
   type Point,
@@ -142,6 +143,8 @@ export default function NearbyPage() {
       setLocating(true);
       const r = await getLocation();
       if (r.ok) saveLastLocation(r.lat, r.lng);
+      // 실패 기록은 응답이 늦었어도 시도마다 한 번 남긴다
+      else logClick("nearby_location_denied", { reason: r.reason });
       if (id !== locSeq.current) {
         // 그사이 이용자가 지역·지도 위치를 직접 골랐다 — 파란 점만 갱신한다
         if (r.ok) setMe({ lat: r.lat, lng: r.lng });
@@ -149,7 +152,6 @@ export default function NearbyPage() {
       }
       setLocating(false);
       if (!r.ok) {
-        logClick("nearby_location_denied", { reason: r.reason });
         setLocFailure(r.reason);
         if (fromTap) {
           toastRef.current(
@@ -215,6 +217,9 @@ export default function NearbyPage() {
     setLocating(false);
     searchFrom(moved, "here", false);
   };
+
+  const openPicker = () => setPickerOpen(true);
+  const locateMe = () => void locate(true);
 
   const openStation = (s: NearbyStation, from: "pin" | "list") => {
     logClick("nearby_station_open", { from, station_id: s.id });
@@ -308,7 +313,7 @@ export default function NearbyPage() {
           <button
             type="button"
             className="nearby-map-btn nearby-map-btn--connector glass press"
-            onClick={() => setPickerOpen(true)}
+            onClick={openPicker}
           >
             {connector ? connectorName(connector) : "충전 규격"}
           </button>
@@ -327,7 +332,7 @@ export default function NearbyPage() {
             type="button"
             className="nearby-map-btn nearby-map-btn--me glass press"
             aria-busy={locating}
-            onClick={() => void locate(true)}
+            onClick={locateMe}
           >
             내 위치
           </button>
@@ -352,7 +357,7 @@ export default function NearbyPage() {
                 variant="weak"
                 display="full"
                 loading={locating}
-                onClick={() => void locate(true)}
+                onClick={locateMe}
               >
                 위치 켜고 다시 찾기
               </Button>
@@ -371,15 +376,29 @@ export default function NearbyPage() {
         {(view.kind === "list" || view.kind === "none") && result && (
           <div className={"nearby-list" + (searching ? " nearby-list--busy" : "")}>
             {mapFailed && (
-              <div className="section-pad">
-                <Button
-                  size="large"
-                  variant="weak"
-                  display="full"
+              <div className="nearby-controls">
+                <button
+                  type="button"
+                  className="nearby-ctrl press"
                   onClick={() => setRegionsRequested(true)}
                 >
                   다른 지역에서 찾기
-                </Button>
+                </button>
+                <button
+                  type="button"
+                  className="nearby-ctrl press"
+                  onClick={openPicker}
+                >
+                  {connector ? connectorName(connector) : "충전 규격"}
+                </button>
+                <button
+                  type="button"
+                  className="nearby-ctrl nearby-ctrl--me press"
+                  aria-busy={locating}
+                  onClick={locateMe}
+                >
+                  내 위치
+                </button>
               </div>
             )}
 
@@ -392,7 +411,7 @@ export default function NearbyPage() {
                   type="button"
                   className="nearby-notice__action"
                   aria-busy={locating}
-                  onClick={() => void locate(true)}
+                  onClick={locateMe}
                 >
                   위치 켜고 다시 찾기
                 </button>
@@ -402,9 +421,7 @@ export default function NearbyPage() {
             {view.kind === "none" && (
               <div className="nearby-message">
                 <p className="nearby-message__title">30km 안에 급속충전소가 없어요</p>
-                <p className="nearby-message__desc">
-                  지도를 옮겨 다른 곳에서 찾아보세요
-                </p>
+                <p className="nearby-message__desc">{noneDesc(mapFailed)}</p>
               </div>
             )}
 

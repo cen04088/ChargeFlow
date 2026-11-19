@@ -1,7 +1,13 @@
 import { expect, test } from "vitest";
 
 import type { NearbyStation, NearbyStationsResponse } from "../api/types";
-import { fetchedText, nearbyView, nextCenter, type ViewInput } from "./nearbyState";
+import {
+  fetchedText,
+  nearbyView,
+  nextCenter,
+  noneDesc,
+  type ViewInput,
+} from "./nearbyState";
 
 function st(id: number, state: NearbyStation["state"]): NearbyStation {
   return {
@@ -167,4 +173,9 @@ test("같은 좌표를 다시 지도 중심으로 주면 살짝 다르게 준다
   expect(Math.abs(again.lat - p.lat)).toBeLessThan(1e-6);
   expect(nextCenter(again, p)).toEqual(p);
   expect(nextCenter(p, { lat: 35, lng: 129 })).toEqual({ lat: 35, lng: 129 });
+});
+
+test("충전소가 없을 때 둘째 줄은 지도가 있을 때만 지도를 옮기라고 한다", () => {
+  expect(noneDesc(false)).toBe("지도를 옮겨 다른 곳에서 찾아보세요");
+  expect(noneDesc(true)).toBe("다른 지역에서 찾아보세요");
 });

@@ -73,3 +73,10 @@ export function nextCenter(prev: Point | null, p: Point): Point {
   }
   return p;
 }
+
+/** 충전소가 하나도 없을 때 둘째 줄 — 지도가 없으면 지도를 옮기라고 하지 않는다 */
+export function noneDesc(mapFailed: boolean): string {
+  return mapFailed
+    ? "다른 지역에서 찾아보세요"
+    : "지도를 옮겨 다른 곳에서 찾아보세요";
+}
