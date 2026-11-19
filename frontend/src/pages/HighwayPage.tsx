@@ -24,6 +24,8 @@ import {
   type SheetToggleBy,
 } from "../components/NearbyListSheet";
 import { RouteMap, type RoutePin } from "../components/RouteMap";
+import { RouteMiniMap } from "../components/RouteMiniMap";
+import { RouteStrip } from "../components/RouteStrip";
 import { RaStatusText } from "../components/RestAreaRow";
 import { directionLabel, shortName, timeAgo } from "../lib/format";
 import {
@@ -38,6 +40,7 @@ import { loadHighways, useHighways } from "../lib/store";
 import { getLocation, logClick, logScreen } from "../lib/toss";
 import { useAsync } from "../lib/useAsync";
 import { useElementHeight } from "../lib/useElementHeight";
+import { buildStrip } from "./highwayStrip";
 import {
   TRAVEL_FRESH_MS,
   aheadText,
@@ -401,6 +404,10 @@ function RouteView({ code }: { code: string }) {
   const locatingRef = useRef(false);
   /** "내 위치"를 누를 때마다 범위를 다시 맞춘다 */
   const [fitNonce, setFitNonce] = useState(0);
+  /** 보기: 노선 띠(기본, 들어올 때마다) 또는 지도 + 시트 */
+  const [mode, setMode] = useState<"strip" | "map">("strip");
+  /** 노선 띠에서 지나온 휴게소를 펼쳤다 */
+  const [showPassed, setShowPassed] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [peekH, setPeekH] = useState(0);
@@ -433,6 +440,7 @@ function RouteView({ code }: { code: string }) {
   useEffect(() => {
     setListOpen(false);
     setQuery("");
+    setShowPassed(false);
   }, [code, dir]);
 
   // 화면이 보이는 동안 60초마다 조용히 새로 받는다(시트·검색·지도는 그대로).
@@ -641,7 +649,22 @@ function RouteView({ code }: { code: string }) {
   const loadFailed = !!nodes.error && !current;
   const loading = !current && !nodes.error;
   const tall = frozenTall ?? canUseMapLayout(viewportH);
-  const mapLayout = tall && !mapFailed && !loadFailed;
+  const mapLayout = mode === "map" && tall && !mapFailed && !loadFailed;
+
+  /** 작은 지도 창 → 지도 보기. 화면이 낮으면 지도 배치를 쓸 수 없다 */
+  const openMap = () => {
+    if (!canUseMapLayout(window.innerHeight)) {
+      toastRef.current("지도를 불러오지 못했어요");
+      return;
+    }
+    logClick("highway_view_mode", { mode: "map" });
+    setMode("map");
+  };
+  const openStrip = () => {
+    logClick("highway_view_mode", { mode: "strip" });
+    setListOpen(false);
+    setMode("strip");
+  };
 
   const freeze = {
     onFocus: () => setFrozenTall(tall),
@@ -739,23 +762,88 @@ function RouteView({ code }: { code: string }) {
     </div>
   );
 
+  const at = (n: { latitude: string; longitude: string }) => ({
+    lat: +n.latitude,
+    lng: +n.longitude,
+  });
+  const path = (current?.nodes ?? []).map(at);
+
   if (!mapLayout) {
+    // 노선 띠(내비 고속도로 모드): 검색 → 머리말 + 작은 지도 창 → 띠 → 구간 미리 보기 → 안내. 페이지가 스크롤된다
+    const strip = buildStrip({
+      nodes: current?.nodes ?? [],
+      listed: ras,
+      travel: next && meKm != null ? { nextId: next.id, meKm } : null,
+      nearId: !travel && near ? near.id : null,
+      query,
+      showPassed,
+    });
+    const searching = query.trim() !== "";
+    const count = searching ? strip.items.length : ras.length;
     return (
       <main className="page">
         {controls}
-        <div className="nearby-body">
-          {mapFailed && !loadFailed && (
-            <div className="nearby-message">
-              <p className="nearby-message__desc">
-                지도를 불러오지 못해 목록으로 보여 드려요
-              </p>
-            </div>
-          )}
+        <div className="strip-page">
+          <div className="section-pad section-pad--flush highway-search">
+            <SearchField
+              placeholder="휴게소 이름으로 찾기"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onDeleteClick={() => setQuery("")}
+            />
+          </div>
           {loadFailed ? (
             <ErrorState error={nodes.error} onRetry={nodes.reload} />
           ) : (
-            listBody
+            <section aria-labelledby="highway-list-title">
+              <div className="strip-head">
+                <div className="strip-head__text">
+                  <h2 id="highway-list-title">
+                    {loading ? "휴게소" : `휴게소 ${count}곳`}
+                  </h2>
+                  <p>{dirLabel} · 가는 순서</p>
+                </div>
+                {!mapFailed && path.length >= 2 && (
+                  <RouteMiniMap path={path} me={me} onClick={openMap} />
+                )}
+              </div>
+              {loading ? (
+                <Skeleton pattern="listOnly" repeatLastItemCount={5} />
+              ) : strip.items.length === 0 ? (
+                <p className="flow-notice">
+                  {searching
+                    ? `‘${query.trim()}’와 일치하는 휴게소가 없어요.`
+                    : "이 방향에 표시할 휴게소가 없어요."}
+                </p>
+              ) : (
+                <RouteStrip
+                  items={strip.items}
+                  passedCount={strip.passedCount}
+                  onOpen={(id) => openRestArea(id, "list")}
+                  onShowPassed={() => setShowPassed(true)}
+                  scrollToId={!travel && !searching && near ? near.id : null}
+                  scrollKey={key}
+                />
+              )}
+            </section>
           )}
+          <div className="route-shortcut">
+            <ListRow
+              contents={
+                <ListRow.Texts
+                  type="2RowTypeA"
+                  top="구간 미리 보기"
+                  bottom="출발과 도착을 고르면 지날 휴게소를 순서대로 보여 드려요"
+                />
+              }
+              arrowType="right"
+              onClick={() => {
+                logClick("highway_open_trip");
+                navigate(`/trip?hw=${code}&dir=${dir}`);
+              }}
+            />
+          </div>
+          <p className="nearby-time">{FOOTNOTE}</p>
         </div>
         {picker.sheet}
       </main>
@@ -821,11 +909,6 @@ function RouteView({ code }: { code: string }) {
       emphasized: i === focusIdx,
     };
   });
-  const at = (n: { latitude: string; longitude: string }) => ({
-    lat: +n.latitude,
-    lng: +n.longitude,
-  });
-  const path = (current?.nodes ?? []).map(at);
   // 가는 방향: 내 위치 + 다음 휴게소 두 곳. 노선 가까이: 내 위치 + 가까운 휴게소.
   // 아니면 노선 전체(+ "내 위치"를 눌렀으면 내 위치도 화면에 들어오게)
   const fit =
@@ -857,18 +940,37 @@ function RouteView({ code }: { code: string }) {
           fitKey={`${key}|${fitNonce}`}
           softFitKey={nextIdx >= 0 ? "next" : nearIdx >= 0 ? "near" : "route"}
           focusId={null}
-          topInset={0}
+          topInset={MAP_EDGE + MAP_BUTTON_MIN_H}
           bottomInset={peekH}
           onSelect={(id) => openRestArea(id, "pin")}
           onMapTap={() => {
             if (listOpen) toggleList(false, "map");
           }}
-          onFailed={() => setMapFailed(true)}
+          onFailed={() => {
+            // 지도를 못 불러오면 띠로 돌아가고 작은 지도 창을 숨긴다
+            setMapFailed(true);
+            setMode("strip");
+            toastRef.current("지도를 불러오지 못했어요");
+          }}
         />
+        {/* 지도 위 왼쪽 위: 노선 띠로 돌아가기(그 줄의 핀은 RouteMap이 점으로 줄인다) */}
+        <div className="nearby-map-top">
+          <button
+            type="button"
+            className="nearby-map-btn route-map-back glass press"
+            onClick={openStrip}
+          >
+            목록으로 보기
+          </button>
+        </div>
         <div
           ref={setFloatEl}
           className="nearby-map-float"
-          style={{ top: MAP_EDGE, bottom: peekH + MAP_EDGE, gap: FLOAT_GAP }}
+          style={{
+            top: MAP_EDGE + MAP_BUTTON_MIN_H + FLOAT_GAP,
+            bottom: peekH + MAP_EDGE,
+            gap: FLOAT_GAP,
+          }}
         >
           {showMe && (
             <button
