@@ -21,6 +21,7 @@ from .services.congestion import (
     weekly_pattern,
 )
 from .services.ev_api import KST
+from .services.nearby import haversine_km as _haversine_km
 from .user_identity import UserScopedAPIView
 
 
@@ -45,17 +46,6 @@ def _decision(ra_id, congestion, now=None):
         'wait_minutes': wait,
         'prediction':   predict(ra_id, level, now),
     }
-
-
-def _haversine_km(lat1, lng1, lat2, lng2):
-    to_r  = math.pi / 180
-    d_lat = (lat2 - lat1) * to_r
-    d_lng = (lng2 - lng1) * to_r
-    a = (
-        math.sin(d_lat / 2) ** 2
-        + math.cos(lat1 * to_r) * math.cos(lat2 * to_r) * math.sin(d_lng / 2) ** 2
-    )
-    return 6371 * 2 * math.asin(math.sqrt(a))
 
 
 # ──────────────────────────────────────────────

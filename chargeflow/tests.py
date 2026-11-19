@@ -16,6 +16,7 @@ from chargeflow.models import (
 )
 from chargeflow.services import ev_api
 from chargeflow.services.congestion import compute_level, recompute_all
+from chargeflow.services.nearby import PUBLIC_STALE, in_korea, search_nearby, station_status
 from chargeflow.services.public_catalog import deactivate_missing, freshness_report, is_public_fast, sync_items
 
 
@@ -527,3 +528,87 @@ class SyncPublicStationsTests(TestCase):
     def test_freshness_report_empty(self, fetch):
         r = freshness_report(NOW)
         self.assertEqual((r['stations'], r['chargers'], r['within_2h']), (0, 0, 0.0))
+
+
+def _station(stat_id, lat, lng, chargers, connectors='combo'):
+    """chargers: (stat, age_minutes, output_kw) 목록."""
+    st = PublicStation.objects.create(
+        stat_id=stat_id, name=f'충전소 {stat_id}', address='주소', latitude=lat, longitude=lng,
+        connectors=connectors, power_kw=100, charger_count=len(chargers),
+    )
+    for i, (stat, age, kw) in enumerate(chargers):
+        ChargerState.objects.create(
+            stat_id=stat_id, charger_id=f'{i:02}', stat=stat,
+            stat_updated_at=NOW - timedelta(minutes=age), output_kw=kw,
+        )
+    return st
+
+
+class NearbyServiceTests(TestCase):
+    def test_status_counts_and_states(self):
+        fresh = NOW - timedelta(minutes=5)
+        self.assertEqual(station_status([('2', fresh), ('3', fresh), ('5', fresh)], NOW)['state'], 'available')
+        s = station_status([('3', fresh), ('1', fresh)], NOW)
+        self.assertEqual((s['available'], s['charging'], s['offline'], s['total'], s['state']), (0, 1, 1, 2, 'full'))
+        self.assertEqual(station_status([('4', fresh), ('5', fresh)], NOW)['state'], 'unavailable')
+
+    def test_stale_available_is_not_counted(self):
+        fresh, old = NOW - timedelta(minutes=5), NOW - PUBLIC_STALE - timedelta(minutes=1)
+        s = station_status([('2', old), ('3', fresh)], NOW)
+        self.assertEqual((s['available'], s['state']), (0, 'full'))
+        self.assertIsNone(station_status([('2', old), ('2', None)], NOW))
+        self.assertIsNone(station_status([], NOW))
+
+    def test_only_fast_chargers_are_counted(self):
+        _station('A', 37.2590, 127.07, [('3', 5, 100), ('2', 5, 7), ('2', 5, None)])
+        st = search_nearby(37.25, 127.07, now=NOW)['stations'][0]
+        self.assertEqual((st['available'], st['total'], st['state']), (0, 1, 'full'))
+
+    def test_radius_stops_at_first_with_three_available(self):
+        for i, km in enumerate((1, 2, 3)):
+            _station(f'N{i}', 37.25 + 0.009 * km, 127.07, [('2', 5, 100)])
+        _station('FAR', 37.25 + 0.009 * 8, 127.07, [('2', 5, 100)])
+        r = search_nearby(37.25, 127.07, now=NOW)
+        self.assertEqual(r['radius_km'], 5)
+        self.assertEqual([s['stat_id'] for s in r['stations']], ['N0', 'N1', 'N2'])
+
+    def test_radius_expands_when_not_enough(self):
+        _station('N0', 37.25 + 0.009 * 1, 127.07, [('2', 5, 100)])
+        _station('MID', 37.25 + 0.009 * 8, 127.07, [('2', 5, 100)])
+        _station('FAR', 37.25 + 0.009 * 15, 127.07, [('2', 5, 100)])
+        self.assertEqual(search_nearby(37.25, 127.07, now=NOW)['radius_km'], 20)
+
+    def test_falls_back_to_30km_with_full_stations(self):
+        _station('FULL', 37.25 + 0.009 * 12, 127.07, [('3', 5, 100)])
+        r = search_nearby(37.25, 127.07, now=NOW)
+        self.assertEqual((r['radius_km'], r['stations'][0]['state']), (30, 'full'))
+
+    def test_excludes_inactive_unknown_and_beyond_30km(self):
+        _station('OFF', 37.259, 127.07, [('2', 5, 100)])
+        PublicStation.objects.filter(stat_id='OFF').update(is_active=False)
+        _station('UNK', 37.259, 127.07, [('9', 5, 100)])
+        _station('OUT', 37.25 + 0.009 * 40, 127.07, [('2', 5, 100)])
+        self.assertEqual(search_nearby(37.25, 127.07, now=NOW)['stations'], [])
+
+    def test_connector_filter_keeps_matching_and_unknown(self):
+        _station('C', 37.259, 127.07, [('2', 5, 100)], connectors='combo')
+        _station('D', 37.260, 127.07, [('2', 5, 100)], connectors='chademo')
+        _station('E', 37.261, 127.07, [('2', 5, 100)], connectors='')
+        ids = [s['stat_id'] for s in search_nearby(37.25, 127.07, connector='combo', now=NOW)['stations']]
+        self.assertEqual(ids, ['C', 'E'])
+
+    def test_result_cap_keeps_available_first(self):
+        for i in range(25):
+            _station(f'F{i:02}', 37.25 + 0.0005 * (i + 1), 127.07, [('3', 5, 100)])
+        for i in range(22):
+            _station(f'A{i:02}', 37.25 + 0.02 + 0.0005 * i, 127.07, [('2', 5, 100)])
+        st = search_nearby(37.25, 127.07, now=NOW)['stations']
+        self.assertEqual(len(st), 30)
+        self.assertEqual(sum(s['state'] == 'available' for s in st), 20)
+        self.assertEqual(st, sorted(st, key=lambda s: s['distance_km']))
+
+    def test_in_korea(self):
+        self.assertTrue(in_korea(37.5, 127.0))
+        self.assertTrue(in_korea(33.4, 126.5))
+        for lat, lng in ((0, 0), (35.6, 139.7), (40.0, 127.0)):
+            self.assertFalse(in_korea(lat, lng))
