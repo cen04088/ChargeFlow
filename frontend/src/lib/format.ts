@@ -1,6 +1,7 @@
 import { adaptive } from "@toss/tds-colors";
 
 import type {
+  BypassStation,
   Congestion,
   CongestionLevel,
   Direction,
@@ -141,4 +142,13 @@ export function isAlwaysOpen(hours: string) {
 /** 공공데이터에서 "미개방"으로 표시된 충전소 */
 export function isClosedToPublic(hours: string) {
   return hours.includes("미개방");
+}
+
+/** 대체 충전소 둘째 줄: 고를 때 필요한 두 가지 — 더 걸리는 시간과 충전 속도 */
+export function detourSummary(s: BypassStation) {
+  const approx = s.is_estimated ? "약 " : "";
+  const speed = s.power_kw
+    ? `${s.power_kw}kW ${s.charger_count}대`
+    : `급속 ${s.charger_count}대`;
+  return `우회하면 ${approx}${s.detour_extra_minutes}분 더 · ${speed}`;
 }

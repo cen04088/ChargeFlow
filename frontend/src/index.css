@@ -319,26 +319,6 @@ body {
   margin-top: 20px;
 }
 
-/* ── 지도 카드 ─────────────────────────────────────────── */
-.map-card {
-  position: relative;
-  margin: 12px var(--gutter) 4px;
-  border-radius: var(--radius-card);
-  overflow: hidden;
-  background: var(--canvas);
-  height: 220px;
-  transition: height var(--spring-time) var(--spring);
-}
-
-.map-card--expanded {
-  height: 400px;
-}
-
-.map {
-  position: absolute;
-  inset: 0;
-}
-
 /* 지도 위에 뜨는 유리 재질 버튼 — 아래 지도가 비친다 */
 .glass {
   background: rgba(255, 255, 255, 0.72);
@@ -346,89 +326,6 @@ body {
   backdrop-filter: blur(16px) saturate(180%);
   border: 1px solid rgba(255, 255, 255, 0.6);
   box-shadow: 0 4px 16px -6px rgba(0, 23, 51, 0.24);
-}
-
-.map-toggle:focus-visible {
-  outline: 2px solid var(--brand-strong);
-  outline-offset: 2px;
-}
-
-.map-toggle {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  z-index: 2;
-  min-height: 44px;
-  padding: 0 16px;
-  border-radius: 999px;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.map-legend {
-  position: absolute;
-  left: 12px;
-  top: 12px;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.4;
-  color: var(--ink);
-  pointer-events: none;
-}
-
-.map-legend__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--brand-strong);
-}
-
-/* 지도 위 라벨. 충전소 라벨은 투명 테두리로 탭 영역을 44px 이상 확보한다 */
-.map-label {
-  display: inline-block;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 16px;
-  white-space: nowrap;
-  border-radius: 999px;
-  background-clip: padding-box;
-  transition: transform var(--spring-bounce-time) var(--spring-bounce),
-    background-color 200ms ease;
-}
-
-.map-label--ra {
-  padding: 7px 12px;
-  color: #fff;
-  background-color: rgba(25, 31, 40, 0.88);
-  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.4);
-}
-
-.map-label--ic {
-  padding: 5px 10px;
-  color: var(--ink);
-  background-color: rgba(255, 255, 255, 0.92);
-  box-shadow: inset 0 0 0 1px #d1d6db;
-}
-
-.map-label--station {
-  padding: 6px 12px;
-  border: 10px solid transparent;
-  color: #fff;
-  background-color: var(--brand-strong);
-  cursor: pointer;
-}
-
-.map-label--focus {
-  background-color: var(--brand-deep);
-  transform: scale(1.15);
 }
 
 /* ── 주변 충전소 지도 ─────────────────────────────────── */
@@ -849,9 +746,7 @@ html body {
     animation: fade 200ms ease both;
   }
   .press,
-  .press:active,
-  .map-card,
-  .map-label {
+  .press:active {
     transition: none;
     transform: none;
   }
@@ -1557,4 +1452,92 @@ html body {
   font-size: 15px;
   font-weight: 600;
   line-height: 1.4;
+}
+
+/* ── 휴게소 화면 ─────────────────────────────────────── */
+/* 상단 줄: 왼쪽 휴게소 이름·노선, 오른쪽 즐겨찾기·공유 */
+.rest-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 var(--gutter);
+}
+
+.rest-head__text {
+  min-width: 0;
+}
+
+.rest-head__name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+}
+
+.rest-head__route {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+/* 접힌 시트 첫 줄(판정): 상태색의 옅은 바탕 + 진한 글자. 색만이 아니라 문장이 상태를 말한다 */
+.verdict {
+  margin: 0 var(--gutter) 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #eef0f3;
+}
+
+.verdict--available {
+  background: #e7f5ee;
+}
+
+.verdict--full {
+  background: #fff2e3;
+}
+
+.verdict__text {
+  margin: 0;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.verdict--available .verdict__text {
+  color: var(--state-available-strong);
+}
+
+.verdict--full .verdict__text {
+  color: var(--state-full-strong);
+}
+
+.verdict__detail {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.rest-peek__label {
+  padding-top: 4px;
+}
+
+.rest-peek__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 8px;
+}
+
+.rest-peek__actions button {
+  border-radius: 12px;
+}
+
+/* 펼친 시트 안에서는 구역 위 굵은 띠를 두지 않는다 */
+.nearby-sheet__body .rest-stations {
+  margin-top: 0;
+  border-top: 0;
 }

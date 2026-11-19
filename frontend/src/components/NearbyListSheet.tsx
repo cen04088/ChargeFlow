@@ -12,7 +12,7 @@ import {
 
 import { SHEET_TAP_PX, sheetSnap } from "../pages/nearbyState";
 
-export type SheetToggleBy = "drag" | "handle" | "button" | "map";
+export type SheetToggleBy = "drag" | "handle" | "button" | "map" | "pin";
 
 interface NearbyListSheetProps {
   open: boolean;

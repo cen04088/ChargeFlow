@@ -5,13 +5,14 @@ import {
   Chip,
   ChipItem,
   IconButton,
+  ListRow,
   Paragraph,
   Skeleton,
   Tab,
   useToast,
 } from "@toss/tds-mobile";
 import { adaptive } from "@toss/tds-colors";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useParams } from "react-router-dom";
 
 import { api } from "../api/client";
@@ -23,14 +24,18 @@ import type {
 } from "../api/types";
 import { ConnectorPicker } from "../components/ConnectorPicker";
 import { ErrorState } from "../components/ErrorState";
-import { PageHeading } from "../components/PageHeading";
+import {
+  NearbyListSheet,
+  type SheetToggleBy,
+} from "../components/NearbyListSheet";
 import { PatternChart } from "../components/PatternChart";
-import { RestAreaMap } from "../components/RestAreaMap";
+import { RouteMap, type RoutePin } from "../components/RouteMap";
 import { SectionHeader } from "../components/SectionHeader";
 import { SheetHeading } from "../components/SheetHeading";
 import { StationRow, StationSheet } from "../components/StationRow";
 import {
   availabilityText,
+  detourSummary,
   directionLabel,
   isAlwaysOpen,
   isClosedToPublic,
@@ -38,6 +43,7 @@ import {
   timeAgo,
   weekdayName,
 } from "../lib/format";
+import { raPin, stationPin } from "../lib/highway";
 import { connectorName, useConnector, useHighways } from "../lib/store";
 import {
   logClick,
@@ -46,6 +52,8 @@ import {
   shareRestArea,
 } from "../lib/toss";
 import { useAsync } from "../lib/useAsync";
+import { canUseMapLayout } from "./nearbyState";
+import { restAreaPeek } from "./restAreaState";
 
 const REFRESH_MS = 60_000;
 /** 처음엔 가까운 몇 곳만 — 나머지는 "더 보기"로 */
@@ -55,6 +63,8 @@ const NOTIFY_TEMPLATE = import.meta.env.VITE_NOTIFY_TEMPLATE_CODE as
 
 /** "100kW 이상" 필터 기준 */
 const FAST_KW = 100;
+/** 지도에서 휴게소 핀의 id — 충전소 id(양수)와 겹치지 않게 */
+const RA_PIN_ID = -1;
 
 type Which = "prev" | "next";
 
@@ -62,9 +72,12 @@ export default function RestAreaPage() {
   const id = Number(useParams().id);
   const valid = Number.isInteger(id) && id > 0;
   const [maxMinutes, setMaxMinutes] = useState(15);
+  // 응답이 어느 범위(분)로 받은 것인지 함께 둔다 — 넓히는 동안에는 이전 범위의 결과를 그대로 보인다
   const bypass = useAsync(
     () =>
-      valid ? api.bypass(id, maxMinutes) : Promise.reject(new Error("invalid")),
+      valid
+        ? api.bypass(id, maxMinutes).then((d) => ({ d, m: maxMinutes }))
+        : Promise.reject(new Error("invalid")),
     [id, maxMinutes],
   );
 
@@ -89,7 +102,12 @@ export default function RestAreaPage() {
   if (!bypass.data)
     return (
       <main className="page" aria-busy="true">
-        <PageHeading title="휴게소 충전 정보" />
+        <div className="nearby-intro">
+          <h1 className="sr-only">휴게소 충전 정보</h1>
+          <p className="nearby-progress" role="status">
+            휴게소 충전 정보를 불러오고 있어요
+          </p>
+        </div>
         <Skeleton pattern="listOnly" repeatLastItemCount={4} />
       </main>
     );
@@ -97,8 +115,9 @@ export default function RestAreaPage() {
   return (
     <RestAreaView
       key={id}
-      data={bypass.data}
-      maxMinutes={maxMinutes}
+      data={bypass.data.d}
+      maxMinutes={bypass.data.m}
+      widening={bypass.loading && bypass.data.m !== maxMinutes}
       onWiden={() => {
         logClick("rest_area_widen_range");
         setMaxMinutes(30);
@@ -145,10 +164,12 @@ function pickBest(list: BypassStation[]) {
 function RestAreaView({
   data,
   maxMinutes,
+  widening,
   onWiden,
 }: {
   data: BypassResponse;
   maxMinutes: number;
+  widening: boolean;
   onWiden: () => void;
 }) {
   const ra = data.target_rest_area;
@@ -167,6 +188,12 @@ function RestAreaView({
   const [sheet, setSheet] = useState<BypassStation | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const pattern = useAsync(() => api.pattern(ra.id), [ra.id]);
+  /** 지도 위 시트가 펼쳐져 있다 */
+  const [listOpen, setListOpen] = useState(false);
+  const [peekH, setPeekH] = useState(0);
+  const [mapFailed, setMapFailed] = useState(false);
+  const [viewportH, setViewportH] = useState(() => window.innerHeight);
+  const handleRef = useRef<HTMLButtonElement>(null);
 
   const ics = [data.previous_ic, data.next_ic].filter(Boolean) as BypassIC[];
   const [tab, setTab] = useState<Which>(data.previous_ic ? "prev" : "next");
@@ -193,6 +220,13 @@ function RestAreaView({
       () => {},
     );
   }, [ra.id]);
+
+  // 화면 높이(회전·주소창)를 따라간다
+  useEffect(() => {
+    const onResize = () => setViewportH(window.innerHeight);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   const askAgreement = async () => {
     // 콘솔에 알림 템플릿이 등록돼 있으면 토스 알림 동의를 먼저 받는다
@@ -261,6 +295,16 @@ function RestAreaView({
     setExpanded(false);
   };
 
+  const toggleList = (open: boolean, by: SheetToggleBy) => {
+    logClick("rest_area_sheet_toggle", { open: open ? 1 : 0, by });
+    setListOpen(open);
+  };
+  /** 접힌 시트의 버튼으로 펼친다. 누른 버튼은 펼치면 숨으므로 포커스를 손잡이로 옮긴다 */
+  const openListFrom = (by: SheetToggleBy) => {
+    toggleList(true, by);
+    requestAnimationFrame(() => handleRef.current?.focus({ preventScroll: true }));
+  };
+
   const filtering = filters.fast || filters.allDay;
   const known = congestion.level !== "unknown";
   const now = new Date();
@@ -270,261 +314,143 @@ function RestAreaView({
     ? visibleStations
     : visibleStations.slice(0, INITIAL_COUNT);
   const bestIC = best ? icOf(best) : undefined;
+  const raLabel = raPin(congestion);
+  const routeText = `${ra.highway_name} · ${directionLabel(highways, ra.highway_code, ra.direction)}`;
 
-  return (
-    <main className="page">
-      <PageHeading
-        context={`${ra.highway_name} · ${directionLabel(highways, ra.highway_code, ra.direction)}`}
-        title={shortName(ra.name)}
-        actions={
-          <div className="top-actions">
-            <IconButton
-              name="icon-star-mono"
-              variant="clear"
-              iconSize={24}
-              color={favorite ? "var(--brand-strong)" : adaptive.grey600}
-              aria-label={favorite ? "즐겨찾기 해제" : "즐겨찾기"}
-              aria-pressed={favorite}
-              onClick={toggleFavorite}
-            />
-            <IconButton
-              name="icon-share-mono"
-              variant="clear"
-              iconSize={24}
-              color={adaptive.grey600}
-              aria-label="공유하기"
-              onClick={share}
-            />
-          </div>
-        }
-      />
-      <div className="rest-status">
-        <div className="rest-status__line">
-          <p className="rest-status__label">휴게소 충전기</p>
-          <p className="rest-status__value">
-            {known
-              ? `${congestion.label} · ${availabilityText(congestion)}`
-              : "상태 확인 불가"}
-          </p>
-        </div>
-        {known && congestion.checked_at && (
-          <span className="rest-status__time">
-            {timeAgo(congestion.checked_at)}
-          </span>
-        )}
-      </div>
+  const directions = (s: BypassStation) => {
+    logClick("best_directions", { station_id: s.id });
+    void openDirections(s.name, s.latitude, s.longitude);
+  };
 
-      <div className="section-pad">
-        {best ? (
-          <section
-            className="best-card rise"
-            aria-labelledby="recommended-station"
+  const widenButton = (
+    <Button size="large" display="full" loading={widening} onClick={onWiden}>
+      30분 거리까지 찾아보기
+    </Button>
+  );
+
+  /** 휴게소 충전기 상태 한 줄(빈 대수 / 전체 · 갱신 시각) */
+  const statusDetail = known
+    ? `${congestion.label} · ${availabilityText(congestion)}` +
+      (congestion.checked_at ? ` · ${timeAgo(congestion.checked_at)}` : "")
+    : null;
+
+  /** IC 앞/뒤 탭 → 필터 → 충전소 줄 → 더 보기 (지도 시트의 펼친 본문, 쌓인 배치의 목록) */
+  const stationsSection = activeIC ? (
+    <section className="flow-section rest-stations">
+      <SectionHeader title="IC 밖 대체 충전소" />
+      <div className="sticky-bar">
+        {ics.length > 1 && (
+          <Tab
+            onChange={(i) => {
+              setTab(i === 0 ? "prev" : "next");
+              setExpanded(false);
+            }}
+            fluid
           >
-            <p className="eyebrow">가장 빨리 다녀올 곳</p>
-            <h2 className="best-card__name" id="recommended-station">
-              {best.name}
-            </h2>
-            {bestIC && (
-              <p className="best-card__route">{bestIC.name}에서 나가요</p>
-            )}
-            <dl className="best-card__metrics">
-              <div>
-                <dt>더 걸리는 시간</dt>
-                <dd>
-                  {best.is_estimated ? "약 " : ""}
-                  {best.detour_extra_minutes}분
-                </dd>
-              </div>
-              <div>
-                <dt>충전기</dt>
-                <dd>
-                  {best.power_kw ? `${best.power_kw}kW` : "급속"}{" "}
-                  <span>{best.charger_count}대</span>
-                </dd>
-              </div>
-            </dl>
-            <div className="best-card__actions">
-              <Button
-                size="large"
-                variant="weak"
-                color="dark"
-                onClick={() => {
-                  logClick("best_detail");
-                  openSheet(best);
-                }}
-              >
-                자세히
-              </Button>
-              <Button
-                size="large"
-                display="full"
-                onClick={() => {
-                  logClick("best_directions", { station_id: best.id });
-                  void openDirections(best.name, best.latitude, best.longitude);
-                }}
-              >
-                길찾기
-              </Button>
-            </div>
-          </section>
-        ) : (
-          <div className="best-card rise">
-            <Paragraph
-              typography="t5"
-              fontWeight="bold"
-              color={adaptive.grey900}
+            <Tab.Item selected={tab === "prev"}>휴게소 전 IC</Tab.Item>
+            <Tab.Item selected={tab === "next"}>휴게소 후 IC</Tab.Item>
+          </Tab>
+        )}
+        <div className="filter-row">
+          <Chip
+            kind="select"
+            size="medium"
+            margin="none"
+            wrap
+            className="touch-chips"
+          >
+            <ChipItem
+              selected={!!connector && !showAll}
+              onClick={() => {
+                if (!connector) {
+                  logClick("station_filter", { filter: "connector_pick" });
+                  setPickerOpen(true);
+                  return;
+                }
+                logClick("station_filter", {
+                  filter: "connector",
+                  on: showAll ? 1 : 0,
+                });
+                setShowAll((v) => !v);
+                setExpanded(false);
+              }}
             >
-              IC 밖 {maxMinutes}분 안에는 맞는 충전소가 없어요
+              {connector ? connectorName(connector) : "충전 규격"}
+            </ChipItem>
+            <ChipItem
+              selected={filters.fast}
+              onClick={() => toggleFilter("fast")}
+            >
+              {`${FAST_KW}kW 이상`}
+            </ChipItem>
+            <ChipItem
+              selected={filters.allDay}
+              onClick={() => toggleFilter("allDay")}
+            >
+              24시간
+            </ChipItem>
+          </Chip>
+        </div>
+        <div className="filter-caption">
+          <Paragraph typography="t7" color={adaptive.grey600}>
+            {activeIC.name}에서 나가요 · 더 걸리는 시간이 짧은 순
+          </Paragraph>
+        </div>
+      </div>
+      <div
+        key={`${tab}-${filters.fast}-${filters.allDay}-${showAll}`}
+        className="rise"
+      >
+        {visibleStations.length === 0 ? (
+          <div className="section-pad">
+            <Paragraph typography="t6" color={adaptive.grey700}>
+              {filtering || (connector && !showAll)
+                ? "이 IC 근처에는 조건에 맞는 충전소가 없어요."
+                : "이 IC 근처에는 충전소가 없어요."}
             </Paragraph>
-            <p className="nearby-message__desc">
-              {filtering
-                ? "아래 조건을 풀거나 거리를 넓혀 보세요."
-                : "거리를 넓혀서 다시 찾아볼 수 있어요."}
-            </p>
-            {maxMinutes < 30 && (
-              <div className="nearby-message__action">
-                <Button size="large" display="full" onClick={onWiden}>
-                  30분 거리까지 찾아보기
+          </div>
+        ) : (
+          <>
+            {shownStations.map((s) => (
+              <StationRow
+                key={s.id}
+                station={s}
+                best={s.id === best?.id}
+                focused={focusId === s.id}
+                connector={connector}
+                onOpen={openSheet}
+              />
+            ))}
+            {visibleStations.length > shownStations.length && (
+              <div className="section-pad section-pad--tight">
+                <Button
+                  size="large"
+                  variant="weak"
+                  display="full"
+                  onClick={() => {
+                    logClick("station_more");
+                    setExpanded(true);
+                  }}
+                >
+                  {`${visibleStations.length - shownStations.length}곳 더 보기`}
                 </Button>
               </div>
             )}
-          </div>
+          </>
         )}
       </div>
+    </section>
+  ) : (
+    <div className="section-pad">
+      <Paragraph typography="t6" color={adaptive.grey600}>
+        이 휴게소 근처 IC 정보가 아직 없어요.
+      </Paragraph>
+    </div>
+  );
 
-      {ics.length > 0 && candidates.length > 0 && (
-        <RestAreaMap
-          restArea={{
-            lat: +ra.latitude,
-            lng: +ra.longitude,
-            name: shortName(ra.name),
-          }}
-          ics={ics}
-          stations={candidates}
-          focusId={focusId}
-          onSelectStation={(sid) => {
-            const st = allStations.find((s) => s.id === sid);
-            if (!st) return;
-            const inPrev = data.previous_ic?.stations.some((s) => s.id === sid);
-            setTab(inPrev ? "prev" : "next");
-            openSheet(st);
-          }}
-        />
-      )}
-
-      {activeIC ? (
-        <section className="flow-section">
-          <SectionHeader title="IC 밖 대체 충전소" />
-          <div className="sticky-bar">
-            {ics.length > 1 && (
-              <Tab
-                onChange={(i) => {
-                  setTab(i === 0 ? "prev" : "next");
-                  setExpanded(false);
-                }}
-                fluid
-              >
-                <Tab.Item selected={tab === "prev"}>휴게소 전 IC</Tab.Item>
-                <Tab.Item selected={tab === "next"}>휴게소 후 IC</Tab.Item>
-              </Tab>
-            )}
-            <div className="filter-row">
-              <Chip
-                kind="select"
-                size="medium"
-                margin="none"
-                wrap
-                className="touch-chips"
-              >
-                <ChipItem
-                  selected={!!connector && !showAll}
-                  onClick={() => {
-                    if (!connector) {
-                      logClick("station_filter", { filter: "connector_pick" });
-                      setPickerOpen(true);
-                      return;
-                    }
-                    logClick("station_filter", {
-                      filter: "connector",
-                      on: showAll ? 1 : 0,
-                    });
-                    setShowAll((v) => !v);
-                    setExpanded(false);
-                  }}
-                >
-                  {connector ? connectorName(connector) : "충전 규격"}
-                </ChipItem>
-                <ChipItem
-                  selected={filters.fast}
-                  onClick={() => toggleFilter("fast")}
-                >
-                  {`${FAST_KW}kW 이상`}
-                </ChipItem>
-                <ChipItem
-                  selected={filters.allDay}
-                  onClick={() => toggleFilter("allDay")}
-                >
-                  24시간
-                </ChipItem>
-              </Chip>
-            </div>
-            <div className="filter-caption">
-              <Paragraph typography="t7" color={adaptive.grey600}>
-                {activeIC.name}에서 나가요 · 더 걸리는 시간이 짧은 순
-              </Paragraph>
-            </div>
-          </div>
-          <div
-            key={`${tab}-${filters.fast}-${filters.allDay}-${showAll}`}
-            className="rise"
-          >
-            {visibleStations.length === 0 ? (
-              <div className="section-pad">
-                <Paragraph typography="t6" color={adaptive.grey700}>
-                  {filtering || (connector && !showAll)
-                    ? "이 IC 근처에는 조건에 맞는 충전소가 없어요."
-                    : "이 IC 근처에는 충전소가 없어요."}
-                </Paragraph>
-              </div>
-            ) : (
-              <>
-                {shownStations.map((s) => (
-                  <StationRow
-                    key={s.id}
-                    station={s}
-                    best={s.id === best?.id}
-                    focused={focusId === s.id}
-                    connector={connector}
-                    onOpen={openSheet}
-                  />
-                ))}
-                {visibleStations.length > shownStations.length && (
-                  <div className="section-pad section-pad--tight">
-                    <Button
-                      size="large"
-                      variant="weak"
-                      display="full"
-                      onClick={() => {
-                        logClick("station_more");
-                        setExpanded(true);
-                      }}
-                    >
-                      {`${visibleStations.length - shownStations.length}곳 더 보기`}
-                    </Button>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </section>
-      ) : (
-        <div className="section-pad">
-          <Paragraph typography="t6" color={adaptive.grey600}>
-            이 휴게소 근처 IC 정보가 아직 없어요.
-          </Paragraph>
-        </div>
-      )}
-
+  /** 요일별 혼잡 패턴 + 안내 문구 */
+  const tail = (
+    <>
       {pattern.data?.has_pattern && (
         <section className="flow-section">
           <SectionHeader
@@ -535,7 +461,6 @@ function RestAreaView({
           </div>
         </section>
       )}
-
       <div className="footnote">
         <Paragraph typography="t7" color={adaptive.grey600}>
           휴게소 충전기 상태는 공공데이터라 현장과 다를 수 있어요. 시간 앞에
@@ -543,7 +468,41 @@ function RestAreaView({
           충전소에서 한 번 더 확인해 주세요.
         </Paragraph>
       </div>
+    </>
+  );
 
+  const head = (
+    <div className="nearby-intro">
+      <div className="rest-head">
+        <div className="rest-head__text">
+          <h1 className="rest-head__name">{shortName(ra.name)}</h1>
+          <p className="rest-head__route">{routeText}</p>
+        </div>
+        <div className="top-actions">
+          <IconButton
+            name="icon-star-mono"
+            variant="clear"
+            iconSize={24}
+            color={favorite ? "var(--brand-strong)" : adaptive.grey600}
+            aria-label={favorite ? "즐겨찾기 해제" : "즐겨찾기"}
+            aria-pressed={favorite}
+            onClick={toggleFavorite}
+          />
+          <IconButton
+            name="icon-share-mono"
+            variant="clear"
+            iconSize={24}
+            color={adaptive.grey600}
+            aria-label="공유하기"
+            onClick={share}
+          />
+        </div>
+      </div>
+    </div>
+  );
+
+  const sheets = (
+    <>
       <StationSheet
         station={sheet}
         icName={sheet ? icOf(sheet)?.name : undefined}
@@ -571,6 +530,307 @@ function RestAreaView({
           <ConnectorPicker onPicked={() => setPickerOpen(false)} />
         </div>
       </BottomSheet>
+    </>
+  );
+
+  const mapLayout = canUseMapLayout(viewportH) && !mapFailed;
+
+  if (!mapLayout) {
+    // 낮은 화면·지도 실패: 예전 화면과 같은 순서(상태 → 추천 카드 → 목록 → 패턴 → 안내), 지도만 없다
+    return (
+      <main className="page">
+        {head}
+        <div className="rest-status">
+          <div className="rest-status__line">
+            <p className="rest-status__label">휴게소 충전기</p>
+            <p className="rest-status__value">
+              {known
+                ? `${congestion.label} · ${availabilityText(congestion)}`
+                : "상태 확인 불가"}
+            </p>
+          </div>
+          {known && congestion.checked_at && (
+            <span className="rest-status__time">
+              {timeAgo(congestion.checked_at)}
+            </span>
+          )}
+        </div>
+
+        <div className="section-pad">
+          {best ? (
+            <section
+              className="best-card rise"
+              aria-labelledby="recommended-station"
+            >
+              <p className="eyebrow">가장 빨리 다녀올 곳</p>
+              <h2 className="best-card__name" id="recommended-station">
+                {best.name}
+              </h2>
+              {bestIC && (
+                <p className="best-card__route">{bestIC.name}에서 나가요</p>
+              )}
+              <dl className="best-card__metrics">
+                <div>
+                  <dt>더 걸리는 시간</dt>
+                  <dd>
+                    {best.is_estimated ? "약 " : ""}
+                    {best.detour_extra_minutes}분
+                  </dd>
+                </div>
+                <div>
+                  <dt>충전기</dt>
+                  <dd>
+                    {best.power_kw ? `${best.power_kw}kW` : "급속"}{" "}
+                    <span>{best.charger_count}대</span>
+                  </dd>
+                </div>
+              </dl>
+              <div className="best-card__actions">
+                <Button
+                  size="large"
+                  variant="weak"
+                  color="dark"
+                  onClick={() => {
+                    logClick("best_detail");
+                    openSheet(best);
+                  }}
+                >
+                  자세히
+                </Button>
+                <Button
+                  size="large"
+                  display="full"
+                  onClick={() => directions(best)}
+                >
+                  길찾기
+                </Button>
+              </div>
+            </section>
+          ) : (
+            <div className="best-card rise">
+              <Paragraph
+                typography="t5"
+                fontWeight="bold"
+                color={adaptive.grey900}
+              >
+                IC 밖 {maxMinutes}분 안에는 맞는 충전소가 없어요
+              </Paragraph>
+              <p className="nearby-message__desc">
+                {filtering
+                  ? "아래 조건을 풀거나 거리를 넓혀 보세요."
+                  : "거리를 넓혀서 다시 찾아볼 수 있어요."}
+              </p>
+              {maxMinutes < 30 && (
+                <div className="nearby-message__action">{widenButton}</div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {stationsSection}
+        {tail}
+        {sheets}
+      </main>
+    );
+  }
+
+  const peek = restAreaPeek({
+    congestion,
+    waitMinutes: data.decision?.wait_minutes ?? null,
+    best,
+    bestIcName: bestIC?.name,
+    maxMinutes,
+    totalStations: candidates.length,
+  });
+
+  const verdictBox = (
+    <div className={`verdict verdict--${raLabel.kind}`} role="status">
+      <p className="verdict__text">{peek.verdict}</p>
+      {statusDetail && <p className="verdict__detail">{statusDetail}</p>}
+    </div>
+  );
+
+  const moreButton = (label: string) => (
+    <Button
+      size="large"
+      variant="weak"
+      display="full"
+      onClick={() => openListFrom("button")}
+    >
+      {label}
+    </Button>
+  );
+
+  const peekContent =
+    peek.kind === "best" ? (
+      <div className="nearby-peek">
+        {verdictBox}
+        <p className="nearby-peek__label rest-peek__label">
+          가장 빨리 다녀올 곳
+        </p>
+        <div
+          className={
+            focusId === peek.station.id
+              ? "nearby-peek__row row-focused"
+              : "nearby-peek__row"
+          }
+        >
+          <ListRow
+            as="div"
+            className="nearby-row"
+            horizontalPadding="small"
+            arrowType="right"
+            border="none"
+            withTouchEffect
+            contents={
+              <ListRow.Texts
+                type="2RowTypeA"
+                top={peek.station.name}
+                topProps={{ fontWeight: "bold" }}
+                bottom={
+                  detourSummary(peek.station) +
+                  (peek.icName ? ` · ${peek.icName}에서 나가요` : "")
+                }
+                bottomProps={{ typography: "t6", color: "var(--muted)" }}
+              />
+            }
+            right={
+              peek.station.realtime ? (
+                <span
+                  className={`nearby-row__count nearby-row__count--${stationPin(peek.station).kind}`}
+                >
+                  {`${peek.station.realtime.available}대`}
+                </span>
+              ) : undefined
+            }
+            onClick={() => {
+              logClick("best_detail");
+              openSheet(peek.station);
+            }}
+          />
+        </div>
+        <div className="nearby-peek__action rest-peek__actions">
+          {moreButton(`IC 밖 충전소 ${peek.more}곳 보기`)}
+          <Button
+            size="large"
+            display="full"
+            onClick={() => directions(peek.station)}
+          >
+            길찾기
+          </Button>
+        </div>
+      </div>
+    ) : (
+      <div className="nearby-peek">
+        {verdictBox}
+        <p className="nearby-peek__title">{peek.title}</p>
+        <p className="nearby-peek__subtitle">
+          {filtering
+            ? "조건을 풀거나 거리를 넓혀 보세요."
+            : peek.canWiden
+              ? "거리를 넓혀서 다시 찾아볼 수 있어요."
+              : "목록에서 조건과 혼잡 패턴을 볼 수 있어요."}
+        </p>
+        {peek.canWiden && (
+          <div className="nearby-peek__action">{widenButton}</div>
+        )}
+        {/* 넓힐 수 없어도 다음 행동(목록 보기)은 늘 둔다 */}
+        {(peek.more > 0 || !peek.canWiden) && (
+          <div className="nearby-peek__action">
+            {moreButton(
+              peek.more > 0
+                ? `IC 밖 충전소 ${peek.more}곳 보기`
+                : "조건·혼잡 패턴 보기",
+            )}
+          </div>
+        )}
+      </div>
+    );
+
+  const raPos = { lat: +ra.latitude, lng: +ra.longitude };
+  const icPos = (ic: BypassIC) => ({ lat: +ic.latitude, lng: +ic.longitude });
+  const path = [
+    ...(data.previous_ic ? [icPos(data.previous_ic)] : []),
+    raPos,
+    ...(data.next_ic ? [icPos(data.next_ic)] : []),
+  ];
+  const sorted = [...candidates].sort(byDetour);
+  const pins: RoutePin[] = [
+    {
+      id: RA_PIN_ID,
+      ...raPos,
+      text: `휴게소 · ${raLabel.text}`,
+      kind: raLabel.kind,
+      ariaLabel: `${shortName(ra.name)} ${raLabel.text}, 목록 펼치기`,
+      priority: -1,
+      emphasized: true,
+    },
+    ...sorted.map((s, i) => {
+      const p = stationPin(s);
+      return {
+        id: s.id,
+        lat: +s.latitude,
+        lng: +s.longitude,
+        text: p.text,
+        kind: p.kind,
+        known: p.known,
+        ariaLabel:
+          `${s.name}, ${p.known ? `빈 충전기 ${s.realtime?.available}대, ` : ""}` +
+          `우회하면 ${s.detour_extra_minutes}분 더${s.id === best?.id ? ", 추천" : ""}`,
+        priority: i,
+        emphasized: s.id === best?.id,
+      };
+    }),
+  ];
+  const fit = [
+    ...path,
+    ...(best ? [{ lat: +best.latitude, lng: +best.longitude }] : []),
+  ];
+
+  return (
+    <main className="page page--map">
+      {head}
+      <div className="nearby-map-wrap nearby-map-wrap--full">
+        <RouteMap
+          label={`${shortName(ra.name)}와 IC 밖 충전소 지도`}
+          path={path}
+          pins={pins}
+          labels={ics.map((ic) => ({ ...icPos(ic), text: ic.name }))}
+          me={null}
+          fit={fit}
+          fitKey={`${ra.id}|${maxMinutes}`}
+          focusId={focusId}
+          topInset={0}
+          bottomInset={peekH}
+          onSelect={(sid) => {
+            if (sid === RA_PIN_ID) {
+              if (!listOpen) openListFrom("pin");
+              return;
+            }
+            const st = allStations.find((s) => s.id === sid);
+            if (!st) return;
+            const inPrev = data.previous_ic?.stations.some((s) => s.id === sid);
+            setTab(inPrev ? "prev" : "next");
+            openSheet(st);
+          }}
+          onMapTap={() => {
+            if (listOpen) toggleList(false, "map");
+          }}
+          onFailed={() => setMapFailed(true)}
+        />
+        <NearbyListSheet
+          open={listOpen}
+          onToggle={toggleList}
+          peek={peekContent}
+          onPeekHeight={setPeekH}
+          handleRef={handleRef}
+          label="IC 밖 대체 충전소 목록"
+        >
+          {stationsSection}
+          {tail}
+        </NearbyListSheet>
+      </div>
+      {sheets}
     </main>
   );
 }
