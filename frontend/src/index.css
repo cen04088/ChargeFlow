@@ -390,6 +390,77 @@ body {
   transform: scale(1.15);
 }
 
+/* ── 주변 충전소 지도 ─────────────────────────────────── */
+.nearby-map-card {
+  position: relative;
+  height: 45dvh;
+  min-height: 260px;
+  background: var(--canvas);
+  overflow: hidden;
+}
+
+.nearby-map {
+  position: absolute;
+  inset: 0;
+}
+
+/* 핀: 빈 곳 있으면 브랜드색, 아니면 회색. 터치 영역 44px 이상, 글씨 15px 이상 */
+.nearby-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  word-break: keep-all;
+  color: #fff;
+  background-color: var(--brand-strong);
+  box-shadow: 0 0 0 3px #fff, 0 4px 12px -2px rgba(0, 23, 51, 0.4);
+  cursor: pointer;
+  transition: transform var(--spring-bounce-time) var(--spring-bounce),
+    background-color 200ms ease;
+}
+
+.nearby-pin--off {
+  padding: 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+  background-color: #4e5968;
+}
+
+.nearby-pin--focus {
+  background-color: var(--brand-deep);
+  transform: scale(1.15);
+}
+
+.nearby-pin--off.nearby-pin--focus {
+  background-color: #191f28;
+}
+
+/* 내 위치 파란 점 */
+.nearby-me {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--sky-strong);
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 6px rgba(27, 100, 218, 0.22);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nearby-pin {
+    transition: none;
+  }
+  .nearby-pin--focus {
+    transform: none;
+  }
+}
+
 /* ── 스크롤해도 따라오는 필터 띠 ─────────────────────────
    불투명한 띠 대신 반투명 재질, 아래 경계선 대신 흐린 가장자리 */
 .sticky-bar {
