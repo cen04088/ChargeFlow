@@ -916,6 +916,11 @@ body {
   color: #4e5968;
 }
 
+/* 정보 수신 불가 화면의 "다시 시도" */
+.nearby-message__action {
+  margin-top: 16px;
+}
+
 /* 지난번 위치로 보여 줄 때 목록 위 작은 안내 */
 .nearby-notice {
   display: flex;

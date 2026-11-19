@@ -111,7 +111,26 @@ test("listRows shows three available, then all", () => {
 });
 test("listRows falls back to full stations", () => {
   const full = [1, 2, 3, 4].map((id) => st({ id, state: "full", available: 0 }));
-  expect(listRows(full, false)).toMatchObject({ hidden: 1, fallback: true });
+  expect(listRows(full, false)).toMatchObject({ hidden: 1, fallback: "full" });
+});
+test("listRows with full and unavailable lists only full ones", () => {
+  const off = (id: number) => st({ id, state: "unavailable", available: 0 });
+  const full = (id: number) => st({ id, state: "full", available: 0 });
+  const mixed = [off(1), full(2), off(3), full(4), full(5), full(6), full(7), off(8)];
+  const r = listRows(mixed, false);
+  expect(r.fallback).toBe("full");
+  expect(r.rows.map((s) => s.id)).toEqual([2, 4, 5]);
+  expect(r.hidden).toBe(2);
+  expect(listRows(mixed, true).rows.map((s) => s.id)).toEqual([2, 4, 5, 6, 7]);
+});
+test("listRows with only unavailable stations", () => {
+  const off = [1, 2, 3, 4, 5].map((id) => st({ id, state: "unavailable", available: 0 }));
+  expect(listRows(off, false)).toMatchObject({ hidden: 2, fallback: "unavailable" });
+  expect(listRows(off, false).rows.map((s) => s.id)).toEqual([1, 2, 3]);
+});
+test("listRows with available stations or nothing has no fallback", () => {
+  const some = [st({ id: 1, state: "full", available: 0 }), st({ id: 2 })];
+  expect(listRows(some, false)).toEqual({ rows: [some[1]], hidden: 0, fallback: false });
   expect(listRows([], false)).toEqual({ rows: [], hidden: 0, fallback: false });
 });
 test("summaryText", () => {

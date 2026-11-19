@@ -201,4 +201,6 @@ export interface NearbyStationsResponse {
   radius_km: number;
   fetched_at: string;
   stations: NearbyStation[];
+  /** 결과가 비었을 때만 의미: 서버가 충전 상태 정보를 받지 못하고 있다 */
+  feed_stale: boolean;
 }

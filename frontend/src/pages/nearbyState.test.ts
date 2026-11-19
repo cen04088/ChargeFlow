@@ -3,6 +3,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import type { NearbyStation, NearbyStationsResponse } from "../api/types";
 import {
   LOCATE_TIMEOUT_MS,
+  fallbackCopy,
   fetchedText,
   locateWithTimeout,
   nearbyView,
@@ -54,6 +55,45 @@ test("locateWithTimeout fails after 12s and hands the late answer to onLate", as
   expect(onLate).toHaveBeenCalledWith({ ok: true, lat: 37.5, lng: 127 });
 });
 
+test("locateWithTimeout does nothing after it is cancelled", async () => {
+  vi.useFakeTimers();
+  const d = deferred();
+  const onLate = vi.fn();
+  const ctl = new AbortController();
+  let settled = false;
+  void locateWithTimeout(() => d.promise, LOCATE_TIMEOUT_MS, onLate, ctl.signal).then(() => {
+    settled = true;
+  });
+  ctl.abort();
+  await vi.advanceTimersByTimeAsync(LOCATE_TIMEOUT_MS * 2);
+  expect(vi.getTimerCount()).toBe(0);
+  d.resolve({ ok: true, lat: 37.5, lng: 127 });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(settled).toBe(false);
+  expect(onLate).not.toHaveBeenCalled();
+});
+
+test("locateWithTimeout ignores a late answer once cancelled", async () => {
+  vi.useFakeTimers();
+  const d = deferred();
+  const onLate = vi.fn();
+  const ctl = new AbortController();
+  void locateWithTimeout(() => d.promise, LOCATE_TIMEOUT_MS, onLate, ctl.signal);
+  await vi.advanceTimersByTimeAsync(LOCATE_TIMEOUT_MS);
+  ctl.abort();
+  d.resolve({ ok: true, lat: 37.5, lng: 127 });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(onLate).not.toHaveBeenCalled();
+});
+
+test("locateWithTimeout with an already-aborted signal never asks", async () => {
+  const ctl = new AbortController();
+  ctl.abort();
+  const get = vi.fn(() => Promise.resolve({ ok: true as const, lat: 1, lng: 2 }));
+  void locateWithTimeout(get, 1000, () => {}, ctl.signal);
+  expect(get).not.toHaveBeenCalled();
+});
+
 test("locateWithTimeout treats a rejected request as failed", async () => {
   const r = await locateWithTimeout(() => Promise.reject(new Error("x")), 1000, () => {});
   expect(r).toEqual({ ok: false, reason: "failed" });
@@ -81,8 +121,8 @@ function st(id: number, state: NearbyStation["state"]): NearbyStation {
   };
 }
 
-function res(stations: NearbyStation[]): NearbyStationsResponse {
-  return { radius_km: 5, fetched_at: "2026-11-19T05:05:00Z", stations };
+function res(stations: NearbyStation[], feed_stale = false): NearbyStationsResponse {
+  return { radius_km: 5, fetched_at: "2026-11-19T05:05:00Z", stations, feed_stale };
 }
 
 const base: ViewInput = {
@@ -177,8 +217,44 @@ test("충전소가 없으면 none, 빈 곳이 없으면 꽉 찬 곳 목록", () 
   const r = { ...base, hasOrigin: true, source: "me" as const };
   expect(nearbyView({ ...r, result: res([]) }).kind).toBe("none");
   const v = nearbyView({ ...r, result: res([st(1, "full"), st(2, "unavailable")]) });
-  expect(v.kind === "list" && v.fallback).toBe(true);
-  expect(v.kind === "list" && v.rows.map((s) => s.id)).toEqual([1, 2]);
+  expect(v.kind === "list" && v.fallback).toBe("full");
+  expect(v.kind === "list" && v.rows.map((s) => s.id)).toEqual([1]);
+  const off = nearbyView({ ...r, result: res([st(2, "unavailable")]) });
+  expect(off.kind === "list" && off.fallback).toBe("unavailable");
+});
+
+test("대체 목록 문구는 꽉 참·이용 불가에 맞춘다", () => {
+  expect(fallbackCopy("full", 30)).toEqual({
+    title: "30km 안에 지금 빈 급속충전소가 없어요",
+    desc: "충전 중인 곳을 가까운 순서로 보여 드려요",
+  });
+  expect(fallbackCopy("unavailable", 20)).toEqual({
+    title: "20km 안에 지금 쓸 수 있는 급속충전소가 없어요",
+    desc: "점검 중이거나 연결이 끊긴 곳만 있어요",
+  });
+});
+
+test("결과가 비고 정보 수신이 끊겼으면 stale (none보다 우선)", () => {
+  const r = { ...base, hasOrigin: true, source: "last" as const };
+  expect(nearbyView({ ...r, result: res([], true) })).toEqual({ kind: "stale", notice: false });
+  expect(nearbyView({ ...r, locFailure: "failed", result: res([], true) })).toEqual({
+    kind: "stale",
+    notice: true,
+  });
+  expect(nearbyView({ ...r, result: res([], false) }).kind).toBe("none");
+  // 예전 응답처럼 값이 없으면 false로 본다
+  const legacy = { radius_km: 30, fetched_at: "2026-11-19T05:05:00Z", stations: [] } as unknown as NearbyStationsResponse;
+  expect(nearbyView({ ...r, result: legacy }).kind).toBe("none");
+  // 결과가 있으면 무시
+  expect(nearbyView({ ...r, result: res([st(1, "available")], true) }).kind).toBe("list");
+});
+
+test("stale은 지역 선택·오류·찾는 중을 덮지 않는다", () => {
+  const r = { ...base, hasOrigin: true, source: "me" as const, result: res([], true) };
+  expect(nearbyView({ ...r, regionsRequested: true }).kind).toBe("regions");
+  expect(nearbyView({ ...r, errorStatus: 400 }).kind).toBe("regions");
+  expect(nearbyView({ ...base, hasOrigin: true, source: "me", errorStatus: 0 }).kind).toBe("error");
+  expect(nearbyView({ ...base, hasOrigin: true, source: "me" }).kind).toBe("loading");
 });
 
 test("빈 곳만 3곳, 나머지는 더 보기", () => {

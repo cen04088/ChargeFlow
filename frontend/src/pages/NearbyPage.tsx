@@ -28,6 +28,7 @@ import { connectorName, useConnector } from "../lib/store";
 import { getLocation, logClick, logScreen } from "../lib/toss";
 import {
   LOCATE_TIMEOUT_MS,
+  fallbackCopy,
   fetchedText,
   locateWithTimeout,
   nearbyView,
@@ -88,6 +89,8 @@ export default function NearbyPage() {
   const locSeq = useRef(0);
   /** 위치를 받는 중 — 같은 렌더 안의 연타도 막도록 ref로 든다 */
   const locatingRef = useRef(false);
+  /** 화면이 떠 있는 동안의 취소 신호 */
+  const alive = useRef<AbortController | null>(null);
   const inflight = useRef(false);
 
   /** 가장 최근 요청의 응답만 화면에 반영한다 */
@@ -156,7 +159,7 @@ export default function NearbyPage() {
         if (id !== locSeq.current) return;
         setLocFailure(null);
         searchFrom(p, "me", true);
-      });
+      }, alive.current?.signal);
       if (r.ok) saveLastLocation(r.lat, r.lng);
       // 실패 기록은 응답이 늦었어도 시도마다 한 번 남긴다
       else logClick("nearby_location_denied", { reason: r.reason });
@@ -185,6 +188,14 @@ export default function NearbyPage() {
     },
     [searchFrom],
   );
+
+  // 화면을 떠나면 기다리던 위치 요청을 무른다(시간 제한 기록·토스트·검색이 남지 않게).
+  // 첫 진입 효과보다 먼저 선언해 locate가 이 화면의 signal을 쓰게 한다
+  useEffect(() => {
+    const c = new AbortController();
+    alive.current = c;
+    return () => c.abort();
+  }, []);
 
   // 첫 진입: 지난번 위치가 있으면 그걸로 먼저 채우고, 현재 위치를 받는다
   useEffect(() => {
@@ -254,6 +265,13 @@ export default function NearbyPage() {
     else locateMe();
   };
 
+  /** 정보 수신 불가 화면의 "다시 시도": 같은 기준점·규격으로 다시 찾는다 */
+  const retryStale = () => {
+    logClick("nearby_retry");
+    const p = originRef.current;
+    if (p) void search(p);
+  };
+
   const view = nearbyView({
     hasOrigin: origin != null,
     source,
@@ -279,7 +297,10 @@ export default function NearbyPage() {
   const showMap =
     !mapFailed &&
     center != null &&
-    (view.kind === "loading" || view.kind === "list" || view.kind === "none");
+    (view.kind === "loading" ||
+      view.kind === "list" ||
+      view.kind === "none" ||
+      view.kind === "stale");
 
   const highwayRow = (
     <div className="nearby-bottom">
@@ -403,7 +424,8 @@ export default function NearbyPage() {
           </div>
         )}
 
-        {(view.kind === "list" || view.kind === "none") && result && (
+        {(view.kind === "list" || view.kind === "none" || view.kind === "stale") &&
+          result && (
           <div className={"nearby-list" + (searching ? " nearby-list--busy" : "")}>
             {mapFailed && (
               <div className="nearby-controls">
@@ -457,15 +479,35 @@ export default function NearbyPage() {
               </div>
             )}
 
+            {view.kind === "stale" && (
+              <div className="nearby-message">
+                <p className="nearby-message__title">
+                  지금 충전소 정보를 받지 못하고 있어요
+                </p>
+                <p className="nearby-message__desc">잠시 후 다시 확인해 주세요</p>
+                <div className="nearby-message__action">
+                  <Button
+                    size="large"
+                    variant="weak"
+                    display="full"
+                    loading={searching}
+                    onClick={retryStale}
+                  >
+                    다시 시도
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {view.kind === "list" && (
               <>
                 {view.fallback && (
                   <div className="nearby-message">
                     <p className="nearby-message__title">
-                      {`${result.radius_km}km 안에 지금 빈 급속충전소가 없어요`}
+                      {fallbackCopy(view.fallback, result.radius_km).title}
                     </p>
                     <p className="nearby-message__desc">
-                      충전 중인 곳을 가까운 순서로 보여 드려요
+                      {fallbackCopy(view.fallback, result.radius_km).desc}
                     </p>
                   </div>
                 )}
@@ -514,7 +556,9 @@ export default function NearbyPage() {
               </>
             )}
 
-            <p className="nearby-time">{fetchedText(result.fetched_at)}</p>
+            {view.kind !== "stale" && (
+              <p className="nearby-time">{fetchedText(result.fetched_at)}</p>
+            )}
           </div>
         )}
       </div>

@@ -49,15 +49,26 @@ export function rowCaption(s: NearbyStation, now: number): string {
   return min > STALE_MIN ? `${base} · ${checkedText(s.checked_at, now)}` : base;
 }
 
+/** 빈 곳이 없을 때 대신 보여 주는 목록 종류: 충전 중(꽉 참) → 이용 불가 순 */
+export type ListFallback = false | "full" | "unavailable";
+
 export function listRows(
   stations: NearbyStation[],
   expanded: boolean,
-): { rows: NearbyStation[]; hidden: number; fallback: boolean } {
-  const open = stations.filter((s) => s.state === "available");
-  const fallback = open.length === 0;
-  const pool = fallback ? stations : open;
+): { rows: NearbyStation[]; hidden: number; fallback: ListFallback } {
+  let fallback: ListFallback = false;
+  let pool = stations.filter((s) => s.state === "available");
+  if (pool.length === 0) {
+    pool = stations.filter((s) => s.state === "full");
+    fallback = "full";
+  }
+  if (pool.length === 0) {
+    pool = stations.filter((s) => s.state === "unavailable");
+    fallback = "unavailable";
+  }
+  if (pool.length === 0) fallback = false;
   const rows = expanded ? pool : pool.slice(0, LIST_INITIAL);
-  return { rows, hidden: pool.length - rows.length, fallback: fallback && pool.length > 0 };
+  return { rows, hidden: pool.length - rows.length, fallback };
 }
 
 export function summaryText(stations: NearbyStation[]): string {
