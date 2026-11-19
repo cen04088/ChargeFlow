@@ -27,6 +27,10 @@ interface NearbyListSheetProps {
   handleRef?: Ref<HTMLButtonElement>;
   /** 시트 영역 이름(화면낭독기) */
   label?: string;
+  /** 접힌 시트를 한 번 더 내려 요약만 남긴 상태. onCollapse와 함께 준다 */
+  collapsed?: boolean;
+  /** 주면 접힌 시트를 아래로 끌어 더 줄일 수 있다(부모가 peek 내용을 줄인다) */
+  onCollapse?: (collapsed: boolean) => void;
 }
 
 /** 펼친 높이: 지도 영역의 85%와 화면 높이의 70% 중 작은 값 */
@@ -36,6 +40,10 @@ const OPEN_VIEWPORT_RATIO = 0.7;
 const VELOCITY_WINDOW_MS = 80;
 /** 끌기 시작 판정: 이만큼 움직인 뒤 가로·세로를 비교한다 */
 const DRAG_DECIDE_PX = 6;
+/** 접힌 시트를 이만큼 아래로 끌면 요약만 남긴다 */
+const COLLAPSE_DRAG_PX = 24;
+/** 접힌 시트를 아래로 끌 때 따라 내려가는 최대 거리 */
+const COLLAPSE_PULL_PX = 48;
 
 interface Drag {
   pointerId: number;
@@ -59,6 +67,8 @@ export function NearbyListSheet({
   onPeekHeight,
   handleRef,
   label = "주변 급속충전소 목록",
+  collapsed = false,
+  onCollapse,
 }: NearbyListSheetProps) {
   const sheetRef = useRef<HTMLElement>(null);
   const headRef = useRef<HTMLDivElement>(null);
@@ -180,7 +190,10 @@ export function NearbyListSheet({
     const cutoff = e.timeStamp - VELOCITY_WINDOW_MS * 2;
     while (d.samples.length > 2 && d.samples[0].t < cutoff) d.samples.shift();
     const base = openRef.current ? 0 : range;
-    setDragY(Math.min(range, Math.max(0, base + dy)));
+    // 접힌 시트는 아래로도 조금 따라 내려간다(더 줄일 수 있을 때)
+    const pull =
+      onCollapse && !openRef.current && !collapsed ? COLLAPSE_PULL_PX : 0;
+    setDragY(Math.min(range + pull, Math.max(0, base + dy)));
   };
 
   const onPointerUp = (e: ReactPointerEvent<HTMLButtonElement>) => {
@@ -199,6 +212,17 @@ export function NearbyListSheet({
     const dt = last.t - first.t;
     const vy = dt > 0 ? (last.y - first.y) / dt : 0;
     const was = openRef.current;
+    if (onCollapse && !was) {
+      // 접힌 시트: 아래로 끌면 요약만, 요약 상태에서 위로 끌면 다시 접힌 상태로
+      if (!collapsed && dy > COLLAPSE_DRAG_PX) {
+        onCollapse(true);
+        return;
+      }
+      if (collapsed && dy < 0) {
+        onCollapse(false);
+        return;
+      }
+    }
     const next = sheetSnap({ open: was, dy, vy, range });
     if (next !== was) onToggle(next, "drag");
   };
@@ -223,6 +247,11 @@ export function NearbyListSheet({
     const suppressed = suppressClick.current && e.detail !== 0;
     suppressClick.current = false;
     if (suppressed) return;
+    // 요약만 남긴 상태에서 누르면 먼저 접힌 상태로 돌아온다
+    if (!open && collapsed && onCollapse) {
+      onCollapse(false);
+      return;
+    }
     onToggle(!open, "handle");
   };
 
@@ -246,7 +275,9 @@ export function NearbyListSheet({
           className="nearby-sheet__handle"
           aria-expanded={open}
           aria-controls={bodyId}
-          aria-label={open ? "목록 접기" : "목록 펼치기"}
+          aria-label={
+            open ? "목록 접기" : collapsed ? "요약 펼치기" : "목록 펼치기"
+          }
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}

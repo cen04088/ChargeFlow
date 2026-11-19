@@ -230,7 +230,8 @@ export function RouteMap({
         id: p.id,
         rect: { left: pt.x - w / 2, right: pt.x + w / 2, top: bottom - h, bottom },
         priority: p.priority,
-        focused: focused || !!p.emphasized,
+        // 늘 글자로 두는 것은 누른 핀과 휴게소 핀뿐 — 강조한 추천 충전소도 겹치면 점이 된다
+        focused: focused || p.priority < 0,
       };
     });
     const top = topInsetRef.current;

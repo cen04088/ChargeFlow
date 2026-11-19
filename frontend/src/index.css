@@ -947,6 +947,12 @@ html body {
   }
 }
 
+/* 안드로이드의 토스 웹뷰는 이미 시스템 내비게이션 바 위에서 끝나는데도 그 높이를 safe area로 알려 준다.
+   그대로 더하면 아래가 두 번 비므로 고정 여백만 쓴다 */
+:root.is-android {
+  --bottom-space: 16px;
+}
+
 /* 충전 설정 시트: 규격 + 속도 */
 .charge-settings__title {
   margin: 0 0 10px;
@@ -1735,6 +1741,66 @@ html body {
   color: var(--muted);
   font-size: 15px;
   line-height: 1.45;
+}
+
+/* 휴게소 화면의 작은 접힌 시트: 결론 한 줄 + 추천 한 줄 + 목록 보기 */
+.nearby-peek .verdict {
+  margin-bottom: 6px;
+  padding: 9px 14px;
+}
+
+.rest-mini {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px var(--gutter);
+}
+
+.rest-mini__info {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 48px;
+  justify-content: center;
+  padding: 2px 0;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  background: transparent;
+}
+
+.rest-mini__name {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rest-mini__sub {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.rest-mini > button:not(.rest-mini__info) {
+  flex: none;
+  border-radius: 12px;
+}
+
+.rest-mini__more {
+  padding-top: 6px;
+}
+
+.rest-body-detail {
+  margin: 0;
+  padding: 4px var(--gutter) 12px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.5;
 }
 
 .rest-peek__label {
