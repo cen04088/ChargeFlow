@@ -2,15 +2,21 @@ import { afterEach, expect, test, vi } from "vitest";
 
 import type { NearbyStation } from "../api/types";
 import {
+  DOT_LEVEL,
   REGIONS,
+  ULTRA_FAST_KW,
   checkedText,
   countText,
+  isDotLevel,
+  isUltraFast,
   listRows,
   loadLastLocation,
+  pinLabel,
   pinText,
   roundCoord,
   rowCaption,
   saveLastLocation,
+  sheetRows,
   summaryText,
 } from "./nearby";
 
@@ -88,12 +94,38 @@ test("loadLastLocation rejects values outside Korea or non-finite", () => {
 });
 test("pinText and countText", () => {
   expect(pinText(st({ state: "available", available: 3 }))).toBe("3대");
-  expect(pinText(st({ state: "full", available: 0 }))).toBe("꽉 참");
+  expect(pinText(st({ state: "full", available: 0 }))).toBe("충전 중");
+  expect(countText(st({ state: "full", available: 0 }))).toBe("충전 중");
   expect(countText(st({ state: "unavailable", available: 0 }))).toBe("이용 불가");
+});
+test("isUltraFast / pinLabel", () => {
+  expect(ULTRA_FAST_KW).toBe(150);
+  expect(isUltraFast(st({ power_kw: 150 }))).toBe(true);
+  expect(isUltraFast(st({ power_kw: 149 }))).toBe(false);
+  expect(pinLabel(st({ state: "available", available: 3 }), "count")).toBe("3대");
+  expect(pinLabel(st({ state: "full", available: 0 }), "count")).toBe("충전 중");
+  expect(pinLabel(st({ state: "unavailable", available: 0 }), "count")).toBe("이용 불가");
+  expect(pinLabel(st({ power_kw: 200, state: "full", available: 0 }), "power")).toBe("200kW");
+});
+test("isDotLevel", () => {
+  expect(DOT_LEVEL).toBe(7);
+  expect(isDotLevel(6)).toBe(false);
+  expect(isDotLevel(7)).toBe(true);
+});
+test("rowCaption marks ultra-fast", () => {
+  expect(rowCaption(st({ distance_km: 1.2, power_kw: 200, checked_at: iso(NOW) }), NOW)).toBe("약 1.2km · 200kW 초급속");
+  expect(rowCaption(st({ distance_km: 1.2, power_kw: 100, checked_at: iso(NOW) }), NOW)).toBe("약 1.2km · 100kW");
+});
+test("sheetRows returns every row of the chosen group", () => {
+  const all = [1, 2, 3, 4, 5].map((id) => st({ id }));
+  expect(sheetRows(all).rows).toHaveLength(5);
+  expect(sheetRows([st({ id: 1, state: "full", available: 0 }), st({ id: 2, state: "unavailable", available: 0 })]))
+    .toMatchObject({ fallback: "full", rows: [{ id: 1 }] });
+  expect(sheetRows([])).toEqual({ rows: [], fallback: false });
 });
 test("rowCaption hides fresh check time", () => {
   expect(rowCaption(st({ distance_km: 1.2, power_kw: 100, checked_at: iso(NOW - 10 * 60000) }), NOW)).toBe("약 1.2km · 100kW");
-  expect(rowCaption(st({ distance_km: 0.4, power_kw: 200, checked_at: iso(NOW - 125 * 60000) }), NOW)).toBe("약 400m · 200kW · 2시간 전 확인");
+  expect(rowCaption(st({ distance_km: 0.4, power_kw: 200, checked_at: iso(NOW - 125 * 60000) }), NOW)).toBe("약 400m · 200kW 초급속 · 2시간 전 확인");
   expect(rowCaption(st({ checked_at: null }), NOW)).toBe("약 1.2km · 100kW");
 });
 test("checkedText", () => {

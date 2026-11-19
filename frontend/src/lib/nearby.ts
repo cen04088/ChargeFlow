@@ -25,13 +25,33 @@ function inKorea(lat: number, lng: number): boolean {
   );
 }
 
+/** 이 출력(kW) 이상이면 초급속 — 핀에 번개, 목록에 "초급속" */
+export const ULTRA_FAST_KW = 150;
+/** 카카오 지도 레벨이 이 값 이상(더 축소)이면 핀을 글자 없는 점으로 줄인다 */
+export const DOT_LEVEL = 7;
+
+/** 핀 글자: 빈 대수·상태("count") 또는 최대 출력("power") */
+export type PinMode = "count" | "power";
+
 export function pinText(s: NearbyStation): string {
   if (s.state === "available") return `${s.available}대`;
-  return s.state === "full" ? "꽉 참" : "이용 불가";
+  return s.state === "full" ? "충전 중" : "이용 불가";
 }
 
 export function countText(s: NearbyStation): string {
   return pinText(s);
+}
+
+export function isUltraFast(s: NearbyStation): boolean {
+  return s.power_kw >= ULTRA_FAST_KW;
+}
+
+export function pinLabel(s: NearbyStation, mode: PinMode): string {
+  return mode === "power" ? `${s.power_kw}kW` : pinText(s);
+}
+
+export function isDotLevel(level: number): boolean {
+  return level >= DOT_LEVEL;
 }
 
 export function checkedText(iso: string | null, now: number): string {
@@ -43,19 +63,22 @@ export function checkedText(iso: string | null, now: number): string {
 }
 
 export function rowCaption(s: NearbyStation, now: number): string {
-  const base = `약 ${formatKm(s.distance_km)} · ${s.power_kw}kW`;
+  const base = `약 ${formatKm(s.distance_km)} · ${s.power_kw}kW${
+    isUltraFast(s) ? " 초급속" : ""
+  }`;
   if (!s.checked_at) return base;
   const min = (now - new Date(s.checked_at).getTime()) / 60000;
   return min > STALE_MIN ? `${base} · ${checkedText(s.checked_at, now)}` : base;
 }
 
-/** 빈 곳이 없을 때 대신 보여 주는 목록 종류: 충전 중(꽉 참) → 이용 불가 순 */
+/** 빈 곳이 없을 때 대신 보여 주는 목록 종류: 충전 중 → 이용 불가 순 */
 export type ListFallback = false | "full" | "unavailable";
 
-export function listRows(
-  stations: NearbyStation[],
-  expanded: boolean,
-): { rows: NearbyStation[]; hidden: number; fallback: ListFallback } {
+/** 목록에 올릴 묶음: 빈 곳 → 없으면 충전 중 → 없으면 이용 불가. 자르지 않는다 */
+export function sheetRows(stations: NearbyStation[]): {
+  rows: NearbyStation[];
+  fallback: ListFallback;
+} {
   let fallback: ListFallback = false;
   let pool = stations.filter((s) => s.state === "available");
   if (pool.length === 0) {
@@ -67,6 +90,15 @@ export function listRows(
     fallback = "unavailable";
   }
   if (pool.length === 0) fallback = false;
+  return { rows: pool, fallback };
+}
+
+/** 지도 실패 화면의 쌓인 목록: sheetRows와 같은 묶음을 처음엔 3곳까지만 */
+export function listRows(
+  stations: NearbyStation[],
+  expanded: boolean,
+): { rows: NearbyStation[]; hidden: number; fallback: ListFallback } {
+  const { rows: pool, fallback } = sheetRows(stations);
   const rows = expanded ? pool : pool.slice(0, LIST_INITIAL);
   return { rows, hidden: pool.length - rows.length, fallback };
 }

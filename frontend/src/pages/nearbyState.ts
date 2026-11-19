@@ -1,5 +1,5 @@
 import type { NearbyStation, NearbyStationsResponse } from "../api/types";
-import { listRows, type ListFallback } from "../lib/nearby";
+import { listRows, sheetRows, type ListFallback } from "../lib/nearby";
 
 export interface Point {
   lat: number;
@@ -19,7 +19,11 @@ export interface ViewInput {
   locFailure: LocFailure | null;
   /** 지도를 못 띄운 화면에서 "다른 지역에서 찾기"를 눌렀다 */
   regionsRequested: boolean;
+  /** 지도 실패 화면에서 "N곳 더 보기"를 눌렀다 */
   expanded: boolean;
+  /** 지도를 못 띄웠다 — 쌓인 목록(처음 3곳 + 더 보기)으로 보인다.
+   *  아니면 지도 시트에 고른 묶음 전부를 넘긴다 */
+  mapFailed: boolean;
 }
 
 export type NearbyView =
@@ -51,7 +55,10 @@ export function nearbyView(v: ViewInput): NearbyView {
       // 예전 응답처럼 feed_stale이 없으면 false로 본다
       return { kind: v.result.feed_stale === true ? "stale" : "none", notice };
     }
-    return { kind: "list", ...listRows(v.result.stations, v.expanded), notice };
+    const rows = v.mapFailed
+      ? listRows(v.result.stations, v.expanded)
+      : { ...sheetRows(v.result.stations), hidden: 0 };
+    return { kind: "list", ...rows, notice };
   }
   if (v.errorStatus != null) return { kind: "error" };
   if (!v.hasOrigin && v.locFailure) {
@@ -138,6 +145,77 @@ export function fallbackCopy(
         title: `${radiusKm}km 안에 지금 쓸 수 있는 급속충전소가 없어요`,
         desc: "점검 중이거나 연결이 끊긴 곳만 있어요",
       };
+}
+
+/** 끌기를 놓았을 때 이 이동량(px) 미만이면 끌기가 아니라 누르기로 본다 */
+export const SHEET_TAP_PX = 8;
+/** 이 속도(px/ms) 이상으로 튕기면 이동량과 상관없이 그 방향으로 */
+const SHEET_FLICK_VY = 0.5;
+/** 느린 끌기는 접힘↔펼침 차이의 이 비율을 넘어야 반대 상태로 */
+const SHEET_SNAP_RATIO = 0.3;
+
+/**
+ * 목록 시트 손잡이를 놓았을 때 펼칠지(true) 접을지(false).
+ * dy: 시작점 대비 이동(위로 끌면 음수), vy: 놓는 순간 속도(px/ms, 위가 음수),
+ * range: 접힘↔펼침 높이 차. 8px 미만이면 현재 상태를 그대로 돌려준다(누르기는 호출부가 토글).
+ */
+export function sheetSnap(input: {
+  open: boolean;
+  dy: number;
+  vy: number;
+  range: number;
+}): boolean {
+  const { open, dy, vy, range } = input;
+  if (Math.abs(dy) < SHEET_TAP_PX) return open;
+  if (Math.abs(vy) >= SHEET_FLICK_VY) return vy < 0;
+  const threshold = range * SHEET_SNAP_RATIO;
+  return open ? !(dy > threshold) : -dy > threshold;
+}
+
+/** 접힌 시트에 보일 한 줄: 가장 가까운 빈 곳, 또는 지금 상태의 안내 제목 */
+export type PeekInfo =
+  | { kind: "station"; label: string; station: NearbyStation; more: number }
+  | { kind: "message"; title: string; action?: "retry" };
+
+export function peekInfo(input: {
+  view: NearbyView;
+  radiusKm: number;
+  searching: boolean;
+  hasOrigin: boolean;
+}): PeekInfo {
+  const { view, radiusKm, searching, hasOrigin } = input;
+  // 지역 선택·오류 화면에는 시트가 없다. 혹시 불려도 찾는 중 문구로 둔다.
+  // 새 기준점으로 찾는 동안에는 예전 결과 대신 찾는 중을 보인다
+  if (
+    view.kind === "loading" ||
+    view.kind === "regions" ||
+    view.kind === "error" ||
+    searching
+  ) {
+    return {
+      kind: "message",
+      title: hasOrigin ? "급속충전소를 찾고 있어요" : "현재 위치를 확인하고 있어요",
+    };
+  }
+  if (view.kind === "stale") {
+    return {
+      kind: "message",
+      title: "지금 충전소 정보를 받지 못하고 있어요",
+      action: "retry",
+    };
+  }
+  if (view.kind === "none") {
+    return { kind: "message", title: "30km 안에 급속충전소가 없어요" };
+  }
+  if (view.fallback) {
+    return { kind: "message", title: fallbackCopy(view.fallback, radiusKm).title };
+  }
+  return {
+    kind: "station",
+    label: view.notice ? "지난번 위치에서 가장 가까운 빈 곳" : "가장 가까운 빈 곳",
+    station: view.rows[0],
+    more: view.rows.length - 1,
+  };
 }
 
 /** 충전소가 하나도 없을 때 둘째 줄 — 지도가 없으면 지도를 옮기라고 하지 않는다 */

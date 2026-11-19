@@ -283,6 +283,7 @@ export default function NearbyPage() {
     locFailure,
     regionsRequested,
     expanded,
+    mapFailed,
   });
 
   // 지역 고르기 화면으로 바뀌면 열려 있던 충전소 시트를 닫는다
