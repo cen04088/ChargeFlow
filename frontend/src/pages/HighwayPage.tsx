@@ -974,6 +974,11 @@ function RouteView({ code }: { code: string }) {
       lat: +n.latitude,
       lng: +n.longitude,
       text: p.text,
+      badge:
+        n.congestion && n.congestion.level !== "unknown" && n.congestion.available != null
+          ? String(n.congestion.available)
+          : "?",
+      title: shortName(n.name),
       kind: p.kind,
       ariaLabel: raAriaLabel(shortName(n.name), n.congestion) + role,
       // 다음 휴게소 > 그 뒤 가는 순서 > 지나온 곳. 가는 방향을 모르면 가까운 휴게소에서 가까운 순

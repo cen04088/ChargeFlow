@@ -20,6 +20,10 @@ export interface RoutePin {
   text: string;
   /** 아랫줄 작은 글자(예: "우회 +6분") */
   sub?: string;
+  /** 원 안에 넣을 짧은 글자(빈 대수 숫자, 모르면 "?"). 주면 이 핀은 원으로 먼저 보이고 누르면 글자가 된다 */
+  badge?: string;
+  /** 눌러서 글자로 펼쳤을 때 맨 위에 보일 이름 */
+  title?: string;
   kind: PinKind;
   /** false면 상태를 모른다 — 상태색 대신 중립색 */
   known?: boolean;
@@ -106,7 +110,20 @@ function pinElement(p: RoutePin, focused: boolean, onClick: () => void) {
     (p.known === false ? " nearby-pin--neutral" : "") +
     (p.emphasized ? " route-pin--emph" : "") +
     (p.sub ? " nearby-pin--two" : "") +
+    (p.badge != null ? " route-pin--num" : "") +
     (focused ? " nearby-pin--focus" : "");
+  if (p.badge != null) {
+    const badge = document.createElement("span");
+    badge.className = "route-pin__badge";
+    badge.textContent = p.badge;
+    el.appendChild(badge);
+  }
+  if (p.title) {
+    const title = document.createElement("span");
+    title.className = "route-pin__title";
+    title.textContent = p.title;
+    el.appendChild(title);
+  }
   const text = document.createElement("span");
   text.className = "nearby-pin__text";
   text.textContent = p.text;
@@ -158,6 +175,8 @@ export function RouteMap({
   /* eslint-enable @typescript-eslint/no-explicit-any */
   const pinEls = useRef<Map<number, HTMLElement>>(new Map());
   const pillSizes = useRef<Map<string, { w: number; h: number }>>(new Map());
+  /** 원으로 먼저 보이는 핀(badge) 가운데 눌러서 글자로 펼친 것 */
+  const revealed = useRef<number | null>(null);
   const measureBox = useRef<HTMLDivElement | null>(null);
   const lastDotsKey = useRef("");
   const [ready, setReady] = useState(false);
@@ -231,15 +250,17 @@ export function RouteMap({
         rect: { left: pt.x - w / 2, right: pt.x + w / 2, top: bottom - h, bottom },
         priority: p.priority,
         // 늘 글자로 두는 것은 누른 핀과 휴게소 핀뿐 — 강조한 추천 충전소도 겹치면 점이 된다
-        focused: focused || p.priority < 0,
+        focused: focused || p.priority < 0 || p.id === revealed.current,
+        // 원으로 먼저 보이는 핀은 누르기 전에는 글자가 되지 않는다
+        dotOnly: p.badge != null && p.priority >= 0,
       };
     });
     const top = topInsetRef.current;
     const pills = declutterPins(
-      items,
+      items.filter((it) => it.focused || !it.dotOnly),
       top > 0 ? [{ left: -Infinity, top: -Infinity, right: Infinity, bottom: top }] : [],
     );
-    const key = `${focus}|${[...pills].sort((a, b) => a - b).join(",")}`;
+    const key = `${focus}|${revealed.current}|${[...pills].sort((a, b) => a - b).join(",")}`;
     if (key === lastDotsKey.current) return;
     lastDotsKey.current = key;
     list.forEach((p) => {
@@ -248,6 +269,7 @@ export function RouteMap({
       if (!el || !o) return;
       const pill = pills.has(p.id);
       el.classList.toggle("nearby-pin--dot", !pill);
+      el.classList.toggle("route-pin--revealed", pill && p.id === revealed.current);
       o.setZIndex(pinZ(p.kind, pill, p.id === focus || !!p.emphasized));
     });
   }, [pillSize]);
@@ -284,6 +306,11 @@ export function RouteMap({
       const onIdle = () => applyDots();
       const onClick = () => {
         if (Date.now() - pinTapAt.current < PIN_TAP_GUARD_MS) return;
+        // 빈 곳을 누르면 펼친 핀을 다시 원으로
+        if (revealed.current != null) {
+          revealed.current = null;
+          applyDots();
+        }
         mapTapRef.current?.();
       };
       maps.event.addListener(m, "dragend", onDragEnd);
@@ -492,6 +519,12 @@ export function RouteMap({
       const focused = p.id === focusRef.current;
       const el = pinElement(p, focused, () => {
         pinTapAt.current = Date.now();
+        // 원으로 보이는 핀: 첫 누르기는 글자로 펼치기만, 펼친 뒤 누르면 고른다
+        if (p.badge != null && p.priority >= 0 && revealed.current !== p.id) {
+          revealed.current = p.id;
+          applyDots();
+          return;
+        }
         selectRef.current(p.id);
       });
       const anchor = document.createElement("div");

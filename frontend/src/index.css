@@ -1627,6 +1627,63 @@ html body {
     0 6px 16px -2px rgba(0, 23, 51, 0.45);
 }
 
+/* 원으로 먼저 보이는 핀(고속도로·휴게소 지도): 색 원 안에 빈 대수 숫자. 누르면 글자로 펼쳐진다 */
+.route-pin__badge,
+.route-pin__title {
+  display: none;
+}
+
+.route-pin--num.nearby-pin--dot::before {
+  width: 34px;
+  height: 34px;
+  border-width: 3px;
+  box-shadow: 0 2px 6px rgba(0, 23, 51, 0.4);
+}
+
+.route-pin--num.nearby-pin--dot > .route-pin__badge {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.route-pin--num.nearby-pin--neutral.nearby-pin--dot > .route-pin__badge {
+  color: var(--ink);
+}
+
+.route-pin--num.route-pin--emph.nearby-pin--dot::before {
+  box-shadow: 0 0 0 3px var(--brand-primary), 0 2px 6px rgba(0, 23, 51, 0.4);
+}
+
+/* 펼쳤을 때: 이름 한 줄을 맨 위에 */
+.route-pin--revealed:not(.nearby-pin--dot) > .route-pin__title {
+  display: block;
+  max-width: 11em;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.route-pin--revealed:not(.nearby-pin--dot):not(.nearby-pin--two) {
+  flex-direction: column;
+  gap: 1px;
+  min-height: 52px;
+  padding: 6px 14px;
+  border-radius: 16px;
+}
+
+.route-pin--revealed.nearby-pin--two:not(.nearby-pin--dot) > .route-pin__title {
+  padding: 2px 8px 4px;
+  color: var(--ink);
+}
+
 /* IC 이름표: 누를 수 없다. 좌표 바로 아래 가운데 */
 .route-label {
   position: absolute;

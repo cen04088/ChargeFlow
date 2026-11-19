@@ -777,6 +777,8 @@ function RestAreaView({
         lng: +s.longitude,
         text: p.text,
         sub: p.sub,
+        badge: s.realtime ? String(s.realtime.available) : "?",
+        title: s.name,
         kind: p.kind,
         known: p.known,
         ariaLabel:
