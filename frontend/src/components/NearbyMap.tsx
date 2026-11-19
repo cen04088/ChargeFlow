@@ -3,7 +3,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { NearbyStation } from "../api/types";
 import { loadKakaoMaps } from "../lib/kakao";
 import {
+  declutterPins,
   isDotLevel,
+  pinPriority,
   isUltraFast,
   pinLabel,
   pinText,
@@ -32,6 +34,8 @@ interface NearbyMapProps {
   onMapTap?: () => void;
   /** 지도를 둘러싼 배치 이름 — 바뀌면(크기가 바뀜) 이용자가 옮기지 않은 경우 한 번 다시 맞춘다 */
   layoutKey?: string;
+  /** 지도 위쪽에서 페이지 컨트롤(칩·토글)이 가리는 높이(px) — 그 자리의 핀은 점으로 줄인다 */
+  topInset?: number;
 }
 
 const MAX_PINS = 30;
@@ -43,6 +47,17 @@ const PAD = [44, 40, 60, 40] as const;
 const MIN_FIT_SPACE = 120;
 /** 핀을 누른 직후에 오는 지도 click은 무시한다(ms) */
 const PIN_TAP_GUARD_MS = 400;
+/** 글자 핀의 아래 끝이 좌표보다 위에 뜨는 높이(px) — CSS --pin-lift와 같다 */
+const PIN_LIFT_PX = 4;
+/** 강조한 핀의 확대 비율 — CSS .nearby-pin--focus의 scale과 같다 */
+const FOCUS_SCALE = 1.15;
+
+/** 겹침 순서: 강조 > 글자 핀(빈 곳 > 충전 중 > 이용 불가) > 점(같은 순). 내 위치 점은 0 */
+function pinZ(state: NearbyStation["state"], pill: boolean, focused: boolean) {
+  if (focused) return 10;
+  const rank = state === "available" ? 3 : state === "full" ? 2 : 1;
+  return pill ? 3 + rank : rank;
+}
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -108,6 +123,7 @@ export function NearbyMap({
   onFailed,
   onMapTap,
   layoutKey = "",
+  topInset = 0,
 }: NearbyMapProps) {
   const box = useRef<HTMLDivElement>(null);
   /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -115,6 +131,13 @@ export function NearbyMap({
   const pins = useRef<Map<number, any>>(new Map());
   const meOverlay = useRef<any>(null);
   /* eslint-enable @typescript-eslint/no-explicit-any */
+  /** 핀 본체(.nearby-pin) — 오버레이 content는 좌표에 놓인 0×0 기준점이고 그 안에 든다 */
+  const pinEls = useRef<Map<number, HTMLElement>>(new Map());
+  /** 글자 핀 크기 캐시(상태·번개·글자별) — 점으로 보이는 중에도 글자 핀일 때의 크기로 겹침을 잰다 */
+  const pillSizes = useRef<Map<string, { w: number; h: number }>>(new Map());
+  const measureBox = useRef<HTMLDivElement | null>(null);
+  /** 마지막으로 적용한 글자/점 구성 — 같으면 DOM을 건드리지 않는다 */
+  const lastDotsKey = useRef("");
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -155,6 +178,88 @@ export function NearbyMap({
   modeRef.current = mode;
   const insetRef = useRef(bottomInset);
   insetRef.current = bottomInset;
+  const topInsetRef = useRef(topInset);
+  topInsetRef.current = topInset;
+
+  /** 글자 핀일 때의 크기(px). 화면 밖 상자에 한 번 그려 재고 캐시한다 */
+  const pillSize = useCallback((s: NearbyStation, m: PinMode) => {
+    const label = pinLabel(s, m);
+    const key = `${s.state}|${isUltraFast(s) ? 1 : 0}|${label}`;
+    const hit = pillSizes.current.get(key);
+    if (hit) return hit;
+    if (!measureBox.current) {
+      const mb = document.createElement("div");
+      mb.setAttribute("aria-hidden", "true");
+      mb.style.cssText =
+        "position:absolute;left:-10000px;top:0;visibility:hidden;pointer-events:none";
+      document.body.appendChild(mb);
+      measureBox.current = mb;
+    }
+    const el = pinElement(s, { focused: false, mode: m, dot: false }, () => {});
+    measureBox.current.appendChild(el);
+    const size = { w: el.offsetWidth, h: el.offsetHeight };
+    el.remove();
+    if (size.w > 0) pillSizes.current.set(key, size);
+    return size;
+  }, []);
+
+  /**
+   * 핀마다 글자로 둘지 점으로 줄일지 정해 적용한다(지도를 옮기거나 맞추지 않는다).
+   * 축소 레벨이면 모두 점, 아니면 화면 위치로 겹침을 재서 declutterPins로 고른다.
+   */
+  const applyDots = useCallback(() => {
+    const m = map.current;
+    const kakao = window.kakao;
+    if (!m || !kakao || pins.current.size === 0) return;
+    const list = stationsRef.current
+      .slice(0, MAX_PINS)
+      .filter((s) => pins.current.has(s.id));
+    const focus = focusRef.current;
+    let pills: Set<number>;
+    if (dot.current) {
+      pills = new Set();
+    } else {
+      const proj = m.getProjection();
+      const items = list.map((s, i) => {
+        const p = proj.containerPointFromCoords(
+          new kakao.maps.LatLng(+s.latitude, +s.longitude),
+        );
+        const focused = s.id === focus;
+        const size = pillSize(s, modeRef.current);
+        const scale = focused ? FOCUS_SCALE : 1;
+        const w = size.w * scale;
+        const h = size.h * scale;
+        // 글자 핀은 가운데 아래가 좌표 위 PIN_LIFT_PX에 놓이고, 강조는 아래 가운데 기준으로 커진다
+        const bottom = p.y - PIN_LIFT_PX;
+        return {
+          id: s.id,
+          rect: { left: p.x - w / 2, right: p.x + w / 2, top: bottom - h, bottom },
+          priority: pinPriority(s.state, i),
+          focused,
+        };
+      });
+      const top = topInsetRef.current;
+      pills = declutterPins(
+        items,
+        top > 0
+          ? [{ left: -Infinity, top: -Infinity, right: Infinity, bottom: top }]
+          : [],
+      );
+    }
+    const key = `${dot.current ? "z" : ""}|${focus}|${[...pills]
+      .sort((a, b) => a - b)
+      .join(",")}`;
+    if (key === lastDotsKey.current) return;
+    lastDotsKey.current = key;
+    list.forEach((s) => {
+      const el = pinEls.current.get(s.id);
+      const o = pins.current.get(s.id);
+      if (!el || !o) return;
+      const pill = pills.has(s.id);
+      el.classList.toggle("nearby-pin--dot", !pill);
+      o.setZIndex(pinZ(s.state, pill, s.id === focus));
+    });
+  }, [pillSize]);
 
   // 같은 구성이면 다시 그리지 않는다(1분마다 새로 받아도 깜박이지 않게)
   const signature = stations
@@ -170,6 +275,7 @@ export function NearbyMap({
     let cancelled = false;
     let removeListeners: (() => void) | null = null;
     const pinMap = pins.current;
+    const elMap = pinEls.current;
 
     loadKakaoMaps().then((kakao) => {
       if (cancelled || !box.current) return;
@@ -199,13 +305,10 @@ export function NearbyMap({
         const next = isDotLevel(m.getLevel());
         if (next === dot.current) return;
         dot.current = next;
-        pinMap.forEach((o) =>
-          (o.getContent() as HTMLElement).classList.toggle(
-            "nearby-pin--dot",
-            next,
-          ),
-        );
+        applyDots();
       };
+      // 끌기·확대가 끝나 멈추면 겹침을 다시 잰다(멈출 때마다 한 번, 바뀐 것이 없으면 그대로)
+      const onIdle = () => applyDots();
       // 지도 빈 곳 누르기. 핀은 clickable 오버레이라 보통 여기까지 오지 않지만,
       // 혹시 오더라도 핀을 누른 직후면 무시한다
       const onClick = () => {
@@ -215,6 +318,7 @@ export function NearbyMap({
       maps.event.addListener(m, "dragend", onDragEnd);
       maps.event.addListener(m, "zoom_changed", onZoom);
       maps.event.addListener(m, "click", onClick);
+      maps.event.addListener(m, "idle", onIdle);
       // 화면 크기가 바뀌면(주소창·회전) 지도가 새 크기를 알게 한다
       const ro =
         typeof ResizeObserver === "undefined"
@@ -225,6 +329,7 @@ export function NearbyMap({
         maps.event.removeListener(m, "dragend", onDragEnd);
         maps.event.removeListener(m, "zoom_changed", onZoom);
         maps.event.removeListener(m, "click", onClick);
+        maps.event.removeListener(m, "idle", onIdle);
         ro?.disconnect();
       };
       dot.current = isDotLevel(m.getLevel());
@@ -237,11 +342,14 @@ export function NearbyMap({
       removeListeners?.();
       pinMap.forEach((o) => o.setMap(null));
       pinMap.clear();
+      elMap.clear();
       meOverlay.current?.setMap(null);
       meOverlay.current = null;
+      measureBox.current?.remove();
+      measureBox.current = null;
       map.current = null;
     };
-  }, []);
+  }, [applyDots]);
 
   /** 기준점과 가까운 충전소들이 접힌 시트 위 화면에 들어오게 맞춘다(ref만 읽는다) */
   const fitToNearest = useCallback(() => {
@@ -306,28 +414,40 @@ export function NearbyMap({
 
     pins.current.forEach((o) => o.setMap(null));
     pins.current.clear();
+    pinEls.current.clear();
 
     const shown = stations.slice(0, MAX_PINS);
     shown.forEach((s) => {
       const focused = s.id === focusRef.current;
+      const el = pinElement(
+        s,
+        { focused, mode: modeRef.current, dot: dot.current },
+        () => {
+          pinTapAt.current = Date.now();
+          selectRef.current(s.id);
+        },
+      );
+      // 오버레이 content는 좌표에 놓인 0×0 기준점이다. 글자 핀·점의 자리는 CSS가
+      // 이 점을 기준으로 정한다(카카오가 content 크기로 anchor를 계산하지 않게)
+      const anchor = document.createElement("div");
+      anchor.className = "nearby-pin-anchor";
+      anchor.appendChild(el);
       const o = new maps.CustomOverlay({
         position: new maps.LatLng(+s.latitude, +s.longitude),
-        content: pinElement(
-          s,
-          { focused, mode: modeRef.current, dot: dot.current },
-          () => {
-            pinTapAt.current = Date.now();
-            selectRef.current(s.id);
-          },
-        ),
-        yAnchor: 1.1,
-        zIndex: focused ? 3 : 1,
+        content: anchor,
+        xAnchor: 0,
+        yAnchor: 0,
+        zIndex: pinZ(s.state, !dot.current, focused),
         // 핀을 눌러도 지도 click(빈 곳 누르기)이 일어나지 않게
         clickable: true,
       });
       o.setMap(map.current);
       pins.current.set(s.id, o);
+      pinEls.current.set(s.id, el);
     });
+    // 새로 그린 핀에 겹침 정리를 적용한다(범위를 맞추면 idle에서 한 번 더)
+    lastDotsKey.current = "";
+    applyDots();
 
     if (!needsFit.current || userMoved.current || shown.length === 0) return;
     needsFit.current = false;
@@ -385,17 +505,22 @@ export function NearbyMap({
     };
   }, [ready, bottomInset, fitToNearest]);
 
-  // 글자 모드가 바뀌면 핀 글자만 바꾼다(다시 그리거나 지도를 옮기지 않는다)
+  // 글자 모드가 바뀌면 핀 글자만 바꾼다(다시 그리거나 지도를 옮기지 않는다).
+  // 글자 폭이 달라지므로 겹침은 다시 잰다
   useEffect(() => {
     if (!ready) return;
-    pins.current.forEach((o, id) => {
+    pinEls.current.forEach((el, id) => {
       const s = stationsRef.current.find((x) => x.id === id);
-      const text = (o.getContent() as HTMLElement).querySelector(
-        ".nearby-pin__text",
-      );
+      const text = el.querySelector(".nearby-pin__text");
       if (s && text) text.textContent = pinLabel(s, mode);
     });
-  }, [ready, mode]);
+    applyDots();
+  }, [ready, mode, applyDots]);
+
+  // 지도 위 컨트롤이 가리는 높이가 바뀌면 겹침을 다시 잰다
+  useEffect(() => {
+    if (ready) applyDots();
+  }, [ready, topInset, applyDots]);
 
   // 내 위치 점
   useEffect(() => {
@@ -420,15 +545,14 @@ export function NearbyMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, me?.lat, me?.lng]);
 
-  // 강조 표시(핀을 다시 그린 뒤에도 유지)
+  // 강조 표시(핀을 다시 그린 뒤에도 유지). 강조한 핀은 늘 글자·맨 위 — 겹침을 다시 정한다
   useEffect(() => {
     if (!ready) return;
-    pins.current.forEach((o, id) => {
-      const on = id === focusId;
-      (o.getContent() as HTMLElement).classList.toggle("nearby-pin--focus", on);
-      o.setZIndex(on ? 3 : 1);
+    pinEls.current.forEach((el, id) => {
+      el.classList.toggle("nearby-pin--focus", id === focusId);
     });
-  }, [ready, focusId, signature]);
+    applyDots();
+  }, [ready, focusId, signature, applyDots]);
 
   // 강조한 충전소로 지도를 옮긴다(강조가 바뀔 때만)
   useEffect(() => {

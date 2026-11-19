@@ -54,6 +54,59 @@ export function isDotLevel(level: number): boolean {
   return level >= DOT_LEVEL;
 }
 
+/** 화면 좌표의 사각형(px) */
+export interface Rect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/** 핀 사이에 둘 최소 간격(px) — 이보다 가까우면 겹친 것으로 본다 */
+export const PIN_GAP_PX = 4;
+
+function overlaps(a: Rect, b: Rect): boolean {
+  return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+}
+
+/** 겹칠 때 어느 핀을 글자로 남길지: 작을수록 먼저. 빈 곳(목록 순서 = 가까운 순) → 충전 중 → 이용 불가 */
+export function pinPriority(state: NearbyStation["state"], index: number): number {
+  const group = state === "available" ? 0 : state === "full" ? 1 : 2;
+  return group * 100_000 + index;
+}
+
+/**
+ * 겹치는 핀 정리: 우선순위 순으로 훑으며, 이미 남긴 핀(간격 PIN_GAP_PX 포함)이나
+ * 가려진 자리(reserved: 지도 위 칩·토글 줄 등)와 겹치면 점으로 줄인다.
+ * 강조한 핀은 언제나 글자로 남는다. 글자로 남길 핀의 id를 돌려준다.
+ */
+export function declutterPins(
+  items: { id: number; rect: Rect; priority: number; focused: boolean }[],
+  reserved: Rect[],
+): Set<number> {
+  const order = [...items].sort((a, b) =>
+    a.focused !== b.focused ? (a.focused ? -1 : 1) : a.priority - b.priority,
+  );
+  const kept: Rect[] = [];
+  const ids = new Set<number>();
+  for (const it of order) {
+    const r = it.rect;
+    const padded: Rect = {
+      left: r.left - PIN_GAP_PX,
+      top: r.top - PIN_GAP_PX,
+      right: r.right + PIN_GAP_PX,
+      bottom: r.bottom + PIN_GAP_PX,
+    };
+    const blocked =
+      kept.some((k) => overlaps(padded, k)) || reserved.some((z) => overlaps(r, z));
+    if (it.focused || !blocked) {
+      kept.push(r);
+      ids.add(it.id);
+    }
+  }
+  return ids;
+}
+
 /** 접힌 시트 높이가 이만큼(px) 이상 바뀌어야 범위를 다시 맞춘다 */
 export const INSET_REFIT_MIN_PX = 16;
 

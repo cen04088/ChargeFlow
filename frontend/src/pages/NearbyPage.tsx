@@ -679,6 +679,7 @@ export default function NearbyPage() {
             mode={mapLayout ? pinMode : "count"}
             bottomInset={mapLayout ? peekH : 0}
             layoutKey={mapLayout ? "sheet" : "stacked"}
+            topInset={mapLayout && topRowH > 0 ? MAP_EDGE + topRowH : 0}
             onSelect={(id) => {
               const s = stations.find((x) => x.id === id);
               if (s) openStation(s, "pin");

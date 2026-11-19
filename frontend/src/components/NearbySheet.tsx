@@ -2,7 +2,7 @@ import { BottomSheet, Paragraph } from "@toss/tds-mobile";
 import { adaptive } from "@toss/tds-colors";
 
 import type { NearbyStation } from "../api/types";
-import { checkedText } from "../lib/nearby";
+import { checkedText, countText } from "../lib/nearby";
 import { connectorName } from "../lib/store";
 import { logClick, openDirections } from "../lib/toss";
 import { SheetHeading } from "./SheetHeading";
@@ -62,8 +62,15 @@ export function NearbySheet({
           <div className={`sheet-availability sheet-availability--${s.state}`}>
             <p>빈 충전기</p>
             <div className="sheet-availability__count">
-              <strong>{s.available}대</strong>
-              <span> / {s.total}대</span>
+              {/* 빈 곳이 없으면 목록·핀과 같은 낱말("충전 중"/"이용 불가")로 */}
+              <strong>
+                {s.state === "available" ? `${s.available}대` : countText(s)}
+              </strong>
+              <span>
+                {s.state === "available"
+                  ? ` / ${s.total}대`
+                  : ` · ${s.available} / ${s.total}대`}
+              </span>
             </div>
             <p>{checked ? `${checked} · 참고용` : "현장과 다를 수 있어요."}</p>
           </div>

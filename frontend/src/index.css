@@ -506,6 +506,8 @@ body {
 /* ── 주변 충전소 지도 ─────────────────────────────────── */
 .nearby-map-card {
   position: relative;
+  z-index: 0;
+  isolation: isolate;
   height: clamp(230px, 37dvh, 350px);
   background: var(--canvas);
   overflow: hidden;
@@ -516,10 +518,23 @@ body {
   inset: 0;
 }
 
+/* 핀의 기준점: 카카오 오버레이 content(0×0)가 충전소 좌표에 놓인다(xAnchor·yAnchor 0).
+   글자 핀과 점의 자리는 아래 CSS가 이 점을 기준으로 정한다 — 크기가 바뀌어도 어긋나지 않는다 */
+.nearby-pin-anchor {
+  position: relative;
+  width: 0;
+  height: 0;
+}
+
 /* 핀: 상태를 색 + 글자로(빈 곳 초록 "N대", 충전 중 주황, 이용 불가 회색).
+   가운데 아래 끝이 좌표 위 --pin-lift에 온다(NearbyMap의 PIN_LIFT_PX와 같은 값).
    터치 영역 44px 이상, 글씨 15px 이상 */
 .nearby-pin {
   --pin-color: var(--state-available);
+  --pin-lift: 4px;
+  position: absolute;
+  left: 0;
+  bottom: var(--pin-lift);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -537,6 +552,8 @@ body {
   background-color: var(--pin-color);
   box-shadow: 0 0 0 3px #fff, 0 4px 12px -2px rgba(0, 23, 51, 0.4);
   cursor: pointer;
+  transform: translateX(-50%);
+  transform-origin: 50% 100%;
   transition: transform var(--spring-bounce-time) var(--spring-bounce),
     background-color 200ms ease;
 }
@@ -567,9 +584,10 @@ body {
   height: 16px;
 }
 
+/* 강조: 같은 색 계열에서 진하게, 아래 가운데를 기준으로 1.15배(NearbyMap의 FOCUS_SCALE) */
 .nearby-pin--focus {
   --pin-color: var(--state-available-strong);
-  transform: scale(1.15);
+  transform: translateX(-50%) scale(1.15);
 }
 
 .nearby-pin--full.nearby-pin--focus {
@@ -580,15 +598,19 @@ body {
   --pin-color: var(--state-unavailable-strong);
 }
 
-/* 축소했을 때: 지름 18px 색 점. 투명한 44px 영역이 그대로 터치를 받는다.
-   핀(yAnchor 1.1)의 아래 끝 대신 점의 가운데가 충전소 자리에 오도록 내린다 */
+/* 점(축소했거나 다른 핀과 겹칠 때): 보이는 점은 지름 14px(흰 테두리 2px 포함), 고리 없이 옅은 그림자.
+   투명한 44×44 영역이 그대로 터치를 받고, 그 가운데(= 점의 가운데)가 좌표에 온다 */
 .nearby-pin--dot {
-  padding: 0;
+  top: 0;
+  bottom: auto;
   width: 44px;
   height: 44px;
+  min-width: 44px;
+  padding: 0;
   background-color: transparent;
   box-shadow: none;
-  transform: translateY(60%);
+  transform: translate(-50%, -50%);
+  transform-origin: 50% 50%;
 }
 
 .nearby-pin--dot > * {
@@ -597,15 +619,17 @@ body {
 
 .nearby-pin--dot::before {
   content: "";
-  width: 18px;
-  height: 18px;
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #fff;
   border-radius: 50%;
   background-color: var(--pin-color);
-  box-shadow: 0 0 0 2px #fff, 0 2px 6px -1px rgba(0, 23, 51, 0.4);
+  box-shadow: 0 1px 3px rgba(0, 23, 51, 0.35);
 }
 
 .nearby-pin--dot.nearby-pin--focus {
-  transform: translateY(60%) scale(1.15);
+  transform: translate(-50%, -50%) scale(1.15);
 }
 
 /* 내 위치 파란 점 */
@@ -623,11 +647,11 @@ body {
     transition: none;
   }
   .nearby-pin--focus {
-    transform: none;
+    transform: translateX(-50%);
   }
   .nearby-pin--dot,
   .nearby-pin--dot.nearby-pin--focus {
-    transform: translateY(60%);
+    transform: translate(-50%, -50%);
   }
 }
 
@@ -839,12 +863,30 @@ html body {
   line-height: 1.15;
 }
 
+/* 상세 시트의 빈 충전기 상자: 핀·목록과 같은 상태색. 바탕은 같은 색 계열의 옅은 색,
+   숫자는 한 단계 진한 상태색(바탕 대비 6.8 / 6.1 / 9.6 : 1, 설명 글씨 --muted는 6.2 이상) */
 .sheet-availability--available {
-  background: var(--brand-tint);
+  background: #e7f5ee;
+}
+
+.sheet-availability--full {
+  background: #fff2e3;
+}
+
+.sheet-availability--unavailable {
+  background: #eef0f3;
 }
 
 .sheet-availability--available .sheet-availability__count strong {
-  color: var(--brand-deep);
+  color: var(--state-available-strong);
+}
+
+.sheet-availability--full .sheet-availability__count strong {
+  color: var(--state-full-strong);
+}
+
+.sheet-availability--unavailable .sheet-availability__count strong {
+  color: var(--state-unavailable-strong);
 }
 
 /* 충전소 목록 셋째 줄: 평소와 다른 점(운영 시간·커넥터) */
@@ -1182,7 +1224,15 @@ html body {
   cursor: grabbing;
 }
 
+/* 초점 테두리는 키보드 초점에만, 앱의 브랜드 초점 모양으로.
+   TDS 전역 스타일의 `button:focus { outline: -webkit-focus-ring-color auto 5px }`가
+   마우스·터치로 누르거나 끈 뒤에도(:focus) 브라우저 기본색 테두리를 그려서 지도 화면 버튼에서는 끈다 */
+.nearby-map-wrap :where(button, [role="button"]):focus:not(:focus-visible) {
+  outline: none;
+}
+
 .nearby-sheet__handle:focus-visible {
+  outline: 2px solid var(--brand-strong);
   outline-offset: -4px;
 }
 

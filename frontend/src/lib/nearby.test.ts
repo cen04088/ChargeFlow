@@ -9,6 +9,9 @@ import {
   ULTRA_FAST_KW,
   checkedText,
   countText,
+  declutterPins,
+  pinPriority,
+  type Rect,
   isDotLevel,
   isUltraFast,
   listRows,
@@ -151,6 +154,59 @@ test("shouldRefitForInset: only before the user moves, after a fit, on a real ch
   expect(shouldRefitForInset({ ...ok, nextInset: 111 + 15 })).toBe(false);
   expect(shouldRefitForInset({ ...ok, nextInset: 111 + 16 })).toBe(true);
   expect(shouldRefitForInset({ ...ok, prevInset: 236, nextInset: 200 })).toBe(true);
+});
+const box = (left: number, top: number, w = 60, h = 44): Rect => ({
+  left,
+  top,
+  right: left + w,
+  bottom: top + h,
+});
+const pin = (id: number, rect: Rect, priority: number, focused = false) => ({
+  id,
+  rect,
+  priority,
+  focused,
+});
+
+test("declutterPins: no overlap keeps every pill", () => {
+  const kept = declutterPins(
+    [pin(1, box(0, 100), 0), pin(2, box(100, 100), 1), pin(3, box(200, 100), 2)],
+    [],
+  );
+  expect([...kept].sort()).toEqual([1, 2, 3]);
+});
+test("declutterPins: of two overlapping pills the higher priority stays", () => {
+  const kept = declutterPins([pin(1, box(30, 100), 5), pin(2, box(0, 100), 1)], []);
+  expect([...kept]).toEqual([2]);
+});
+test("declutterPins: pills closer than 4px count as overlapping", () => {
+  expect([...declutterPins([pin(1, box(0, 100), 0), pin(2, box(63, 100), 1)], [])]).toEqual([1]);
+  expect([...declutterPins([pin(1, box(0, 100), 0), pin(2, box(70, 100), 1)], [])].sort()).toEqual([1, 2]);
+});
+test("declutterPins: the focused pin always stays a pill", () => {
+  const kept = declutterPins(
+    [pin(1, box(0, 100), 0), pin(2, box(10, 100), 9, true)],
+    [box(-1000, -1000, 3000, 1110)],
+  );
+  expect(kept.has(2)).toBe(true);
+  expect(kept.has(1)).toBe(false);
+});
+test("declutterPins: a pill inside a reserved rect becomes a dot", () => {
+  const topBand = { left: -Infinity, top: -Infinity, right: Infinity, bottom: 60 };
+  const kept = declutterPins([pin(1, box(0, 30), 0), pin(2, box(0, 200), 1)], [topBand]);
+  expect([...kept]).toEqual([2]);
+});
+test("declutterPins: chain A–B–C where B overlaps both and is lowest → A and C stay", () => {
+  const kept = declutterPins(
+    [pin(1, box(0, 100), 0), pin(2, box(40, 100), 2), pin(3, box(80, 100), 1)],
+    [],
+  );
+  expect([...kept].sort()).toEqual([1, 3]);
+});
+test("pinPriority: available by order, then full, then unavailable", () => {
+  expect(pinPriority("available", 3)).toBeLessThan(pinPriority("full", 0));
+  expect(pinPriority("full", 3)).toBeLessThan(pinPriority("unavailable", 0));
+  expect(pinPriority("available", 0)).toBeLessThan(pinPriority("available", 1));
 });
 test("isDotLevel", () => {
   expect(DOT_LEVEL).toBe(7);
