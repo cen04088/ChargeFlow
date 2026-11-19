@@ -174,3 +174,31 @@ export interface NotifySubscription {
   rest_area?: string;
   deliverable?: boolean;
 }
+
+export type NearbyState = "available" | "full" | "unavailable";
+
+export interface NearbyStation {
+  id: number;
+  stat_id: string;
+  name: string;
+  address: string;
+  latitude: string;
+  longitude: string;
+  distance_km: number;
+  power_kw: number;
+  operator: string;
+  open_hours: string;
+  connectors: Exclude<Connector, "">[];
+  available: number;
+  charging: number;
+  offline: number;
+  total: number;
+  state: NearbyState;
+  checked_at: string | null;
+}
+
+export interface NearbyStationsResponse {
+  radius_km: number;
+  fetched_at: string;
+  stations: NearbyStation[];
+}
