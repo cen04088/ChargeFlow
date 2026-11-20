@@ -69,7 +69,7 @@ const MAP_BUTTON_MIN_H = 44;
 const REGION_TITLE: Record<LocFailure | "pick", string> = {
   denied: "위치 권한 없이도 주소를 검색하거나 지역을 골라 찾을 수 있어요.",
   failed: "현재 위치를 확인하지 못했어요. 주소를 검색하거나 지역을 골라 주세요.",
-  pick: "주소나 장소 이름을 검색하거나, 아래에서 지역을 골라 주세요.",
+  pick: "내 위치로 찾거나, 주소·장소를 검색하거나, 지역을 골라 주세요.",
 };
 
 export default function NearbyPage() {
@@ -98,7 +98,9 @@ export default function NearbyPage() {
   const [searching, setSearching] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locFailure, setLocFailure] = useState<LocFailure | null>(null);
-  const [regionsRequested, setRegionsRequested] = useState(false);
+  /** 처음 열었고 지난번 위치도 없다 — 위치를 기다리지 않고 바로 "어디에서 찾을까요?"를 보인다 */
+  const [firstRun] = useState(() => loadLastLocation() == null);
+  const [regionsRequested, setRegionsRequested] = useState(firstRun);
   const [regionName, setRegionName] = useState("");
   const [mapFailed, setMapFailed] = useState(false);
   /** 지도 실패 화면의 쌓인 목록에서 "N곳 더 보기"를 눌렀다 */
@@ -199,12 +201,16 @@ export default function NearbyPage() {
   const locate = useCallback(
     async (fromTap: boolean) => {
       const id = ++locSeq.current;
-      locatingRef.current = true;
-      setLocating(true);
+      // 화면을 열 때의 자동 조회는 버튼을 막지도, 도는 표시를 띄우지도 않는다
+      if (fromTap) {
+        locatingRef.current = true;
+        setLocating(true);
+      }
       // 기기가 끝내 답하지 않아도 지역 선택으로 넘어갈 수 있게 시간 제한을 둔다.
       // 제한 뒤에 온 응답은 성공일 때만, 그사이 다른 조작이 없었으면 반영한다
       const r = await locateWithTimeout(
-        getLocation,
+        // 권한 창은 이용자가 "내 위치"를 눌렀을 때만 띄운다
+        () => getLocation(fromTap),
         LOCATE_TIMEOUT_MS,
         (late) => {
           if (!late.ok) return;
@@ -401,7 +407,9 @@ export default function NearbyPage() {
   const mapLayout = showMap && tall;
 
   const stations = result?.stations ?? [];
-  const regionRequired = view.kind === "regions" && view.reason !== "pick";
+  // 기준점이 아직 없으면(처음 연 화면) 고르기 화면을 닫을 수 없다 — 닫으면 빈 로딩만 남는다
+  const regionRequired =
+    view.kind === "regions" && (view.reason !== "pick" || origin == null);
 
   const stationRow = (s: NearbyStation) => (
     <ListRow
@@ -874,7 +882,22 @@ export default function NearbyPage() {
                 </h2>
                 <p>{REGION_TITLE[view.reason]}</p>
               </div>
-              <PlaceSearch autoFocus={view.reason === "pick"} onPick={pickPlace} />
+              {/* 내 위치가 가장 쉬운 길 — 맨 위에 둔다. 권한은 이 버튼을 눌렀을 때 묻는다 */}
+              <div className="nearby-regions__locate">
+                <Button
+                  size="large"
+                  display="full"
+                  loading={locating}
+                  aria-disabled={locating}
+                  onClick={locateMe}
+                >
+                  내 위치로 찾기
+                </Button>
+              </div>
+              <PlaceSearch
+                autoFocus={view.reason === "pick" && !firstRun}
+                onPick={pickPlace}
+              />
               <h3 className="nearby-regions__sub">지역으로 고르기</h3>
               <ul className="nearby-regions__grid">
                 {REGIONS.map((r) => (
@@ -889,18 +912,6 @@ export default function NearbyPage() {
                   </li>
                 ))}
               </ul>
-              <div className="nearby-regions__locate">
-                <Button
-                  size="large"
-                  variant="weak"
-                  display="full"
-                  loading={locating}
-                  aria-disabled={locating}
-                  onClick={locateMe}
-                >
-                  내 위치로 찾기
-                </Button>
-              </div>
             </section>
           )}
 
