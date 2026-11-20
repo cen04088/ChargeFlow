@@ -16,9 +16,19 @@ import config from "../../apps-in-toss.config";
 export const APP_NAME = config.appName;
 
 let anonKeyPromise: Promise<string | null> | null = null;
+/** 식별키를 기다리는 최대 시간. 넘으면 키 없이 요청한다(모든 API 요청이 이 값을 기다리므로 화면이 멈추지 않게) */
+const ANON_KEY_WAIT_MS = 1500;
 
-/** 미니앱 전용 사용자 식별키(hash). 지원하지 않는 환경이면 null */
+/** 미니앱 전용 사용자 식별키(hash). 지원하지 않는 환경이거나 늦으면 null */
 export function getAnonKey(): Promise<string | null> {
+  const key = loadAnonKey();
+  return Promise.race([
+    key,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ANON_KEY_WAIT_MS)),
+  ]);
+}
+
+function loadAnonKey(): Promise<string | null> {
   if (!anonKeyPromise) {
     anonKeyPromise = (async () => {
       try {
