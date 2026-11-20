@@ -12,6 +12,7 @@
     "deploy": "ait deploy"
   },
   "dependencies": {
+    "@apps-in-toss/debugger-client": "https://github.com/toss/apps-in-toss-harness/releases/download/debugger-client-v0.4.2/apps-in-toss-debugger-client-0.4.2.tgz",
     "@apps-in-toss/web-framework": "3.2.0",
     "@emotion/react": "^11.0.0",
     "@toss/tds-colors": "latest",

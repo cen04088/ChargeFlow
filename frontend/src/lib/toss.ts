@@ -16,9 +16,19 @@ import config from "../../apps-in-toss.config";
 export const APP_NAME = config.appName;
 
 let anonKeyPromise: Promise<string | null> | null = null;
+/** 식별키를 기다리는 최대 시간. 넘으면 키 없이 요청한다(모든 API 요청이 이 값을 기다리므로 화면이 멈추지 않게) */
+const ANON_KEY_WAIT_MS = 1500;
 
-/** 미니앱 전용 사용자 식별키(hash). 지원하지 않는 환경이면 null */
+/** 미니앱 전용 사용자 식별키(hash). 지원하지 않는 환경이거나 늦으면 null */
 export function getAnonKey(): Promise<string | null> {
+  const key = loadAnonKey();
+  return Promise.race([
+    key,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ANON_KEY_WAIT_MS)),
+  ]);
+}
+
+function loadAnonKey(): Promise<string | null> {
   if (!anonKeyPromise) {
     anonKeyPromise = (async () => {
       try {
@@ -36,8 +46,12 @@ export type LocationResult =
   | { ok: true; lat: number; lng: number }
   | { ok: false; reason: "denied" | "failed" };
 
-/** 현재 위치를 한 번 가져온다. 권한이 없으면 권한 요청 화면을 띄운다. */
-export async function getLocation(): Promise<LocationResult> {
+/**
+ * 현재 위치를 한 번 가져온다. 권한이 없으면 권한 요청 화면을 띄운다.
+ * prompt가 false면 권한 요청 화면을 띄우지 않고 "denied"로 끝낸다 —
+ * 앱을 열자마자 권한 창이 뜨거나 화면이 위치를 기다리며 멈추지 않게, 자동 조회는 이쪽을 쓴다.
+ */
+export async function getLocation(prompt = true): Promise<LocationResult> {
   const read = async (): Promise<LocationResult> => {
     const loc = await Device.getLocation({ accuracy: Accuracy.Balanced });
     return { ok: true, lat: loc.coords.latitude, lng: loc.coords.longitude };
@@ -50,6 +64,7 @@ export async function getLocation(): Promise<LocationResult> {
       return { ok: false, reason: "failed" };
     }
   }
+  if (!prompt) return { ok: false, reason: "denied" };
 
   try {
     const result = await Device.getLocation.openPermissionDialog();
@@ -92,12 +107,13 @@ export type LocatedWithHeading =
 
 export async function getLocationWithHeading(
   onFirst?: (lat: number, lng: number) => void,
+  prompt = true,
 ): Promise<LocatedWithHeading> {
-  const first = await getLocation();
+  const first = await getLocation(prompt);
   if (!first.ok) return first;
   onFirst?.(first.lat, first.lng);
   await new Promise((r) => setTimeout(r, HEADING_SAMPLE_MS));
-  const second = await getLocation();
+  const second = await getLocation(false);
   if (!second.ok) return { ...first, heading: null };
   const moved = distanceM(first.lat, first.lng, second.lat, second.lng);
   const heading =

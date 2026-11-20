@@ -1562,7 +1562,7 @@ html body {
 }
 
 .nearby-regions__locate {
-  padding-top: 4px;
+  padding-top: 16px;
 }
 
 @media (hover: hover) {

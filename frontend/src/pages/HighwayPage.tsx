@@ -258,6 +258,8 @@ function StartView() {
       const r = await findHighwayStart({
         // 지난번에 본 노선으로 바로 들어가지 않는다 — 위치로 못 정하면 이용자가 직접 고른다
         last: null,
+        // 화면을 열 때는 권한 창을 띄우지 않는다. 권한은 "내 위치로 찾기"를 눌렀을 때 묻는다
+        prompt: false,
         codes,
         signal: c.signal,
       });

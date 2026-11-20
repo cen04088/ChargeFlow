@@ -29,8 +29,10 @@ export function findHighwayStart(input: {
   last: { code: string; dir: Direction } | null;
   codes: string[];
   signal: AbortSignal;
+  /** false면 위치 권한 요청 화면을 띄우지 않는다(화면을 열 때의 자동 조회) */
+  prompt?: boolean;
 }): Promise<FoundStart> {
-  const { last, codes, signal } = input;
+  const { last, codes, signal, prompt = true } = input;
   return new Promise((resolve) => {
     let done = false;
     let firstFix: Point | null = null;
@@ -82,7 +84,7 @@ export function findHighwayStart(input: {
       );
     };
     void locateWithTimeout(
-      () => getLocationWithHeading(onFirst),
+      () => getLocationWithHeading(onFirst, prompt),
       LOCATE_TIMEOUT_MS,
       () => {},
       signal,
